@@ -1,0 +1,142 @@
+@import "tailwindcss";
+@config "../../tailwind.config.ts";
+
+/*
+  Design tokens → Tailwind theme utilities.
+  Prefer utilities (bg-aztec, text-ink-soft, font-display) over ad-hoc CSS vars
+  in components. :root mirrors keep parity with the prototype's CSS custom properties
+  for any residual var(--…) usage during migration.
+*/
+@theme inline {
+  --color-aztec: #0d1d1a;
+  --color-aztec-2: #122b26;
+  --color-aztec-3: #193b34;
+  --color-saffron: #f6c642;
+  --color-saffron-dim: #c99f2f;
+  --color-paper: #fbfaf6;
+  --color-card: #ffffff;
+  --color-ink: #12211d;
+  --color-ink-soft: #5f7069;
+  --color-ink-faint: #93a29b;
+  --color-line: #e6e3d9;
+  --color-good: #2e7d5b;
+  --color-good-bg: #eaf6f0;
+  --color-warning: #c99f2f;
+  --color-warning-bg: #fdf3d8;
+  --color-warning-ink: #8a6a1f;
+  --color-critical: #b5453a;
+  --color-critical-bg: #fbeceb;
+  --color-neutral: #3a4a44;
+  --color-neutral-bg: #eef0ec;
+  --color-cat-meeting: #12915f;
+  --color-cat-project: #c9821f;
+  --color-cat-program: #1f7fa8;
+  --color-cat-task: #c1613f;
+  --color-wa: #25d366;
+
+  --font-display: var(--font-fraunces), ui-serif, Georgia, serif;
+  --font-sans: var(--font-archivo), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-jetbrains-mono), ui-monospace, monospace;
+
+  --shadow-toast: 0 20px 40px rgba(0, 0, 0, 0.3);
+  --shadow-modal: 0 30px 60px rgba(0, 0, 0, 0.3);
+  --shadow-rail: 0 4px 12px rgba(0, 0, 0, 0.3);
+
+  --radius-card: 18px;
+  --radius-rail: 12px;
+
+  --spacing-rail: 76px;
+  --spacing-topbar: 68px;
+  --spacing-content: 1360px;
+}
+
+/* Prototype CSS variable aliases (exact names from source) */
+:root {
+  --aztec: #0d1d1a;
+  --aztec-2: #122b26;
+  --aztec-3: #193b34;
+  --saffron: #f6c642;
+  --saffron-dim: #c99f2f;
+  --paper: #fbfaf6;
+  --card: #ffffff;
+  --ink: #12211d;
+  --ink-soft: #5f7069;
+  --ink-faint: #93a29b;
+  --line: #e6e3d9;
+  --good: #2e7d5b;
+  --good-bg: #eaf6f0;
+  --warning: #c99f2f;
+  --warning-bg: #fdf3d8;
+  --warning-ink: #8a6a1f;
+  --critical: #b5453a;
+  --critical-bg: #fbeceb;
+  --neutral: #3a4a44;
+  --neutral-bg: #eef0ec;
+  --cat-meeting: #12915f;
+  --cat-project: #c9821f;
+  --cat-program: #1f7fa8;
+  --cat-task: #c1613f;
+  --wa: #25d366;
+}
+
+/* Global resets only — component styles live in Tailwind / scoped modules */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: var(--font-archivo), ui-sans-serif, system-ui, sans-serif;
+  background: var(--paper);
+  color: var(--ink);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+::selection {
+  background: rgba(246, 198, 66, 0.4);
+}
+
+a {
+  color: inherit;
+}
+
+button {
+  font-family: inherit;
+}
+
+/* Scrollbar — subtle, paper-adjacent */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--line) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: var(--line);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: var(--ink-faint);
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}

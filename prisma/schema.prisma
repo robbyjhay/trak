@@ -1,0 +1,186 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String   @id
+  name          String
+  username      String   @unique
+  passwordHash  String
+  role          String   // 'head' | 'member'
+  isSecretary   Boolean  @default(false)
+  isCorps       Boolean  @default(false)
+  corpsEnd      String?
+  color         String
+  phone         String   @default("")
+  designation   String   @default("")
+  gradeLevel    String   @default("")
+  sex           String   @default("")
+  stateOfOrigin String   @default("")
+  dateJoined    String   @default("")
+  photoUrl      String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  activitiesCreated   Activity[]         @relation("CreatedBy")
+  activitiesDelegated Activity[]         @relation("DelegatedBy")
+  comments            Comment[]
+  dmsSent             DirectMessage[]    @relation("DmFrom")
+  dmsAsA              DirectMessage[]    @relation("DmParticipantA")
+  dmsAsB              DirectMessage[]    @relation("DmParticipantB")
+  communityMessages   CommunityMessage[]
+  broadcasts          Broadcast[]
+  notifications       Notification[]
+}
+
+model Responsibility {
+  id           String @id
+  code         String @unique
+  name         String
+  description  String
+  deliverables String // JSON stringified array
+
+  activities ActivityResponsibility[]
+}
+
+model Activity {
+  id                 String   @id
+  title              String
+  type               String   // 'Meeting' | 'Project' | 'Program' | 'Task'
+  description        String   @default("")
+  createdById        String
+  delegatedById      String?
+  startDate          String
+  endDate            String
+  startTime          String
+  endTime            String   @default("")
+  location           String   @default("")
+  status             String   @default("pending") // 'pending' | 'completed' | 'missed'
+  initiativeTeamwork String   @default("")
+  challenges         String   @default("")
+  outcomes           String   @default("")
+  nextSteps          String   @default("")
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  createdBy   User @relation("CreatedBy", fields: [createdById], references: [id])
+  delegatedBy User? @relation("DelegatedBy", fields: [delegatedById], references: [id])
+
+  dailyLogs        DailyLog[]
+  comments         Comment[]
+  responsibilities ActivityResponsibility[]
+  notifications    Notification[]
+}
+
+model ActivityResponsibility {
+  activityId       String
+  responsibilityId String
+
+  activity       Activity       @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  responsibility Responsibility @relation(fields: [responsibilityId], references: [id])
+
+  @@id([activityId, responsibilityId])
+}
+
+model DailyLog {
+  id                  String    @id
+  activityId          String
+  date                String
+  objectives          String    @default("")
+  activityDescription String    @default("")
+  transcript          String    @default("")
+  attendanceCount     String    @default("")
+  attendanceNotes     String    @default("")
+  rsvpToken           String?
+  status              String    @default("pending") // 'pending' | 'submitted'
+  submittedAt         DateTime?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  activity    Activity     @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  attendees   Attendee[]
+  attachments Attachment[]
+}
+
+model Attendee {
+  id           String @id @default(cuid())
+  dailyLogId   String
+  name         String
+  phone        String @default("")
+  email        String @default("")
+  source       String // 'unit' | 'manual' | 'link'
+  registeredAt String?
+
+  dailyLog DailyLog @relation(fields: [dailyLogId], references: [id], onDelete: Cascade)
+}
+
+model Attachment {
+  id         String @id @default(cuid())
+  dailyLogId String
+  name       String
+  size       Int
+  type       String
+  url        String
+
+  dailyLog DailyLog @relation(fields: [dailyLogId], references: [id], onDelete: Cascade)
+}
+
+model Comment {
+  id         String   @id
+  activityId String
+  authorId   String
+  text       String
+  createdAt  DateTime @default(now())
+
+  activity Activity @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  author   User     @relation(fields: [authorId], references: [id])
+}
+
+model DirectMessage {
+  id           String   @id
+  participantA String
+  participantB String
+  fromUserId   String
+  text         String
+  createdAt    DateTime @default(now())
+
+  userA User @relation("DmParticipantA", fields: [participantA], references: [id])
+  userB User @relation("DmParticipantB", fields: [participantB], references: [id])
+  from  User @relation("DmFrom", fields: [fromUserId], references: [id])
+}
+
+model CommunityMessage {
+  id         String   @id
+  fromUserId String
+  text       String
+  createdAt  DateTime @default(now())
+
+  from User @relation(fields: [fromUserId], references: [id])
+}
+
+model Broadcast {
+  id         String   @id
+  fromUserId String
+  text       String
+  createdAt  DateTime @default(now())
+
+  from User @relation(fields: [fromUserId], references: [id])
+}
+
+model Notification {
+  id         String   @id
+  userId     String
+  type       String   // 'comment' | 'dm' | 'activity_created' | 'activity_completed' | 'activity_missed' | 'broadcast'
+  text       String
+  activityId String?
+  read       Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  user     User      @relation(fields: [userId], references: [id])
+  activity Activity? @relation(fields: [activityId], references: [id])
+}
