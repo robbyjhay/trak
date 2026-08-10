@@ -10,7 +10,7 @@ export function PrimaryBtn({
     <button
       type="button"
       className={cn(
-        "inline-flex items-center gap-2 rounded-[11px] bg-linear-to-br from-aztec-3 to-aztec px-[26px] py-3.5 text-[13.5px] font-bold text-paper shadow-[0_10px_22px_rgba(13,29,26,0.2)] transition-transform hover:-translate-y-px disabled:cursor-not-allowed disabled:opacity-[0.42] disabled:shadow-none disabled:hover:translate-y-0",
+        "inline-flex items-center gap-2 rounded-[11px] bg-linear-to-br from-aztec-3 to-aztec px-[26px] py-3.5 text-[13.5px] font-bold text-paper shadow-sm transition-transform hover:-translate-y-px disabled:cursor-not-allowed disabled:opacity-[0.42] disabled:shadow-none disabled:hover:translate-y-0",
         className,
       )}
       {...props}

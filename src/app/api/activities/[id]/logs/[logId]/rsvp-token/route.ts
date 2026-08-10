@@ -1,25 +1,24 @@
 import {
   handleServiceError,
   jsonOk,
-  parseJsonBody,
   requireSession,
 } from "@/lib/api/http";
-import { setLogRsvpToken, ServiceError } from "@/lib/db/service";
+import { ensureRsvpToken } from "@/lib/db/service";
 
+/**
+ * Generate (or regenerate) a cryptographic RSVP token for a daily log.
+ * Returns the raw token once; only the hash is stored.
+ */
 export async function POST(
-  req: Request,
+  _req: Request,
   ctx: { params: Promise<{ id: string; logId: string }> },
 ) {
   try {
     const { session, error } = await requireSession();
     if (error) return error;
     const { logId } = await ctx.params;
-    const body = await parseJsonBody<{ token?: string }>(req);
-    if (!body.token) {
-      throw new ServiceError(400, "token is required");
-    }
-    const log = await setLogRsvpToken(session, logId, body.token);
-    return jsonOk({ log });
+    const { log, token } = await ensureRsvpToken(session, logId);
+    return jsonOk({ log, token });
   } catch (err) {
     return handleServiceError(err);
   }

@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { headers } from "next/headers";
 import { Archivo, Fraunces, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 
@@ -49,17 +50,31 @@ export const viewport: Viewport = {
   initialScale: 1,
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  // CSP nonce is attached by middleware (x-trak-nonce) and applied to Next's
+  // inline scripts via the html nonce attribute (AUDIT_08 §Security headers).
+  const h = await headers();
+  const nonce = h.get("x-trak-nonce") ?? undefined;
+
   return (
     <html
       lang="en"
+      nonce={nonce}
       className={`${fraunces.variable} ${archivo.variable} ${jetbrainsMono.variable} h-full`}
     >
-      <body className="min-h-full font-sans antialiased">{children}</body>
+      <body className="min-h-full font-sans antialiased">
+        <a
+          href="#main"
+          className="sr-only focus:not-sr-only focus:absolute focus:top-3 focus:left-3 focus:z-[100] focus:rounded-lg focus:bg-aztec focus:px-4 focus:py-2.5 focus:text-sm focus:font-bold focus:text-saffron"
+        >
+          Skip to content
+        </a>
+        {children}
+      </body>
     </html>
   );
 }

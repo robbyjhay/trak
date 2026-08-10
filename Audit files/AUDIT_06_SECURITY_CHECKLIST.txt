@@ -1,0 +1,280 @@
+================================================================================
+TRAK — PRODUCTION READINESS AUDIT
+DOCUMENT 06: SECURITY CHECKLIST
+================================================================================
+Status codes: [ ] open   [x] done   [~] partial
+
+================================================================================
+1. SECRETS & CONFIGURATION
+================================================================================
+[ ] TRAK_SESSION_SECRET required at boot (min 32 random bytes); no source fallback
+[ ] DATABASE_URL only from environment
+[ ] REDIS_URL only from environment
+[ ] Email API keys only from environment
+[ ] S3 credentials only from environment
+[ ] .env* gitignored
+[ ] .env.example committed with placeholder values (no real secrets)
+[ ] No secrets in client bundles (NEXT_PUBLIC_* must be non-sensitive only)
+[ ] Remove PLAIN_PASSWORD / DLUactsys360 from production code paths
+[ ] Remove hardcoded next.config allowedDevOrigins for production
+[ ] Secret rotation runbook documented
+[ ] Separate secrets per environment (dev/staging/prod)
+
+COMPLETE .env.example KEYS (Phase 0 must generate this file):
+--------------------------------------------------------------------------------
+# Application
+NODE_ENV=production
+APP_URL=https://trak.example.gov.ng
+APP_NAME=Trak
+
+# Database (PostgreSQL)
+DATABASE_URL=postgresql://trak:CHANGE_ME@localhost:5432/trak?schema=public
+
+# Redis (rate limiting, jobs)
+REDIS_URL=redis://localhost:6379
+
+# Session / auth
+TRAK_SESSION_SECRET=GENERATE_32+_BYTE_RANDOM_STRING
+SESSION_TTL_DAYS=7
+BCRYPT_COST=12
+ENABLE_DEV_LOGIN=false
+SEED_DEMO_USERS=false
+
+# Optional JWT (only if used for short-lived signed tokens e.g. RSVP)
+TRAK_JWT_SECRET=GENERATE_32+_BYTE_RANDOM_STRING
+
+# CSRF
+CSRF_SECRET=GENERATE_32+_BYTE_RANDOM_STRING
+
+# Email
+EMAIL_PROVIDER=resend
+RESEND_API_KEY=re_xxxxxxxx
+EMAIL_FROM="Trak DLU <noreply@example.gov.ng>"
+SMTP_HOST=
+SMTP_PORT=587
+SMTP_USER=
+SMTP_PASS=
+
+# Object storage (S3-compatible)
+S3_ENDPOINT=
+S3_REGION=auto
+S3_BUCKET=trak-uploads
+S3_ACCESS_KEY_ID=
+S3_SECRET_ACCESS_KEY=
+S3_PUBLIC_BASE_URL=
+
+# OAuth (not used at launch; reserved)
+OAUTH_GOOGLE_CLIENT_ID=
+OAUTH_GOOGLE_CLIENT_SECRET=
+
+# Analytics
+NEXT_PUBLIC_ANALYTICS_ID=
+ANALYTICS_WRITE_KEY=
+
+# Logging / monitoring
+LOG_LEVEL=info
+SENTRY_DSN=
+SENTRY_ENVIRONMENT=production
+OTEL_EXPORTER_OTLP_ENDPOINT=
+
+# Rate limiting
+RATE_LIMIT_REDIS_PREFIX=trak:rl:
+RATE_LIMIT_LOGIN_MAX=5
+RATE_LIMIT_LOGIN_WINDOW_SEC=900
+
+# Background jobs
+QUEUE_PREFIX=trak:jobs:
+WORKER_CONCURRENCY=5
+
+# Feature flags
+FEATURE_WEBRTC_CALLS=false
+FEATURE_BUDGET_TRACKING=true
+
+# Data paths (legacy; remove after JSON store gone)
+TRAK_DATA_DIR=
+
+================================================================================
+2. AUTHENTICATION & SESSION
+================================================================================
+[ ] Opaque sessions stored hashed server-side
+[ ] httpOnly cookies
+[ ] secure cookies in production
+[ ] sameSite=Lax (or Strict if viable)
+[ ] Session revocation on logout
+[ ] Session revocation on password change/reset
+[ ] Idle / absolute session TTL enforced
+[ ] mustChangePassword enforced; skip disabled in production
+[ ] Password policy min 12 characters
+[ ] bcrypt cost 12
+[ ] Generic login error messages
+[ ] Account lockout or progressive delay after N failures (via rate limit)
+[ ] No password in query strings or logs
+[ ] Dev login endpoints disabled in production
+
+================================================================================
+3. AUTHORIZATION
+================================================================================
+[ ] RBAC checks in every mutating service method
+[ ] No client-supplied role trusted
+[ ] IDOR tests: user A cannot read user B DMs
+[ ] Bootstrap/full-DB snapshot eliminated
+[ ] Head-only routes return 403 for members
+[ ] Public RSVP cannot target arbitrary logs without token
+
+================================================================================
+4. INPUT VALIDATION & INJECTION
+================================================================================
+[ ] Zod (or equivalent) on all API inputs
+[ ] Parameterized queries only (Prisma)
+[ ] No raw SQL with string concat
+[ ] XSS: React text nodes default; escape HTML in report builder
+[ ] No dangerouslySetInnerHTML without sanitizer
+[ ] File upload MIME + size validation
+[ ] Path traversal protection on storage keys
+[ ] Username/email length limits
+
+================================================================================
+5. CSRF / CORS / HEADERS
+================================================================================
+[ ] Origin check on mutating requests
+[ ] CORS deny-by-default (same-origin app)
+[ ] Content-Security-Policy
+[ ] X-Content-Type-Options: nosniff
+[ ] Referrer-Policy: strict-origin-when-cross-origin
+[ ] Permissions-Policy (camera=self for selfie; mic=self for speech)
+[ ] Strict-Transport-Security (production HTTPS)
+[ ] X-Frame-Options: DENY or CSP frame-ancestors 'none'
+
+================================================================================
+6. RATE LIMITING & ABUSE
+================================================================================
+[ ] Login rate limit
+[ ] RSVP rate limit
+[ ] Password reset rate limit
+[ ] Message send rate limit
+[ ] IP-based global API limit
+[ ] CAPTCHA on public RSVP if abuse observed
+
+================================================================================
+7. DATA PROTECTION
+================================================================================
+[ ] Encryption in transit (TLS everywhere)
+[ ] Encryption at rest (managed Postgres + S3)
+[ ] PII minimization in logs
+[ ] Backup encryption
+[ ] Access control for ops (least privilege DB users)
+[ ] Seed data: scrub real personal phones if repo public
+[ ] GDPR/NDPR retention policy documented for government unit data
+
+================================================================================
+8. DEPENDENCIES & SUPPLY CHAIN
+================================================================================
+[ ] npm audit clean or risk-accepted
+[ ] Lockfile committed
+[ ] No postinstall scripts from untrusted packages
+[ ] Dependabot / Renovate enabled
+[ ] Next.js security updates applied promptly
+
+================================================================================
+9. INFRASTRUCTURE
+================================================================================
+[ ] Non-root container user if containerized
+[ ] Secrets via platform secret manager (not env files on disk in prod)
+[ ] Network: DB not public internet
+[ ] Redis not public without auth
+[ ] WAF optional in front of app
+[ ] Regular offsite backups tested restore
+
+================================================================================
+10. APPLICATION-SPECIFIC FIXES (FROM AUDIT_01)
+================================================================================
+[ ] A03 hardcoded session secret removed
+[ ] A04 shared password removed
+[ ] A05 bootstrap leak fixed
+[ ] A06 RSVP token verification
+[ ] A07 rate limiting
+[ ] A08 no plaintext password logs
+[ ] A09 skip password removed in prod
+[ ] A10 secure attachment storage
+[ ] B04 dev-fill gated
+[ ] B06 CSRF/Origin validation
+[ ] B22 UUID primary keys
+[ ] C18 security headers
+
+================================================================================
+11. HARDENED .gitignore REQUIREMENTS
+================================================================================
+Must ignore:
+  node_modules/
+  .next/
+  out/
+  build/
+  coverage/
+  .env
+  .env.local
+  .env.*.local
+  .data/
+  *.pem
+  prisma/dev.db
+  prisma/dev.db-journal
+  .vercel
+  *.tsbuildinfo
+
+Must NOT ignore (preserve docs):
+  AUDIT_*.txt
+  MIGRATION_NOTES.md
+  README.md
+  AGENTS.md
+  .env.example
+  prisma/schema.prisma
+  prisma/migrations/**
+
+Current issue: .gitignore has `.env*` which also ignores `.env.example`.
+Phase 0 MUST fix to:
+  .env
+  .env.local
+  .env.development.local
+  .env.test.local
+  .env.production.local
+  !.env.example
+
+================================================================================
+12. REMOVAL TARGETS (DEAD / DANGEROUS CODE)
+================================================================================
+Phase 0 hygiene may remove or neutralize:
+  - Hardcoded secret string literals
+  - PLAIN_PASSWORD production exports used by createUser
+  - Logging of starterPassword
+  - /api/auth/dev-fill when not ENABLE_DEV_LOGIN
+  - empty components/profile if unused
+  - Fake/sim call claims if product decides remove (Phase later)
+
+Do not delete domain features in Phase 0 unless listed as orphaned.
+Orphaned candidates to verify before rm:
+  - components/profile/ (empty dir)
+  - Any unused public/*.svg if unused
+  - Legacy references after auth rewrite
+
+================================================================================
+13. SECURITY TEST PLAN (PRE-LAUNCH)
+================================================================================
+[ ] Manual: auth bypass attempts on all APIs
+[ ] Manual: IDOR on DMs, notifications, activities
+[ ] Manual: RSVP without token / wrong token
+[ ] Automated: unit tests for password policy and session revoke
+[ ] Automated: e2e login → set password → dashboard
+[ ] OWASP ZAP or similar baseline scan on staging
+[ ] Dependency audit
+[ ] Secrets scan (gitleaks) in CI
+
+================================================================================
+14. INCIDENT RESPONSE (MINIMAL)
+================================================================================
+- Contact: unit Head + technical owner
+- Steps: revoke sessions (truncate sessions table), rotate TRAK_SESSION_SECRET,
+  rotate DB password, force password reset, preserve logs
+- RTO/RPO targets defined by ops
+
+================================================================================
+END AUDIT_06
+================================================================================

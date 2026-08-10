@@ -1,0 +1,157 @@
+================================================================================
+TRAK — PRODUCTION READINESS AUDIT
+DOCUMENT 07: PERFORMANCE AND SCALABILITY
+================================================================================
+
+1. CURRENT PERFORMANCE PROBLEMS
+--------------------------------------------------------------------------------
+P01 Full-database bootstrap
+  Every authenticated client loads entire users + activities + all messages +
+  all notifications via GET /api/bootstrap. Payload grows O(all data).
+  Client polls every 30s; activity detail every 15s.
+  Impact: High bandwidth, high JSON parse cost, poor mobile UX, server load.
+
+P02 JSON file store single mutex
+  withState serializes all writes process-wide; multi-instance impossible.
+  Disk rewrite of entire DB on each mutation.
+
+P03 No pagination
+  Messaging, notifications, activities all unbounded arrays.
+
+P04 No caching layer
+  Status recompute on every bootstrap.
+
+P05 Client-side heavy charts recompute
+  Acceptable for small N; will degrade with years of activities.
+
+P06 Base64 photos in profile / JSON
+  Inflates store and bootstrap payload.
+
+P07 No CDN for static assets beyond Next defaults
+  Acceptable early; configure in production host.
+
+P08 N+1 risk after Prisma if naive includes
+  Must use selective include/select.
+
+2. PERFORMANCE TARGETS (PRODUCTION)
+--------------------------------------------------------------------------------
+Metric                              Target
+----------------------------------  --------------------------------
+TTFB dashboard (p95)                < 800ms (SSR/auth + first API)
+API median latency authenticated    < 200ms
+API p95                             < 800ms
+Bootstrap replacement first paint   < 2s on 4G
+Lighthouse performance mobile       >= 80
+Max API payload list endpoints      paginated 50 default
+Concurrent users (unit scale)       50–200 soft target
+DB connections                      pooled (PgBouncer or Prisma pool)
+
+3. SCALABILITY MODEL
+--------------------------------------------------------------------------------
+Trak is a single-unit internal app (one DLU), not multi-tenant SaaS initially.
+Scale drivers: message history, years of activities, attachment storage.
+
+Architecture for scale:
+  - Stateless Next.js app instances (N)
+  - PostgreSQL primary (+ optional read replica later)
+  - Redis for rate limits + job queue
+  - S3 for blobs
+  - Horizontal web tier behind load balancer
+
+Session storage in PostgreSQL allows multi-instance auth.
+Avoid sticky sessions requirement.
+
+4. REQUIRED OPTIMIZATIONS
+--------------------------------------------------------------------------------
+
+4.1 Replace bootstrap with scoped endpoints (Phase 1) [CRITICAL]
+  GET /api/v1/me
+  GET /api/v1/activities?scope=mine|unit&cursor=
+  GET /api/v1/notifications?cursor=
+  GET /api/v1/messages/dms/:peerId?cursor=
+  GET /api/v1/messages/community?cursor=
+  Initial load: parallel fetch critical resources only
+
+4.2 Pagination cursors everywhere (Phase 1) [HIGH]
+  Default limit 30–50; max 100
+  Cursor based on (createdAt, id)
+
+4.3 Conditional requests / ETags (Phase 2) [MEDIUM]
+  If-None-Match for notification counts and message heads
+
+4.4 Realtime optional (Phase 2–4) [MEDIUM]
+  SSE or WebSocket for notifications/messages to kill 30s full poll
+  Until then: poll lightweight /api/v1/notifications/unread-count every 60s
+
+4.5 Database indexes (Phase 0–1) [CRITICAL]
+  As specified in AUDIT_04
+
+4.6 Connection pooling [HIGH]
+  Use Prisma connection_limit and host pooler
+
+4.7 Caching [MEDIUM]
+  Redis cache for responsibilities list (rarely changes)
+  Cache user profile public fields briefly
+
+4.8 Background status recompute [MEDIUM]
+  Cron job marks missed activities; remove full scan on every request
+
+4.9 Image pipeline [HIGH]
+  Resize avatars server-side or on upload; WebP; store multiple sizes
+
+4.10 Code splitting [LOW]
+  Dynamic import ReportPreview, speech hooks, call panel
+
+4.11 React performance [LOW]
+  Avoid full TrakStore version bump re-rendering entire tree;
+  split contexts (auth, data domains)
+
+5. CAPACITY PLANNING (INITIAL)
+--------------------------------------------------------------------------------
+Assumptions: ~15–40 users, ~20 activities/week, messaging moderate
+
+DB size year 1: < 5 GB without large media
+Object storage: dominates if many PDFs/photos
+Redis: < 256 MB
+
+Vertical: 2 vCPU / 2 GB app; managed Postgres 2 vCPU start
+
+6. LOAD TESTING PLAN
+--------------------------------------------------------------------------------
+Tools: k6 or artillery against staging
+Scenarios:
+  - Login storm 20 users
+  - Concurrent daily log submit
+  - Head dashboard load
+  - RSVP burst 100 submissions / minute on one token (should rate limit)
+
+Success: error rate < 1%, p95 within targets, no data corruption
+
+7. OBSERVABILITY FOR PERFORMANCE
+--------------------------------------------------------------------------------
+- Request duration histograms
+- DB query duration
+- Redis hit/miss
+- Payload size metrics
+- Web vitals (optional Next analytics)
+
+8. PHASE MAPPING
+--------------------------------------------------------------------------------
+Phase 0: indexes on auth tables; env for Redis; no full bootstrap rewrite required
+         yet BUT do not add more full-snapshot endpoints
+Phase 1: kill bootstrap; pagination; Postgres domain
+Phase 2: lightweight poll / SSE
+Phase 3: media optimization
+Phase 4: load test + tuning
+
+9. ANTI-PATTERNS TO AVOID
+--------------------------------------------------------------------------------
+- Returning entire message history on login
+- Storing files in Postgres bytea for large evidence
+- Synchronous email send on request path (use queue)
+- Unbounded in-memory rate limit maps in multi-instance prod
+- SELECT * with deep nested includes for lists
+
+================================================================================
+END AUDIT_07
+================================================================================

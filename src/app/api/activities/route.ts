@@ -4,16 +4,39 @@ import {
   parseJsonBody,
   requireSession,
 } from "@/lib/api/http";
-import { createActivity, ServiceError } from "@/lib/db/service";
-import { getSnapshot } from "@/lib/db/store";
+import {
+  createActivity,
+  listActivitiesForSession,
+  ServiceError,
+  getActivityLogs,
+  myNotifications,
+} from "@/lib/db/service";
+import { parsePagination, pageMeta } from "@/lib/api/pagination";
 import type { ActivityType, CreateActivityInput } from "@/lib/types";
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
-    const { error } = await requireSession();
+    const { session, error } = await requireSession();
     if (error) return error;
-    const snap = await getSnapshot();
-    return jsonOk({ activities: snap.db.activities, dailyLogs: snap.db.dailyLogs });
+
+    const url = new URL(req.url);
+    const { page, limit } = parsePagination(url.searchParams);
+    const { activities, total } = await listActivitiesForSession(session, {
+      page,
+      limit,
+    });
+
+    // Include logs only for this page of activities (scoped).
+    const logsNested = await Promise.all(
+      activities.map((a) => getActivityLogs(session, a.id)),
+    );
+    const dailyLogs = logsNested.flat();
+
+    return jsonOk({
+      activities,
+      dailyLogs,
+      meta: pageMeta(total, page, limit),
+    });
   } catch (err) {
     return handleServiceError(err);
   }
@@ -36,6 +59,8 @@ export async function POST(req: Request) {
       endTime?: string;
       responsibilityIds?: string[];
       location?: string;
+      hasBudget?: boolean;
+      estimatedAmountNgn?: number | null;
     }>(req);
 
     if (!body.title?.trim()) {
@@ -60,15 +85,18 @@ export async function POST(req: Request) {
       endTime: body.endTime,
       responsibilityIds: body.responsibilityIds || [],
       location: body.location,
+      hasBudget: body.hasBudget,
+      estimatedAmountNgn: body.estimatedAmountNgn,
     };
 
     const activity = await createActivity(session, input);
-    const snap = await getSnapshot();
+    const dailyLogs = await getActivityLogs(session, activity.id);
+    const notifications = await myNotifications(session);
+
     return jsonOk({
       activity,
-      // Include related daily logs created for this activity
-      dailyLogs: snap.db.dailyLogs.filter((l) => l.activityId === activity.id),
-      notifications: snap.db.notifications,
+      dailyLogs,
+      notifications,
     });
   } catch (err) {
     return handleServiceError(err);

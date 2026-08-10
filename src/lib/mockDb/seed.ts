@@ -365,6 +365,25 @@ export function seedDb(now: Date): { db: TrakDb; users: User[] } {
     },
   );
 
+  db.calls.push(
+    {
+      id: uid("cl"),
+      a: "benson",
+      b: HEAD_USER_ID,
+      from: HEAD_USER_ID,
+      durationSec: 84,
+      at: "Mon 9:11 AM",
+    },
+    {
+      id: uid("cl"),
+      a: "benson",
+      b: HEAD_USER_ID,
+      from: "benson",
+      durationSec: 205,
+      at: "Fri",
+    },
+  );
+
   db.community.push(
     {
       id: uid("cc"),

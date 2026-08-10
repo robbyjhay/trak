@@ -1,4 +1,3 @@
-export { RESPONSIBILITIES, RESP } from "./responsibilities";
 export { SEED_USERS, DEV_ROSTER } from "./users";
 export {
   uid,
@@ -11,5 +10,9 @@ export {
   recomputeStatus,
   activitiesFor,
   bucket,
+  allVisibleActivities,
+  toggleActivityHidden,
+  softDeleteActivity,
+  deactivateResponsibility,
 } from "./mutations";
 export { seedDb } from "./seed";

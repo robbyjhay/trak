@@ -60,7 +60,7 @@ export function Topbar() {
 
   return (
     <header className="sticky top-0 z-40 flex h-topbar shrink-0 items-center justify-between gap-4 border-b border-line bg-card px-[18px] sm:px-[34px] relative">
-      <div className="crumb min-w-0 truncate text-[13px] text-ink-faint">
+      <div className="crumb min-w-0 truncate text-[13px] text-ink-soft">
         Digital Learning Unit &nbsp;/&nbsp;{" "}
         <b className="font-bold text-ink" id="crumbLabel">
           {crumb}
@@ -78,7 +78,7 @@ export function Topbar() {
         <div className="relative" ref={notifRef}>
           <button
             type="button"
-            className="relative cursor-pointer text-ink-soft"
+            className="relative flex h-9 w-9 cursor-pointer items-center justify-center rounded-full text-ink-soft transition-colors hover:bg-neutral-bg focus-visible:ring-2 focus-visible:ring-saffron focus-visible:outline-none"
             aria-label={`${unread} unread notifications`}
             onClick={(e) => {
               e.stopPropagation();
@@ -90,7 +90,7 @@ export function Topbar() {
               <path d={PATHS.bell} />
             </svg>
             {unread > 0 && (
-              <span className="absolute -top-2 -right-2.5 flex h-4 min-w-4 items-center justify-center rounded-full border-[1.5px] border-white bg-critical px-1 font-sans text-[9.5px] font-extrabold text-white">
+              <span className="absolute top-0 right-0 flex h-4 min-w-4 -translate-y-1/4 translate-x-1/4 items-center justify-center rounded-full bg-critical px-1 font-sans text-[9.5px] font-extrabold text-white ring-2 ring-white">
                 {unread > 9 ? "9+" : unread}
               </span>
             )}
@@ -155,7 +155,8 @@ export function Topbar() {
         </div>
 
         {/* User chip */}
-        <div className="relative" ref={chipRef}>
+        <div className="relative ml-[18px] pl-[18px]" ref={chipRef}>
+          <div className="absolute top-1/2 left-0 h-6 w-px -translate-y-1/2 bg-line" />
           <button
             type="button"
             className="flex cursor-pointer items-center gap-2.5"
@@ -194,7 +195,7 @@ export function Topbar() {
 
           {menuOpen && (
             <div
-              className="absolute top-12 right-0 z-60 w-[170px] rounded-xl border border-line bg-white p-1.5 shadow-[0_14px_30px_rgba(0,0,0,0.15)]"
+              className="absolute top-12 right-0 z-60 w-[170px] rounded-xl border border-line bg-white p-1.5 shadow-md"
               role="menu"
             >
               <MenuBtn

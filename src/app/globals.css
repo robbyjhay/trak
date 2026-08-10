@@ -12,7 +12,7 @@
   --color-aztec-2: #122b26;
   --color-aztec-3: #193b34;
   --color-saffron: #f6c642;
-  --color-saffron-dim: #c99f2f;
+  --color-saffron-dim: #8a6a1f;
   --color-paper: #fbfaf6;
   --color-card: #ffffff;
   --color-ink: #12211d;
@@ -41,6 +41,7 @@
   --shadow-toast: 0 20px 40px rgba(0, 0, 0, 0.3);
   --shadow-modal: 0 30px 60px rgba(0, 0, 0, 0.3);
   --shadow-rail: 0 4px 12px rgba(0, 0, 0, 0.3);
+  --shadow-card: 0 1px 3px rgba(13, 29, 26, 0.04), 0 12px 28px -14px rgba(13, 29, 26, 0.14);
 
   --radius-card: 18px;
   --radius-rail: 12px;
@@ -56,7 +57,7 @@
   --aztec-2: #122b26;
   --aztec-3: #193b34;
   --saffron: #f6c642;
-  --saffron-dim: #c99f2f;
+  --saffron-dim: #8a6a1f;
   --paper: #fbfaf6;
   --card: #ffffff;
   --ink: #12211d;

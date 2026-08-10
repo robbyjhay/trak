@@ -1,0 +1,425 @@
+================================================================================
+TRAK — PRODUCTION READINESS AUDIT
+DOCUMENT 01: ISSUES AND FINDINGS
+================================================================================
+Priority legend:
+  CRITICAL — Blocks production; security/data integrity risk
+  HIGH     — Must fix before launch
+  MEDIUM   — Should fix before or immediately after launch
+  LOW      — Polish / nice-to-have
+================================================================================
+
+A. CRITICAL ISSUES
+--------------------------------------------------------------------------------
+
+A01 [CRITICAL] Runtime persistence is JSON file, not a database
+  Location: src/lib/db/store.ts (.data/trak-db.json)
+  Detail: Entire application state is a single JSON document with a process-
+    level mutex. Multi-instance deploy (Vercel serverless, multiple Node
+    processes) will corrupt or lose data. No ACID transactions across entities.
+  Impact: Data loss, race conditions, cannot scale.
+  Fix: PostgreSQL via Prisma (see AUDIT_04). Phase 0 starts user/session tables.
+
+A02 [CRITICAL] Prisma schema unused and divergent
+  Location: prisma/schema.prisma vs src/lib/types.ts + store
+  Detail: Schema has SQLite provider; app never imports generated client for
+    CRUD. Missing from schema vs runtime: CallRecord, credentials.mustChangePassword,
+    User.email, budget fields, activity.hidden, message replyTo/mentions, invoice
+    attachments, user preferences.
+  Impact: False sense of DB readiness; migration will be painful if deferred.
+  Fix: Redesign schema per AUDIT_04; migrate off JSON.
+
+A03 [CRITICAL] Hardcoded session secret fallback
+  Location: src/middleware.ts, src/lib/auth/session.ts
+  Detail: process.env.TRAK_SESSION_SECRET || "trak-dev-secret-change-me-in-production-32b"
+  Impact: Anyone knowing the fallback can forge JWTs if env is unset in prod.
+  Fix: Require TRAK_SESSION_SECRET (min 32 bytes) at boot; refuse to start if missing.
+
+A04 [CRITICAL] Shared prototype password for all accounts
+  Location: src/lib/auth/password.ts PLAIN_PASSWORD = "DLUactsys360"
+  Detail: All seed users and head-created members get the same starter password.
+    Password is returned to Head in API response and logged to console.
+  Impact: Credential stuffing / insider threat trivial.
+  Fix: Generate unique cryptographically random temporary passwords OR invite
+    links with one-time tokens; never log plaintext; force change without skip
+    in production (see AUDIT_05).
+
+A05 [CRITICAL] Bootstrap returns entire multi-user dataset
+  Location: src/app/api/bootstrap/route.ts, getSnapshot()
+  Detail: Any authenticated user receives all users, all DMs (including
+    conversations they are not party to), all notifications for everyone,
+    all activities, all comments, all calls, all community messages.
+  Impact: Severe privacy/confidentiality breach between colleagues.
+  Fix: Scope responses by principal; DMs only if participant; notifications only
+    for session user; activities per RBAC rules.
+
+A06 [CRITICAL] Public RSVP lacks cryptographic token validation
+  Location: src/app/api/rsvp/route.ts, addRsvpAttendee(logId)
+  Detail: Client sends logId from base64url payload in URL. Server does not
+    verify log.rsvpToken matches a secret token. logIds may be predictable
+    (log_1001 style sequential IDs).
+  Impact: Attendance spoofing / spam injection.
+  Fix: Require signed token or opaque high-entropy rsvpToken; match on server;
+    rate limit; optional CAPTCHA for public form.
+
+A07 [CRITICAL] No rate limiting
+  Location: All API routes; loginAction; /api/rsvp; /api/auth/login
+  Detail: Unlimited password attempts; unlimited RSVP posts; unlimited message
+    sends; bootstrap poll every 30s × N users.
+  Impact: Brute force, DoS, spam.
+  Fix: Redis-backed rate limits (see AUDIT_03, AUDIT_06).
+
+A08 [CRITICAL] Starter password logged in plaintext
+  Location: src/lib/db/service.ts createUser console.info
+  Detail: Logs: starter password "DLUactsys360" with username.
+  Impact: Log aggregation systems store secrets permanently.
+  Fix: Never log secrets; log only userId + username.
+
+A09 [CRITICAL] Skip password change allowed
+  Location: skipPasswordChangeAction, SetPasswordForm "Skip for now"
+  Detail: mustChangePassword can be cleared without changing password.
+  Impact: Shared default password remains in use indefinitely.
+  Fix: Production must disable skip; only temporary grace period with audit trail
+    if policy requires, default OFF.
+
+A10 [CRITICAL] Attachments not securely stored
+  Location: ActivityDetail attachment handling; Attachment type {url}
+  Detail: No object storage; likely data URLs or ephemeral client blobs; no
+    size/type validation server-side; no virus scan.
+  Impact: Storage bloat, XSS via content-type confusion, data loss on refresh
+    if not persisted correctly.
+  Fix: S3-compatible storage with signed URLs; MIME allowlist; size caps.
+
+B. HIGH ISSUES
+--------------------------------------------------------------------------------
+
+B01 [HIGH] No user email field
+  Location: User type, seed users, Prisma User model
+  Detail: Cannot send password reset, invites, or email digests. Report email
+    column for unit attendees empty by design for roster users.
+  Fix: Add email (unique, optional until verified) per AUDIT_04/05.
+
+B02 [HIGH] JWT session is self-contained without server-side revocation list
+  Location: createSessionToken / readSession
+  Detail: 7-day JWT; logout only clears cookie; stolen JWT valid until expiry;
+    role changes not reflected until re-login.
+  Fix: Opaque session tokens stored in sessions table (Phase 0); revoke on logout.
+
+B03 [HIGH] Password policy too weak
+  Location: setNewPasswordAction minLength 6
+  Detail: 6 chars insufficient for government systems.
+  Fix: Min 10–12 chars; complexity or zxcvbn; block common passwords list.
+
+B04 [HIGH] Dev credential fill endpoint
+  Location: /api/auth/dev-fill returns plaintext password
+  Detail: Gated by NODE_ENV !== production, but dangerous if NODE_ENV mis-set.
+  Fix: Gate on explicit ENABLE_DEV_LOGIN=true AND non-production; remove from
+    production builds entirely.
+
+B05 [HIGH] Login quick-select roster exposes all users
+  Location: login page + DEV_ROSTER
+  Detail: Lists unit members for one-click fill in development.
+  Fix: Never show roster in production.
+
+B06 [HIGH] No CSRF protection on cookie-authenticated mutating requests
+  Location: apiSend uses cookie credentials; sameSite=lax only
+  Detail: State-changing APIs accept cookie auth without CSRF token.
+  Fix: SameSite=lax + Origin/Referer checks + double-submit CSRF for forms, or
+    use same-origin only with strict Origin validation middleware.
+
+B07 [HIGH] No authorization on activity read by ID at API layer for all users
+  Location: getActivity, bootstrap, activity pages
+  Detail: Members can load other users' activity details via shared bootstrap
+    (and possibly direct routes). Product intent: Head sees unit; members see
+    own + delegated. Read-only view for Head on others' pending is intentional;
+    full DB dump is not.
+  Fix: API-level filters; never send foreign private draft content unnecessarily.
+
+B08 [HIGH] Message HTML escaping incomplete (product risk carried from prototype)
+  Location: Messaging.tsx rendering of DM/community/broadcast text
+  Detail: Changelog notes community chat was fixed in prototype; Next port may
+    still render raw text safely via React (text nodes) — VERIFY every place that
+    uses dangerouslySetInnerHTML or builds HTML strings for reports.
+  Fix: Audit all report HTML builders for XSS; escape user content.
+
+B09 [HIGH] Calls are simulated only
+  Location: CallContext, CallPanel, recordCall
+  Detail: UI shows ringing/timer; no WebRTC/media; mute/speaker are local UI state.
+  Impact: Users believe real calling exists.
+  Fix: Label as "Call log (simulated)" OR integrate real WebRTC (later phase).
+    For production: either remove or implement properly with TURN servers.
+
+B10 [HIGH] Settings page is a stub
+  Location: src/app/(app)/(shell)/settings/page.tsx
+  Detail: "later phase" copy only.
+  Fix: Implement notification prefs, security (change password), session list.
+
+B11 [HIGH] Head greeting hardcoded "Good day, Babajide"
+  Location: HeadDashboard.tsx
+  Detail: Not derived from session user name.
+  Fix: Use firstName(sessionUser.name) + time-of-day greeting.
+
+B12 [HIGH] Personnel Active KPI hardcoded users.length/users.length
+  Location: HeadDashboard AccountingOfficer KPIs
+  Detail: Always 100%.
+  Fix: Define "active" (logged in last 30d OR has activity this month) and compute.
+
+B13 [HIGH] Budget / cost tracking from v3 not ported
+  Location: types Activity/DailyLog; new-activity; ActivityDetail; buildReport
+  Detail: Changelog documents end-to-end budget; current types/forms lack hasBudget,
+    estimatedAmount, amountReleased, amountSpent, spendingItems, invoice files.
+  Fix: Phase 3 domain work per AUDIT_02 and AUDIT_04.
+
+B14 [HIGH] Hide/unhide unit activities not ported
+  Location: Head unit feed
+  Detail: Prototype toggleActivityHidden missing.
+  Fix: activity.hidden boolean + Head UI.
+
+B15 [HIGH] @Mentions and reply in community chat not ported
+  Location: Messaging community path
+  Detail: No mention picker, no replyTo, no mention notifications.
+  Fix: Phase 2 messaging enhancements.
+
+B16 [HIGH] Broadcast deep-link / notification param incomplete
+  Location: notifications → messaging
+  Detail: Prototype deep-linked DM/broadcast/mention; verify Next port.
+  Fix: Notification.metadata JSON with deep link targets.
+
+B17 [HIGH] No automated tests
+  Location: package.json scripts — only dev/build/start/lint
+  Detail: Zero test framework.
+  Fix: Vitest + Playwright; auth and RBAC tests mandatory before launch.
+
+B18 [HIGH] No structured logging / request IDs
+  Location: console.error / console.info only
+  Detail: Cannot debug production incidents.
+  Fix: pino/winston structured logs; redact PII.
+
+B19 [HIGH] No health/readiness endpoints
+  Detail: Load balancers cannot check DB connectivity.
+  Fix: GET /api/health (liveness), GET /api/ready (DB + Redis).
+
+B20 [HIGH] .env.example missing; .env only has DATABASE_URL file:./dev.db
+  Location: .env, .gitignore ignores .env*
+  Fix: Complete .env.example per AUDIT_06/08; document secrets rotation.
+
+B21 [HIGH] Middleware allows all /api/auth/* public including future routes
+  Location: PUBLIC_API /api/auth
+  Detail: Any new route under /api/auth is public by prefix.
+  Fix: Explicit allowlist of public paths.
+
+B22 [HIGH] Sequential predictable IDs
+  Location: nextUid prefix_number (usr_1001, act_1002)
+  Detail: Easy to enumerate resources.
+  Fix: UUIDv7 or ULID for all PKs.
+
+B23 [HIGH] Photo upload via selfie is data URL in profile
+  Location: profile page, useSelfieCapture, photoUrl
+  Detail: Large base64 strings in JSON DB; no compression pipeline.
+  Fix: Upload to object storage; store key only.
+
+B24 [HIGH] No multi-device session management
+  Detail: Users cannot see/revoke other sessions.
+  Fix: sessions table + Settings UI.
+
+B25 [HIGH] RSVP URL payload is unsigned base64 JSON
+  Location: toBase64Url / rsvp/[encoded]
+  Detail: Client can forge title/date/owner display; only logId matters for write.
+  Fix: Signed opaque token; server loads activity title/date for display.
+
+C. MEDIUM ISSUES
+--------------------------------------------------------------------------------
+
+C01 [MEDIUM] Post-login redirect to /profile instead of /dashboard
+  Location: loginAction redirect("/profile")
+  Detail: Prototype deliberate asymmetry; may confuse users.
+  Fix: Product decision — default /dashboard; optional first-login tour.
+
+C02 [MEDIUM] Soft poll every 30s (bootstrap) and 15s on activity detail
+  Location: TrakStore, ActivityDetail
+  Detail: Wasteful full snapshot; battery/network cost.
+  Fix: ETag/conditional GET or WebSocket/SSE for deltas.
+
+C03 [MEDIUM] DM timestamps stored as "Just now" string
+  Location: sendDm at: "Just now"
+  Detail: Not a real timestamp; sort/order fragile (uid suffix sorting).
+  Fix: ISO timestamps only; format relative on client.
+
+C04 [MEDIUM] No offline / network error UX beyond loadError string
+  Detail: Background poll failures ignored; mutations may fail silently in places.
+  Fix: Global online/offline banner; mutation error toasts everywhere.
+
+C05 [MEDIUM] Empty states incomplete on several lists
+  Detail: Search conversations input has no backend; empty search results N/A.
+  Fix: Empty/loading/error per AUDIT_02 matrix.
+
+C06 [MEDIUM] Accessibility gaps
+  Detail: Many icon buttons lack labels; modal focus trap incomplete; color contrast
+    of faint text may fail WCAG AA; no skip-to-content link.
+  Fix: Full a11y pass Phase 4.
+
+C07 [MEDIUM] Mobile UX partial
+  Detail: MobileNav exists; some desktop-first layouts; long forms on small screens.
+  Fix: Responsive QA on 360–414px widths.
+
+C08 [MEDIUM] Report generation is client/server HTML without signed export history
+  Location: buildReport, ReportPreview
+  Detail: No audit trail of generated reports; Word compatibility table fix exists
+    in prototype notes — verify Next port.
+  Fix: Persist report_exports optional; escape all fields.
+
+C09 [MEDIUM] No delete activity / soft-delete
+  Detail: Cannot remove mistaken activities; only status transitions.
+  Fix: soft_deleted_at + Head-only purge.
+
+C10 [MEDIUM] Responsibilities cannot be deleted
+  Detail: create/update only.
+  Fix: Soft delete if unused; block delete if linked to activities.
+
+C11 [MEDIUM] No audit log for admin actions
+  Detail: Member create, wipe community, profile edits not audited.
+  Fix: audit_events table.
+
+C12 [MEDIUM] Corps end date handling incomplete
+  Detail: corpsEnd can be empty string; no expiry workflow.
+  Fix: Validate dates; alert Head when corps ending.
+
+C13 [MEDIUM] Notifications lack type coverage for mentions
+  Detail: NotifType union missing mention (if implementing mentions).
+  Fix: Extend enum.
+
+C14 [MEDIUM] No i18n
+  Detail: English only; government unit may need Yoruba later — optional.
+  Fix: Low priority unless required.
+
+C15 [MEDIUM] README is create-next-app boilerplate
+  Fix: Replace with DLU Trak runbook, architecture, env setup.
+
+C16 [MEDIUM] package.json version 0.1.0; no engines field
+  Fix: engines node >= 20; lock CI node version.
+
+C17 [MEDIUM] allowedDevOrigins hardcodes IP in next.config.ts
+  Location: allowedDevOrigins: ['10.18.161.231']
+  Fix: Dev-only env-driven; remove for production builds.
+
+C18 [MEDIUM] No content-security-policy headers
+  Fix: next.config headers for CSP, HSTS, X-Frame-Options, etc.
+
+C19 [MEDIUM] Credentials backfill sets mustChangePassword true for all missing
+  Location: store.ts loadFromDisk
+  Detail: Surprising re-prompt on legacy data loads.
+  Fix: Explicit migration scripts only.
+
+C20 [MEDIUM] Community wipe is hard delete without confirmation audit
+  Location: wipeCommunity
+  Detail: Modal exists; no server-side retention.
+  Fix: Soft archive + Head confirmation phrase.
+
+D. LOW ISSUES / TECH DEBT
+--------------------------------------------------------------------------------
+
+D01 [LOW] empty profile/ directory under components
+D02 [LOW] SAMPLE_TRANSCRIPT constant may encourage demo-only behavior
+D03 [LOW] Duplicate login paths (server action + POST /api/auth/login)
+D04 [LOW] Inconsistent date storage as strings vs DateTime
+D05 [LOW] TypeScript types use string unions instead of Prisma enums at runtime
+D06 [LOW] TrakStore version bump pattern is re-render hacky
+D07 [LOW] No Storybook / design system documentation
+D08 [LOW] Seed data contains real-looking personal phone numbers
+  Risk: Treat seed as synthetic; scrub PII for public repos
+D09 [LOW] favicon only; missing apple-touch-icon / PWA manifest
+D10 [LOW] No robots.txt / security.txt
+D11 [LOW] eslint only; no prettier config enforced
+D12 [LOW] No dependency vulnerability scanning in CI (npm audit)
+D13 [LOW] HEAD_USER_ID constant "babajide" couples code to seed person
+  Fix: role-based isHead checks only; multi-head future-proof
+D14 [LOW] Accounting Officer tab label still used in HeadDashboard UI
+  Changelog wanted "Admin Portal" — verify copy consistency
+D15 [LOW] No feature flags system
+
+E. CODE QUALITY FINDINGS
+--------------------------------------------------------------------------------
+
+E01 Service layer correctly uses ServiceError + permissions helpers — keep pattern.
+E02 server-only imports on auth/db modules — good; maintain boundary.
+E03 Client api client lacks timeout/abort and retry policy.
+E04 Mutations optimistic updates inconsistent (some refresh full snapshot).
+E05 Error messages sometimes generic "Unauthorized" without correlation IDs.
+E06 No request validation library (zod) — ad-hoc field checks only.
+E07 No OpenAPI/schema documentation for APIs.
+E08 Prisma generator present but no adapter for Prisma 7 production driver
+    requirements (see prisma-upgrade skills if upgrading further).
+
+F. SECURITY FINDINGS SUMMARY (SEE ALSO AUDIT_06)
+--------------------------------------------------------------------------------
+- Secrets in source defaults
+- Shared passwords
+- Full DB disclosure via bootstrap
+- Public RSVP forgery
+- No rate limits
+- Weak password policy
+- Skip forced password change
+- Possible XSS in report HTML (verify)
+- No CSP
+- Dev endpoints
+- Predictable IDs
+- Session non-revocable JWT
+- Console secret logging
+- .env not exemplified; DATABASE_URL points at unused SQLite file
+
+G. FILE / ROUTE INVENTORY (FOR REGRESSION TRACKING)
+--------------------------------------------------------------------------------
+Pages:
+  /                          redirect
+  /login                     LoginForm + optional dev roster
+  /set-password              forced password change
+  /rsvp/[encoded]            public attendance
+  /dashboard                 HeadDashboard | MemberDashboard
+  /activities                person activities for self
+  /activity/[id]             ActivityDetail
+  /new-activity              create form (no budget yet)
+  /profile                   profile + selfie
+  /responsibilities          list + manage (Head)
+  /settings                  STUB
+  /member/[id]               person activities for member (Head)
+  /messages                  Messaging
+  /contacts                  contacts view of Messaging
+
+APIs:
+  POST /api/auth/login
+  POST /api/auth/logout
+  GET  /api/auth/dev-fill          DEV ONLY
+  GET  /api/bootstrap              FULL SNAPSHOT — CRITICAL
+  GET|POST /api/activities
+  GET|PATCH /api/activities/[id]
+  POST /api/activities/[id]/comments
+  POST /api/activities/[id]/logs
+  POST /api/activities/[id]/logs/[logId]/rsvp-token
+  GET|POST /api/users
+  PATCH /api/users/[id]
+  GET|POST /api/responsibilities
+  PATCH /api/responsibilities/[id]
+  GET|POST /api/messages/dms
+  GET|POST /api/messages/community
+  DELETE? wipe via community route
+  GET|POST /api/messages/broadcasts
+  POST /api/messages/calls
+  GET|PATCH /api/notifications
+  GET /api/reports/[id]
+  POST /api/rsvp                   PUBLIC
+
+H. RECOMMENDED FIX ORDER (WITHIN PRE-LAUNCH)
+--------------------------------------------------------------------------------
+1. Phase 0 foundation (auth + users tables + secrets + hygiene)
+2. Kill bootstrap data leak (scoped APIs) — can be early Phase 1
+3. PostgreSQL domain migration
+4. RSVP token hardening + rate limits
+5. Password policy + no skip + unique invites
+6. Feature parity (budget, hide, mentions)
+7. Settings + email password reset
+8. Tests + monitoring + CSP + hardening
+9. UAT + launch
+
+================================================================================
+END AUDIT_01
+================================================================================

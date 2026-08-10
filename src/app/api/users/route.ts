@@ -11,8 +11,8 @@ export async function POST(req: Request) {
     const { session, error } = await requireSession();
     if (error) return error;
     const body = await parseJsonBody<NewUserInput>(req);
-    const user = await createUser(session, body);
-    return jsonOk({ user });
+    const { user, credentials } = await createUser(session, body);
+    return jsonOk({ user, credentials });
   } catch (err) {
     return handleServiceError(err);
   }

@@ -5,6 +5,7 @@ import type {
   DailyLog,
   Notification,
   NotifType,
+  Responsibility,
   SubmitDailyLogData,
   TrakDb,
   WrapupData,
@@ -25,6 +26,7 @@ export function createEmptyDb(): TrakDb {
     dailyLogs: [],
     comments: [],
     dms: [],
+    calls: [],
     community: [],
     broadcasts: [],
     notifications: [],
@@ -71,6 +73,10 @@ export function createActivity(
     challenges: "",
     outcomes: "",
     nextSteps: "",
+    hasBudget: input.hasBudget ?? false,
+    estimatedAmountNgn: input.estimatedAmountNgn ?? null,
+    hidden: false,
+    softDeletedAt: null,
   };
   db.activities.push(act);
   const nDays = daysBetween(input.startDate, input.endDate) + 1;
@@ -89,6 +95,9 @@ export function createActivity(
       attachments: [],
       status: "pending",
       submittedAt: null,
+      amountReleasedNgn: null,
+      amountSpentNgn: null,
+      spendingItems: [],
     };
     db.dailyLogs.push(log);
   }
@@ -107,7 +116,17 @@ export function submitDailyLog(
     (l) => l.activityId === activityId && l.date === date,
   );
   if (!log) return;
-  Object.assign(log, data, {
+  Object.assign(log, {
+    objectives: data.objectives,
+    activityDescription: data.activityDescription,
+    transcript: data.transcript,
+    attendanceCount: data.attendanceCount,
+    attendanceNotes: data.attendanceNotes,
+    attendees: data.attendees,
+    attachments: data.attachments,
+    amountReleasedNgn: data.amountReleasedNgn ?? null,
+    amountSpentNgn: data.amountSpentNgn ?? null,
+    spendingItems: data.spendingItems ?? [],
     status: "submitted" as const,
     submittedAt: iso(now),
   });
@@ -149,7 +168,9 @@ export function pushNotification(
 }
 
 export function activitiesFor(db: TrakDb, userId: string): Activity[] {
-  return db.activities.filter((a) => a.createdBy === userId);
+  return db.activities.filter(
+    (a) => a.createdBy === userId && !a.softDeletedAt,
+  );
 }
 
 export function bucket(db: TrakDb, userId: string) {
@@ -159,4 +180,39 @@ export function bucket(db: TrakDb, userId: string) {
     completed: acts.filter((a) => a.status === "completed"),
     missed: acts.filter((a) => a.status === "missed"),
   };
+}
+
+export function allVisibleActivities(db: TrakDb): Activity[] {
+  return db.activities.filter((a) => !a.softDeletedAt);
+}
+
+export function toggleActivityHidden(
+  db: TrakDb,
+  activityId: string,
+): Activity | null {
+  const act = db.activities.find((a) => a.id === activityId);
+  if (!act) return null;
+  act.hidden = !act.hidden;
+  return act;
+}
+
+export function softDeleteActivity(
+  db: TrakDb,
+  activityId: string,
+  now: Date,
+): Activity | null {
+  const act = db.activities.find((a) => a.id === activityId);
+  if (!act) return null;
+  act.softDeletedAt = iso(now);
+  return act;
+}
+
+export function deactivateResponsibility(
+  responsibilities: Responsibility[],
+  id: string,
+): Responsibility | null {
+  const r = responsibilities.find((x) => x.id === id);
+  if (!r) return null;
+  r.isActive = !r.isActive;
+  return r;
 }

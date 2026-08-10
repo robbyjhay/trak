@@ -1,0 +1,277 @@
+================================================================================
+TRAK — PRODUCTION READINESS AUDIT
+DOCUMENT 02: MISSING FEATURES, UX, AND USER FLOW STATES
+================================================================================
+
+1. PRODUCT FEATURE MATRIX
+--------------------------------------------------------------------------------
+Feature                              Status          Priority to ship
+-----------------------------------  --------------  ----------------
+Login / logout                       Partial         CRITICAL
+Forced first password change         Partial (skip)  CRITICAL
+Head add member                      Done            HIGH
+Member profile edit                  Done            HIGH
+Head edit personnel                  Done            HIGH
+Selfie / photo capture               Partial         HIGH
+Responsibilities CRUD                Create/Update   HIGH (add delete)
+Create activity                      Done            CRITICAL
+Delegate activity (Head)             Done            HIGH
+Daily log submit                     Done            CRITICAL
+Voice transcript (Web Speech)        Done (browser)  MEDIUM
+Attendance unit/manual/link          Partial         HIGH
+Public RSVP cross-device              Partial         HIGH
+Budget / cost tracking               Missing         HIGH
+Invoice/receipt upload               Missing         HIGH
+Hide/unhide activities (Head)        Missing         MEDIUM
+Unit feed time filter                Verify/port     MEDIUM
+Comments (Head only)                 Done            HIGH
+Activity report preview/export       Partial         HIGH
+DMs                                  Done            HIGH
+Community chat                       Done            HIGH
+@Mentions + mention notifs           Missing         MEDIUM
+Reply-to message                     Missing         MEDIUM
+Broadcast send (Head/Secretary)      Done            HIGH
+Broadcast history for all            Done            HIGH
+Wipe community (Head)                Done            MEDIUM
+In-app call UI                       Simulated       LOW (label or remove)
+Call history in thread               Done            LOW
+Notifications list + mark read       Done            HIGH
+Notification deep links              Partial         HIGH
+Settings                             Missing         HIGH
+Password change (anytime)            Missing         HIGH
+Password reset via email             Missing         CRITICAL
+Email verification                   Missing         HIGH
+Register / self-signup               Not product     N/A (invite-only)
+Multi-session revoke                 Missing         HIGH
+Search conversations                 UI only         MEDIUM
+Search activities                    Missing         MEDIUM
+Audit log                            Missing         HIGH
+Export data (CSV)                    Missing         MEDIUM
+Dark mode                            Missing         LOW
+PWA / offline shell                  Missing         LOW
+Real WebRTC calls                    Missing         LOW (optional)
+Admin portal copy rename             Partial         LOW
+Personnel Active real KPI            Missing         MEDIUM
+Time-aware greeting                  Missing         LOW
+Corps end date workflows             Missing         MEDIUM
+Soft delete activities               Missing         MEDIUM
+File virus scanning                  Missing         HIGH
+Analytics dashboard beyond KPIs      Partial         MEDIUM
+
+2. USER ROLES AND PRIMARY FLOWS
+--------------------------------------------------------------------------------
+
+2.1 Unauthenticated visitor
+  Paths: /login, /rsvp/[token], static assets
+  Missing: Forgot password, help contact, status page
+
+2.2 First-time member (invite / Head-created)
+  Flow: Receive credentials → Login → Forced set password → Profile → Dashboard
+  Gaps:
+    - Credentials delivered only via Head toast (no email/SMS)
+    - Skip allowed (must disable in production)
+    - No onboarding checklist (photo, phone, designation)
+
+2.3 Member daily work
+  Flow: Dashboard KPIs → New Activity → Pending → Daily log → Complete → Report
+  Gaps:
+    - Budget fields
+    - Loading skeletons inconsistent
+    - Error on submit not always blocking double-submit
+    - Offline draft autosave missing
+    - Attachment failures unclear
+
+2.4 Head oversight
+  Flow: Admin Portal → Team performance → Unit activities → Delegate → Comment
+        → Team profiles → Responsibilities → Broadcast
+  Gaps:
+    - Hardcoded greeting
+    - Fake personnel KPI
+    - Hide/unhide missing
+    - No audit of admin actions
+    - Cannot deactivate member accounts
+
+2.5 Public attendee RSVP
+  Flow: Open link → Form → Submit → Success
+  Gaps:
+    - Token not cryptographically verified
+    - No rate limit / CAPTCHA
+    - No duplicate name detection
+    - Success state no receipt/reference number
+    - Invalid/expired activity states (completed/missed) not blocked server-side
+
+2.6 Messaging
+  Flow: Messages → Community / DM / Broadcast
+  Gaps:
+    - Search non-functional
+    - Mentions/replies missing
+    - No read receipts
+    - No pagination (all messages in bootstrap)
+    - Simulated calls confuse users
+
+3. SCREEN-BY-SCREEN UX STATE MATRIX
+--------------------------------------------------------------------------------
+Legend: Y = present, P = partial, N = missing
+
+Screen                 Loading  Empty   Error   Offline Success Edge cases
+---------------------  -------  ------  ------  ------- ------- ----------
+Login                  P        N/A     Y       N       redirect  lockout N
+Set password           P        N/A     Y       N       redirect  skip bad
+Dashboard (member)     P        P       P       N       N/A       zero acts P
+Dashboard (head)       P        P       P       N       N/A       no team P
+Activities list        P        P       P       N       N/A       filters P
+Activity detail        P        Y       P       N       toast P   not mine Y
+New activity           N        N/A     P       N       toast+nav validation P
+Daily log form         N        N/A     P       N       toast     multi-day P
+RSVP public            N        N/A     Y       N       Y         invalid Y
+Profile                P        N/A     P       N       toast P   camera deny P
+Responsibilities       P        P       P       N       modal     dup code Y
+Settings               N        stub    N       N       N         N
+Messages list          P        P       P       N       N/A       search N
+DM thread              P        P       P       N       optimistic fail P
+Community              P        P       P       N       wipe modal
+Broadcast              P        P       P       N       perms Y
+Contacts               P        P       P       N       N/A       add member
+Notifications panel    P        Y       P       N       mark read deep link P
+Report preview         P        N/A     P       N       print     long HTML
+Member/[id]            P        P       P       N       N/A       forbidden?
+Call panel             N        N/A     N       N/A     end toast simulated
+
+4. REQUIRED UX IMPROVEMENTS (PRODUCTION)
+--------------------------------------------------------------------------------
+
+UX01 [CRITICAL] Global error boundary
+  Add app/error.tsx and route-level error.tsx with retry + support contact.
+
+UX02 [CRITICAL] Global loading UI
+  Add loading.tsx for shell routes; skeleton components already exist — use them.
+
+UX03 [CRITICAL] Mutation pending states
+  Disable primary buttons while API in flight; prevent double submit on logs.
+
+UX04 [HIGH] Offline banner
+  navigator.onLine + failed fetch → sticky "You're offline" banner.
+
+UX05 [HIGH] Empty states with CTAs
+  - No activities: "Create your first activity"
+  - No messages: "Start a conversation"
+  - No notifications: "You're all caught up"
+  - No responsibilities (edge): Head prompt to add
+
+UX06 [HIGH] Form validation messages
+  Inline field errors (not only toast) for new activity, profile, add member,
+  set password, RSVP.
+
+UX07 [HIGH] Confirm destructive actions
+  Wipe community: type "WIPE" to confirm.
+  Future delete activity: confirm modal.
+
+UX08 [HIGH] Settings complete
+  Sections: Account (password), Notifications (toggles), Sessions, About.
+
+UX09 [HIGH] Accessible modals
+  Focus trap, Escape to close, aria-modal, return focus.
+
+UX10 [HIGH] Live region for toasts
+  role="status" aria-live="polite" on Toast.
+
+UX11 [MEDIUM] Time-of-day greeting
+  Good morning/afternoon/evening + first name for Head and Member.
+
+UX12 [MEDIUM] Call UI honesty
+  If WebRTC not shipping: rename to "Log a phone call" or remove Call button.
+
+UX13 [MEDIUM] RSVP success reference
+  Show confirmation code; optional SMS/email receipt later.
+
+UX14 [MEDIUM] Activity filters
+  Port All time / This week / This month + Show hidden for Head.
+
+UX15 [MEDIUM] Keyboard shortcuts
+  Optional: n for new activity, / focus search.
+
+UX16 [LOW] Reduced motion
+  Respect prefers-reduced-motion for call animations / ping.
+
+5. ACCESSIBILITY REQUIREMENTS
+--------------------------------------------------------------------------------
+A11Y01 WCAG 2.1 AA contrast on ink-faint / paper/50 text — audit colors
+A11Y02 All icon-only buttons need aria-label (many exist; fill gaps)
+A11Y03 Form labels associated (most use htmlFor — keep)
+A11Y04 Focus visible rings on all interactive elements
+A11Y05 Skip link to main content
+A11Y06 Notification dropdown keyboard navigable
+A11Y07 Charts (bars) need text alternative / data table
+A11Y08 Speech recognition UI announce errors when unsupported
+A11Y09 Camera permission denial clear instructions
+A11Y10 Page titles unique per route (metadata)
+
+6. FEATURE SPECS FOR MISSING HIGH-VALUE ITEMS
+--------------------------------------------------------------------------------
+
+6.1 Budget & spending (from prototype v3)
+  Activity fields:
+    hasBudget: boolean
+    estimatedAmountNgn: decimal | null
+  Daily log fields:
+    amountReleasedNgn: decimal | null
+    amountSpentNgn: decimal | null
+    spendingItems: { description, amount }[]
+    invoiceAttachments: same as attachments relation with kind=invoice
+  UI:
+    New activity toggle; daily log section; completed view block; report section
+  Priority: HIGH — Phase 3
+
+6.2 Invite-only onboarding
+  Head creates user → system generates invite token (auth_tokens) → email link
+  OR displays one-time password once → forced password change (no skip)
+  Priority: CRITICAL — Phase 0/1 auth
+
+6.3 Password reset
+  Request by username/email → email link token 1h → set password → revoke sessions
+  Priority: CRITICAL — Phase 1 after email provider
+
+6.4 Settings
+  Change password, notification prefs (user_preferences), active sessions revoke
+  Priority: HIGH — Phase 0 prefs table + Phase 1 UI
+
+6.5 Mentions & replies
+  CommunityMessage.replyToId, mentions[] user ids, notification type mention
+  Priority: MEDIUM — Phase 2
+
+6.6 Hide activity
+  Activity.hidden boolean, Head toggle, filter default excludes hidden
+  Priority: MEDIUM — Phase 3
+
+7. COPY / BRANDING
+--------------------------------------------------------------------------------
+- Product name: Trak
+- Organization: Lagos State Government · PSSDC · Digital Learning Unit
+- Admin tab: prefer "Admin Portal" over "Accounting Officer" for UI copy
+  (function names may remain internal)
+- Simulated features must not claim real telephony
+- There is NO AI assistant named LUWA/Luwa in this product codebase today.
+  If any AI assistant feature is added later, it MUST be named "StudyBud AI"
+  exclusively. "Luwa" is reserved for the hosting platform and must never
+  appear as the AI product name in this application.
+
+8. MOBILE / RESPONSIVE REQUIREMENTS
+--------------------------------------------------------------------------------
+- Primary breakpoints already used: md (shell rail), sm
+- Must work: login, dashboard KPIs wrap, activity forms, messaging split pane,
+  mobile nav FAB
+- Test devices: 360×800, 390×844, 768×1024, 1280×800
+- Safe area insets for notched phones on MobileNav
+
+9. SUCCESS METRICS (POST-LAUNCH PRODUCT)
+--------------------------------------------------------------------------------
+- % activities completed on time
+- Average time to submit daily log
+- RSVP link conversion rate
+- Weekly active personnel
+- Broadcast open/ack rate (if acks added)
+- Support tickets related to login/password
+
+================================================================================
+END AUDIT_02
+================================================================================

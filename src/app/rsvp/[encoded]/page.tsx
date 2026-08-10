@@ -24,7 +24,12 @@ export default function RsvpPage({
     }
   }, [encoded]);
 
-  const valid = !!(payload && payload.logId && payload.title && payload.date);
+  const valid = !!(
+    payload &&
+    (payload.tok || payload.token) &&
+    payload.title &&
+    payload.date
+  );
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
@@ -167,6 +172,7 @@ export default function RsvpPage({
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
+                token: payload.tok || payload.token,
                 logId: payload.logId,
                 name: name.trim(),
                 phone: phone.trim(),

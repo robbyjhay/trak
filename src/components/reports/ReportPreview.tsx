@@ -17,7 +17,8 @@ export function useReportPreview() {
 }
 
 export function ReportPreviewProvider({ children }: { children: React.ReactNode }) {
-  const { getActivity, db, userMap, now, showToast } = useTrak();
+  const { getActivity, db, userMap, responsibilities, now, showToast } =
+    useTrak();
   const [open, setOpen] = useState(false);
   const [activityId, setActivityId] = useState<string | null>(null);
   const [html, setHtml] = useState("");
@@ -34,10 +35,10 @@ export function ReportPreviewProvider({ children }: { children: React.ReactNode 
         return;
       }
       setActivityId(id);
-      setHtml(buildActivityReportHTML(act, db, userMap, now));
+      setHtml(buildActivityReportHTML(act, db, userMap, responsibilities, now));
       setOpen(true);
     },
-    [getActivity, db, userMap, now, showToast],
+    [getActivity, db, userMap, responsibilities, now, showToast],
   );
 
   const act = activityId ? getActivity(activityId) : null;

@@ -14,7 +14,11 @@ export const TYPE_COLOR_TW: Record<ActivityType, string> = {
   Task: "bg-cat-task",
 };
 
+/** @deprecated Prefer resolving head via users.find(u => u.role === "head"). */
 export const HEAD_USER_ID = "babajide";
+
+/** Stable head username used in seeds (UUID is assigned by Postgres). */
+export const HEAD_USERNAME = "DLUARU";
 
 export const SEQ_RAMP = [
   "#e3f3ea",
@@ -44,6 +48,8 @@ export const NOTIF_PATHS: Record<NotifType, string> = {
     "M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20z M12 8v5 M12 16h.01",
   broadcast:
     "M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9 M13.73 21a2 2 0 0 1-3.46 0",
+  mention:
+    "M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20z M12 6v.01 M8 10h4a2 2 0 0 1 0 4H9v3",
 };
 
 export const SAMPLE_TRANSCRIPT =

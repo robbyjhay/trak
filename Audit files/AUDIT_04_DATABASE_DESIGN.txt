@@ -1,0 +1,453 @@
+================================================================================
+TRAK — PRODUCTION READINESS AUDIT
+DOCUMENT 04: DATABASE DESIGN
+================================================================================
+Provider: PostgreSQL 16+
+ORM: Prisma 7
+IDs: UUID (uuid v4 or v7) primary keys — NOT sequential prefix_n ids
+Charset: UTF-8
+Timezone: store timestamptz UTC; display local in UI
+
+================================================================================
+PART A — PHASE 0 TABLES ONLY (AUTHORIZED FOR IMPLEMENTATION NOW)
+================================================================================
+Implement EXACTLY these five tables/models in Phase 0. No extra tables.
+No omitted constraints listed here.
+
+--------------------------------------------------------------------------------
+A1. ENUMS (Phase 0)
+--------------------------------------------------------------------------------
+
+enum UserRole {
+  head
+  member
+}
+
+enum AuthTokenType {
+  password_reset
+  email_verify
+  invite
+  initial_password
+}
+
+--------------------------------------------------------------------------------
+A2. users
+--------------------------------------------------------------------------------
+
+model User {
+  id                   String    @id @default(uuid()) @db.Uuid
+  username             String    @unique @db.VarChar(64)
+  email                String?   @unique @db.VarChar(255)
+  passwordHash         String    @map("password_hash") @db.VarChar(255)
+  role                 UserRole
+  isSecretary          Boolean   @default(false) @map("is_secretary")
+  isCorps              Boolean   @default(false) @map("is_corps")
+  mustChangePassword   Boolean   @default(true) @map("must_change_password")
+  emailVerifiedAt      DateTime? @map("email_verified_at") @db.Timestamptz(3)
+  isActive             Boolean   @default(true) @map("is_active")
+  lastLoginAt          DateTime? @map("last_login_at") @db.Timestamptz(3)
+  createdAt            DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt            DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  profile              UserProfile?
+  sessions             Session[]
+  authTokens           AuthToken[]
+  preferences          UserPreferences?
+
+  @@map("users")
+  @@index([role])
+  @@index([isActive])
+}
+
+Constraints / validation:
+  - username: required, 3–64 chars, unique, case-insensitive uniqueness
+    enforced via citext OR store lowercase username_normalized
+  - Phase 0 MUST add: usernameNormalized String @unique @map("username_normalized")
+  - email: valid email format when present; unique when not null
+  - passwordHash: bcrypt hash string; never null for active password users
+  - role: enum head | member
+  - isActive false → login rejected
+
+--------------------------------------------------------------------------------
+A3. user_profiles
+--------------------------------------------------------------------------------
+
+model UserProfile {
+  id            String   @id @default(uuid()) @db.Uuid
+  userId        String   @unique @map("user_id") @db.Uuid
+  name          String   @db.VarChar(200)
+  phone         String   @default("") @db.VarChar(40)
+  designation   String   @default("") @db.VarChar(200)
+  gradeLevel    String   @default("") @map("grade_level") @db.VarChar(40)
+  sex           String   @default("") @db.VarChar(32)
+  stateOfOrigin String   @default("") @map("state_of_origin") @db.VarChar(100)
+  dateJoined    DateTime? @map("date_joined") @db.Date
+  corpsEnd      DateTime? @map("corps_end") @db.Date
+  color         String   @default("#0e6b47") @db.VarChar(16)
+  photoKey      String?  @map("photo_key") @db.VarChar(512)
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_profiles")
+  @@index([name])
+}
+
+Constraints:
+  - 1:1 with users; ON DELETE CASCADE
+  - name required non-empty
+  - photoKey stores object storage key (not data URL)
+
+--------------------------------------------------------------------------------
+A4. sessions
+--------------------------------------------------------------------------------
+
+model Session {
+  id               String    @id @default(uuid()) @db.Uuid
+  userId           String    @map("user_id") @db.Uuid
+  tokenHash        String    @unique @map("token_hash") @db.VarChar(128)
+  userAgent        String?   @map("user_agent") @db.VarChar(512)
+  ipAddress        String?   @map("ip_address") @db.VarChar(64)
+  expiresAt        DateTime  @map("expires_at") @db.Timestamptz(3)
+  revokedAt        DateTime? @map("revoked_at") @db.Timestamptz(3)
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  lastUsedAt       DateTime  @default(now()) @map("last_used_at") @db.Timestamptz(3)
+
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+Constraints:
+  - tokenHash = SHA-256 of opaque random token (32+ bytes)
+  - Cookie stores raw token; DB stores hash only
+  - Valid session: revokedAt IS NULL AND expiresAt > now()
+  - ON DELETE CASCADE from user
+
+--------------------------------------------------------------------------------
+A5. auth_tokens
+--------------------------------------------------------------------------------
+
+model AuthToken {
+  id          String        @id @default(uuid()) @db.Uuid
+  userId      String        @map("user_id") @db.Uuid
+  type        AuthTokenType
+  tokenHash   String        @unique @map("token_hash") @db.VarChar(128)
+  expiresAt   DateTime      @map("expires_at") @db.Timestamptz(3)
+  consumedAt  DateTime?     @map("consumed_at") @db.Timestamptz(3)
+  createdAt   DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
+  meta        Json?
+
+  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("auth_tokens")
+  @@index([userId, type])
+  @@index([expiresAt])
+}
+
+Constraints:
+  - One-time use: set consumedAt on success
+  - password_reset TTL 1 hour
+  - invite TTL 7 days
+  - email_verify TTL 48 hours
+  - initial_password TTL 24 hours
+
+--------------------------------------------------------------------------------
+A6. user_preferences
+--------------------------------------------------------------------------------
+
+model UserPreferences {
+  id                      String   @id @default(uuid()) @db.Uuid
+  userId                  String   @unique @map("user_id") @db.Uuid
+  notificationsEnabled    Boolean  @default(true) @map("notifications_enabled")
+  emailNotifications      Boolean  @default(true) @map("email_notifications")
+  dmNotifications         Boolean  @default(true) @map("dm_notifications")
+  broadcastNotifications  Boolean  @default(true) @map("broadcast_notifications")
+  activityNotifications   Boolean  @default(true) @map("activity_notifications")
+  locale                  String   @default("en-NG") @db.VarChar(16)
+  timezone                String   @default("Africa/Lagos") @db.VarChar(64)
+  createdAt               DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt               DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  user                    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_preferences")
+}
+
+--------------------------------------------------------------------------------
+A7. PHASE 0 MIGRATION REQUIREMENTS
+--------------------------------------------------------------------------------
+
+1. Set datasource provider = "postgresql"
+2. DATABASE_URL from env (no SQLite file default in production)
+3. prisma migrate dev --name phase0_auth_foundation
+4. Seed script creates:
+   - One Head user (from existing DLU seed identity, NEW uuid)
+   - Optional demo members ONLY when SEED_DEMO_USERS=true
+   - Unique random passwords in dev printed once to secure console OR
+     mustChangePassword=true with known dev-only password gated by ENABLE_DEV_LOGIN
+5. Cascading deletes as specified
+6. Indexes as specified
+7. No domain tables in this migration
+
+--------------------------------------------------------------------------------
+A8. PHASE 0 SEED RULES
+--------------------------------------------------------------------------------
+
+- Do NOT use shared production password DLUactsys360 in production seed
+- Dev seed may use a documented DEV password only if ENABLE_DEV_LOGIN=true
+- All seed users: mustChangePassword = true initially in first production import
+  except break-glass admin if required by ops policy (document exception)
+- Create matching user_profiles + user_preferences rows in same transaction
+
+================================================================================
+PART B — FULL DOMAIN SCHEMA (PHASE 1+; DO NOT IMPLEMENT IN PHASE 0)
+================================================================================
+Documented for complete production design. Implementation order: Phase 1–3.
+
+--------------------------------------------------------------------------------
+B1. Additional enums
+--------------------------------------------------------------------------------
+
+enum ActivityType { Meeting Project Program Task }
+enum ActivityStatus { pending completed missed }
+enum DailyLogStatus { pending submitted }
+enum AttendeeSource { unit manual link }
+enum NotificationType {
+  comment dm activity_created activity_completed activity_missed broadcast mention
+}
+enum AttachmentKind { evidence invoice }
+
+--------------------------------------------------------------------------------
+B2. responsibilities
+--------------------------------------------------------------------------------
+
+id uuid PK
+code varchar(16) UNIQUE
+name varchar(200)
+description text
+deliverables jsonb  -- string[]
+isActive boolean default true
+createdAt, updatedAt
+createdById uuid FK users nullOnDelete set null
+
+--------------------------------------------------------------------------------
+B3. activities
+--------------------------------------------------------------------------------
+
+id uuid PK
+title varchar(300)
+type ActivityType
+description text default ''
+createdById uuid FK users
+delegatedById uuid? FK users
+startDate date
+endDate date
+startTime time / string HH:mm
+endTime string default ''
+location varchar(300) default ''
+status ActivityStatus default pending
+hidden boolean default false
+hasBudget boolean default false
+estimatedAmountNgn decimal(14,2)?
+initiativeTeamwork text
+challenges text
+outcomes text
+nextSteps text
+createdAt, updatedAt, softDeletedAt?
+
+Indexes:
+  (createdById, status)
+  (startDate, endDate)
+  (status)
+  (hidden)
+
+Constraints:
+  endDate >= startDate
+
+activity_responsibilities M2M:
+  activityId + responsibilityId composite PK
+  ON DELETE CASCADE activity
+
+--------------------------------------------------------------------------------
+B4. daily_logs
+--------------------------------------------------------------------------------
+
+id uuid PK
+activityId FK cascade
+date date
+objectives text
+activityDescription text
+transcript text
+attendanceCount varchar
+attendanceNotes text
+rsvpTokenHash varchar(128)? unique
+status DailyLogStatus
+amountReleasedNgn decimal?
+amountSpentNgn decimal?
+spendingItems jsonb default []
+submittedAt timestamptz?
+createdAt, updatedAt
+UNIQUE (activityId, date)
+
+--------------------------------------------------------------------------------
+B5. attendees
+--------------------------------------------------------------------------------
+
+id uuid PK
+dailyLogId FK cascade
+name varchar
+phone varchar
+email varchar
+source AttendeeSource
+registeredAt timestamptz?
+
+Index (dailyLogId)
+
+--------------------------------------------------------------------------------
+B6. attachments
+--------------------------------------------------------------------------------
+
+id uuid PK
+dailyLogId FK cascade
+kind AttachmentKind default evidence
+name varchar
+size int
+contentType varchar
+storageKey varchar
+createdAt
+
+--------------------------------------------------------------------------------
+B7. comments
+--------------------------------------------------------------------------------
+
+id uuid PK
+activityId FK cascade
+authorId FK users
+text text
+createdAt
+
+--------------------------------------------------------------------------------
+B8. direct_messages
+--------------------------------------------------------------------------------
+
+id uuid PK
+participantA uuid FK
+participantB uuid FK
+fromUserId uuid FK
+text text
+createdAt
+-- constraint participantA < participantB for canonical pair optional
+
+Indexes: (participantA, participantB, createdAt)
+
+--------------------------------------------------------------------------------
+B9. community_messages
+--------------------------------------------------------------------------------
+
+id uuid PK
+fromUserId FK
+text text
+replyToId uuid? FK self
+createdAt
+
+community_message_mentions:
+  messageId + userId PK
+
+--------------------------------------------------------------------------------
+B10. broadcasts
+--------------------------------------------------------------------------------
+
+id uuid PK
+fromUserId FK
+text text
+createdAt
+
+--------------------------------------------------------------------------------
+B11. call_records
+--------------------------------------------------------------------------------
+
+id uuid PK
+participantA, participantB, fromUserId
+durationSec int
+createdAt
+-- UI simulated until WebRTC
+
+--------------------------------------------------------------------------------
+B12. notifications
+--------------------------------------------------------------------------------
+
+id uuid PK
+userId FK cascade
+type NotificationType
+text text
+activityId uuid?
+messageId uuid?
+meta jsonb
+readAt timestamptz?
+createdAt
+
+Index (userId, readAt, createdAt DESC)
+
+--------------------------------------------------------------------------------
+B13. audit_events (Phase 4)
+--------------------------------------------------------------------------------
+
+id uuid PK
+actorId uuid?
+action varchar
+entityType varchar
+entityId uuid?
+ip varchar
+meta jsonb
+createdAt
+
+--------------------------------------------------------------------------------
+B14. Full ER summary
+--------------------------------------------------------------------------------
+
+users 1—1 user_profiles
+users 1—1 user_preferences
+users 1—N sessions
+users 1—N auth_tokens
+users 1—N activities (created)
+users 1—N activities (delegated)
+users 1—N comments
+users 1—N dms / community / broadcasts / notifications
+activities 1—N daily_logs 1—N attendees|attachments
+activities N—M responsibilities
+
+================================================================================
+PART C — MIGRATION & DATA VALIDATION STRATEGY
+================================================================================
+
+C1. Phase 0 migration
+  - Empty PostgreSQL
+  - Apply phase0_auth_foundation
+  - Seed head + optional demo users
+
+C2. Phase 1 migration from JSON
+  - Export .data/trak-db.json
+  - Map old string ids (babajide) → new UUIDs via mapping table
+  - Import users/profiles first, then domain
+  - Verify counts; checksum samples
+  - Cutover; archive JSON
+
+C3. Validation rules (app + DB)
+  - CHECK constraints where Prisma supports via raw SQL migrations
+  - App-level zod for all writes
+  - Foreign keys mandatory
+
+C4. Backups
+  - Daily automated PostgreSQL backups
+  - Point-in-time recovery enabled on managed Postgres
+
+C5. Indexes for scale
+  - See each table; add composite indexes for feed queries
+
+================================================================================
+END AUDIT_04
+================================================================================

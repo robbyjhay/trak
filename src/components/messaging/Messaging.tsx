@@ -9,12 +9,41 @@ import {
   canWipeCommunity,
   roleLabel,
 } from "@/lib/permissions";
-import { cn, firstName, initials } from "@/lib/utils";
+import { cn, firstName, formatDuration, initials } from "@/lib/utils";
 import { PATHS } from "@/components/icons";
 import { PrimaryBtn } from "@/components/ui/Buttons";
 import { NewConversation } from "@/components/messaging/NewConversation";
 import { AddMember } from "@/components/messaging/AddMember";
+import { CallPanel } from "@/components/call/CallPanel";
 import { useCall } from "@/context/CallContext";
+import type { CallRecord, Dm, TrakDb } from "@/lib/types";
+
+type ThreadItem =
+  | { kind: "dm"; id: string; dm: Dm }
+  | { kind: "call"; id: string; call: CallRecord };
+
+/** uid() ids share a counter, so the numeric suffix is a global ordering key. */
+function sortByUid(id: string): number {
+  const m = id.match(/_(\d+)$/);
+  return m ? Number(m[1]) : 0;
+}
+
+function threadItems(db: TrakDb, me: string, other: string): ThreadItem[] {
+  return [
+    ...db.dms
+      .filter(
+        (d) =>
+          (d.a === me && d.b === other) || (d.a === other && d.b === me),
+      )
+      .map((dm) => ({ kind: "dm" as const, id: dm.id, dm })),
+    ...db.calls
+      .filter(
+        (c) =>
+          (c.a === me && c.b === other) || (c.a === other && c.b === me),
+      )
+      .map((call) => ({ kind: "call" as const, id: call.id, call })),
+  ].sort((x, y) => sortByUid(x.id) - sortByUid(y.id));
+}
 
 export function Messaging({
   initialView,
@@ -33,7 +62,7 @@ export function Messaging({
     showToast,
   } = useTrak();
   const { view, setView } = useConnectNav();
-  const { startCall } = useCall();
+  const { activeCall, elapsedSec, startCall } = useCall();
   const me = sessionUser.id;
   const [activeConv, setActiveConv] = useState<string>("community");
   const [mobilePane, setMobilePane] = useState<"list" | "thread">("list");
@@ -51,15 +80,6 @@ export function Messaging({
 
   const canBc = canBroadcast(sessionUser);
   const canWipe = canWipeCommunity(sessionUser);
-
-  function dmThread(other: string) {
-    return db.dms
-      .filter(
-        (d) =>
-          (d.a === me && d.b === other) || (d.a === other && d.b === me),
-      )
-      .sort((a, b) => a.id.localeCompare(b.id));
-  }
 
   function dmPartners() {
     const s = new Set<string>();
@@ -142,8 +162,18 @@ export function Messaging({
               {dmPartners().map((pid) => {
                 const p = userMap[pid];
                 if (!p) return null;
-                const thread = dmThread(pid);
-                const last = thread[thread.length - 1];
+                const items = threadItems(db, me, pid);
+                const last = items[items.length - 1];
+                const onCall = activeCall?.partnerId === pid;
+                const snippet = onCall
+                  ? activeCall.status === "ringing"
+                    ? "Ringing…"
+                    : `On call · ${formatDuration(elapsedSec)}`
+                  : last
+                    ? last.kind === "call"
+                      ? `${last.call.from === me ? "You called" : "Incoming call"} · ${formatDuration(last.call.durationSec)}`
+                      : last.dm.text
+                    : "Say hello 👋";
                 return (
                   <ConvItem
                     key={pid}
@@ -158,7 +188,7 @@ export function Messaging({
                       </div>
                     }
                     name={p.name}
-                    snippet={last?.text || "Say hello 👋"}
+                    snippet={snippet}
                   />
                 );
               })}
@@ -337,60 +367,76 @@ export function Messaging({
                 <>
                   {(() => {
                     const p = userMap[activeConv];
-                    const thread = dmThread(activeConv);
+                    const items = threadItems(db, me, activeConv);
+                    const onCall = activeCall?.partnerId === activeConv;
                     return (
                       <>
-                        <div className="flex items-center gap-3 border-b border-line px-[22px] py-3.5">
-                          <BackBtn onClick={() => setMobilePane("list")} />
-                          <div
-                            className="flex h-[34px] w-[34px] items-center justify-center rounded-full font-display text-xs font-bold text-white"
-                            style={{ background: p.color }}
-                          >
-                            {initials(p.name)}
-                          </div>
-                          <div className="min-w-0">
-                            <div className="truncate text-[13.5px] font-bold">{p.name}</div>
-                            <div className="truncate text-[11px] text-ink-faint">
-                              {roleLabel(p)} · {p.username}
+                        {onCall ? (
+                          <CallPanel
+                            partner={p}
+                            onBack={() => setMobilePane("list")}
+                          />
+                        ) : (
+                          <div className="flex items-center gap-3 border-b border-line px-[22px] py-3.5">
+                            <BackBtn onClick={() => setMobilePane("list")} />
+                            <div
+                              className="flex h-[34px] w-[34px] items-center justify-center rounded-full font-display text-xs font-bold text-white"
+                              style={{ background: p.color }}
+                            >
+                              {initials(p.name)}
+                            </div>
+                            <div className="min-w-0">
+                              <div className="truncate text-[13.5px] font-bold">{p.name}</div>
+                              <div className="truncate text-[11px] text-ink-faint">
+                                {roleLabel(p)} · {p.username}
+                              </div>
+                            </div>
+                            <div className="ml-auto flex gap-2">
+                              <button
+                                type="button"
+                                onClick={() => startCall(p.id)}
+                                title="Log a phone call"
+                                aria-label={`Log a phone call with ${p.name}`}
+                                className="flex h-[34px] w-[34px] cursor-pointer items-center justify-center rounded-[9px] border-[1.5px] border-line bg-white text-ink-soft transition-colors hover:border-saffron-dim hover:text-ink"
+                              >
+                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                  <path d={PATHS.phone} />
+                                </svg>
+                              </button>
+                              <a
+                                href={`https://wa.me/${p.phone.replace("+", "").replace(/\s/g, "")}`}
+                                target="_blank"
+                                rel="noreferrer"
+                                title="WhatsApp"
+                                className="flex h-[34px] w-[34px] items-center justify-center rounded-[9px] border-[1.5px] border-line text-ink-soft"
+                              >
+                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                  <path d={PATHS.whatsapp} />
+                                </svg>
+                              </a>
                             </div>
                           </div>
-                          <div className="ml-auto flex gap-2">
-                            <button
-                              type="button"
-                              onClick={() => startCall(p)}
-                              title="Call"
-                              aria-label={`Call ${p.name}`}
-                              className="flex h-[34px] w-[34px] cursor-pointer items-center justify-center rounded-[9px] border-[1.5px] border-line bg-white text-ink-soft transition-colors hover:border-saffron-dim hover:text-ink"
-                            >
-                              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                <path d={PATHS.phone} />
-                              </svg>
-                            </button>
-                            <a
-                              href={`https://wa.me/${p.phone.replace("+", "").replace(/\s/g, "")}`}
-                              target="_blank"
-                              rel="noreferrer"
-                              title="WhatsApp"
-                              className="flex h-[34px] w-[34px] items-center justify-center rounded-[9px] border-[1.5px] border-line text-ink-soft"
-                            >
-                              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                <path d={PATHS.whatsapp} />
-                              </svg>
-                            </a>
-                          </div>
-                        </div>
+                        )}
                         <ThreadScroll>
-                          {thread.length
-                            ? thread.map((m) => (
-                                <Bubble
-                                  key={m.id}
-                                  fromId={m.from}
-                                  text={m.text}
-                                  time={m.at}
-                                  me={me}
-                                  userMap={userMap}
-                                />
-                              ))
+                          {items.length
+                            ? items.map((it) =>
+                                it.kind === "call" ? (
+                                  <CallPill
+                                    key={it.id}
+                                    call={it.call}
+                                    me={me}
+                                  />
+                                ) : (
+                                  <Bubble
+                                    key={it.id}
+                                    fromId={it.dm.from}
+                                    text={it.dm.text}
+                                    time={it.dm.at}
+                                    me={me}
+                                    userMap={userMap}
+                                  />
+                                ),
+                              )
                             : (
                               <div className="py-8 text-center text-[13px] text-ink-faint">
                                 No messages yet — say hello.
@@ -474,16 +520,6 @@ export function Messaging({
                       {p.username} · {p.phone}
                     </div>
                     <div className="flex gap-2">
-                      <button
-                        type="button"
-                        onClick={() => startCall(p)}
-                        className="flex flex-1 cursor-pointer flex-col items-center gap-1 rounded-[11px] border-[1.5px] border-line bg-white px-1.5 py-2.5 text-[10px] font-bold text-ink-soft transition-colors hover:border-saffron-dim hover:text-ink"
-                      >
-                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                          <path d={PATHS.phone} />
-                        </svg>
-                        Call
-                      </button>
                       <a
                         href={`https://wa.me/${p.phone.replace("+", "").replace(/\s/g, "")}`}
                         target="_blank"
@@ -580,6 +616,44 @@ function ConvItem({
         </div>
       </div>
     </button>
+  );
+}
+
+function CallPill({
+  call,
+  me,
+}: {
+  call: CallRecord;
+  me: string;
+}) {
+  const outgoing = call.from === me;
+  return (
+    <div className="mx-auto flex w-fit max-w-full items-center gap-2 rounded-full border border-line bg-card px-3.5 py-1.5 text-[11px] font-bold text-ink-soft">
+      <span
+        className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full ${
+          outgoing
+            ? "bg-saffron/20 text-saffron-dim"
+            : "bg-aztec-3 text-white"
+        }`}
+      >
+        <svg
+          width="11"
+          height="11"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2.2"
+          className={outgoing ? "" : "rotate-[135deg]"}
+        >
+          <path d={PATHS.phone} />
+        </svg>
+      </span>
+      <span>{outgoing ? "You called" : "Incoming call"}</span>
+      <span className="font-mono text-ink-faint">
+        {formatDuration(call.durationSec)}
+      </span>
+      <span className="text-ink-faint/70">{call.at}</span>
+    </div>
   );
 }
 

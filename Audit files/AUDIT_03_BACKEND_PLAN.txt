@@ -1,0 +1,388 @@
+================================================================================
+TRAK — PRODUCTION READINESS AUDIT
+DOCUMENT 03: BACKEND IMPLEMENTATION PLAN
+================================================================================
+Target stack (production):
+  - Next.js 16 App Router (existing) — Route Handlers + Server Actions
+  - PostgreSQL 16+ via Prisma ORM 7 with required driver adapter
+  - Redis 7+ for rate limits, session secondary cache (optional), jobs
+  - Object storage (S3-compatible) for photos/evidence
+  - Email provider (Resend or SES)
+  - Structured logging (pino)
+  - Optional: BullMQ/workers for emails and status recompute
+
+Runtime rule: JSON file store (.data/trak-db.json) is DEPRECATED and must be
+removed after domain migration (Phase 1). Phase 0 introduces relational auth
+tables only.
+
+================================================================================
+1. API STRUCTURE (REST, versioned under /api/v1 when migrating)
+================================================================================
+
+Phase 0 (authorized now) — Auth & account foundation only:
+  POST   /api/auth/register          # Only if invite-gated register; else omit
+  POST   /api/auth/login
+  POST   /api/auth/logout
+  GET    /api/auth/session           # current user + prefs summary
+  POST   /api/auth/password/change
+  POST   /api/auth/password/forgot   # Phase 1 if email ready; scaffold allowed
+  POST   /api/auth/password/reset
+  POST   /api/auth/password/set-initial  # first-login forced change
+  GET    /api/health
+  GET    /api/ready
+
+Phase 1+ domain (document for later; DO NOT implement in Phase 0):
+  /api/v1/users
+  /api/v1/users/:id
+  /api/v1/activities
+  /api/v1/activities/:id
+  /api/v1/activities/:id/logs
+  /api/v1/activities/:id/comments
+  /api/v1/responsibilities
+  /api/v1/messages/dms
+  /api/v1/messages/community
+  /api/v1/messages/broadcasts
+  /api/v1/notifications
+  /api/v1/reports/:activityId
+  /api/v1/rsvp/:token
+  /api/v1/uploads/sign
+  /api/v1/bootstrap   # DEPRECATED — replace with scoped resources
+
+Current unversioned routes remain until Phase 1 cutover. Phase 0 must not
+break existing domain routes unless necessary for auth wiring; prefer additive
+foundation.
+
+================================================================================
+2. FOLDER STRUCTURE (TARGET)
+================================================================================
+
+src/
+  app/
+    (auth)/
+      login/page.tsx
+      register/page.tsx          # invite-only if product requires
+      set-password/page.tsx
+      forgot-password/page.tsx   # Phase 1 UI; can scaffold shell in Phase 0
+      reset-password/page.tsx
+    (app)/
+      layout.tsx                 # protected shell
+      loading.tsx
+      error.tsx
+      (shell)/...
+      (connect)/...
+    api/
+      auth/...
+      health/route.ts
+      ready/route.ts
+      v1/...                     # Phase 1+
+    rsvp/[token]/page.tsx
+  components/
+  context/
+  hooks/
+  lib/
+    auth/
+      session.ts                 # opaque sessions (Phase 0)
+      password.ts                # bcrypt cost 12
+      tokens.ts                  # auth_tokens helpers
+      rbac.ts                    # rename/extend permissions.ts
+      csrf.ts                    # if CSRF tokens used
+    db/
+      prisma.ts                  # Prisma client singleton + adapter
+      # DELETE store.ts JSON after Phase 1 migration
+    services/
+      auth.service.ts
+      user.service.ts
+      activity.service.ts        # Phase 1
+      message.service.ts
+      notification.service.ts
+      report.service.ts
+      rsvp.service.ts
+      storage.service.ts
+      email.service.ts
+    validators/
+      auth.ts                    # zod schemas
+      user.ts
+      activity.ts
+    middleware/                  # helpers used by route handlers
+      rate-limit.ts
+      require-session.ts
+      require-role.ts
+      with-error-handling.ts
+    jobs/                        # Phase 4
+      email.worker.ts
+      status-recompute.worker.ts
+    logger.ts
+    env.ts                       # zod-parse process.env at boot
+  middleware.ts                  # edge: session cookie presence + public paths
+
+prisma/
+  schema.prisma
+  migrations/
+  seed.ts
+
+================================================================================
+3. LAYERING
+================================================================================
+
+Request flow:
+  middleware (public vs authed shell)
+    → route handler
+      → parse + zod validate
+      → rate limit
+      → requireSession / requireRole
+      → service method
+        → prisma transaction
+      → map to DTO (never leak passwordHash)
+      → jsonOk / jsonError
+
+Rules:
+  - No Prisma calls from React components
+  - No business rules in route.ts beyond HTTP mapping
+  - Services throw ServiceError(status, code, message)
+  - DTOs strip secrets
+
+================================================================================
+4. CONTROLLERS (ROUTE HANDLERS) — PHASE 0
+================================================================================
+
+4.1 POST /api/auth/login
+  Body: { username | email, password }
+  Validate: non-empty, max lengths
+  Rate limit: 5 / 15min / IP+username
+  On success: create session row, set cookie, return { user, mustChangePassword }
+  On failure: generic error "Username or password not recognised."
+
+4.2 POST /api/auth/logout
+  Require session; delete session row; clear cookie
+
+4.3 GET /api/auth/session
+  Return session user + mustChangePassword + preferences summary
+  401 if invalid
+
+4.4 POST /api/auth/password/set-initial
+  Require session + mustChangePassword true
+  Body: { password, confirm }
+  Policy: min 12 chars (see AUDIT_05)
+  Update passwordHash; clear mustChangePassword; optionally rotate session
+
+4.5 POST /api/auth/password/change
+  Require session
+  Body: { currentPassword, newPassword, confirm }
+  Verify current; update hash; revoke other sessions optional
+
+4.6 POST /api/auth/register (invite-only)
+  Body: { inviteToken, password, confirm } OR Head-only create user stays
+    server action under /api/users (Phase 1)
+  Phase 0: If product remains Head-provisioned only, register route may be
+    absent; document as "invite accept" later.
+
+4.7 Server Actions (allowed)
+  loginAction, logoutAction, setNewPasswordAction — must call same services
+  as HTTP routes (no duplicate logic)
+
+================================================================================
+5. SERVICES — PHASE 0
+================================================================================
+
+auth.service.ts
+  login(username, password, meta: {ip, userAgent})
+  logout(sessionId)
+  createSession(userId, meta)
+  validateSession(tokenHash) → SessionUser | null
+  setInitialPassword(userId, password)
+  changePassword(userId, current, next)
+  revokeAllSessions(userId)
+  revokeSession(sessionId, userId)
+
+user.service.ts (minimal Phase 0)
+  findByUsername
+  findById
+  createUser (Head-only) — may stay Phase 1 if domain not ready;
+    Phase 0 only needs user row for login seed
+
+password.ts
+  hashPassword(plain) → bcrypt cost 12
+  verifyPassword(plain, hash)
+
+tokens.ts
+  createAuthToken(type, userId, ttl)
+  consumeAuthToken(rawToken, type)
+
+================================================================================
+6. VALIDATION
+================================================================================
+
+Use zod for all inputs.
+
+authLoginSchema:
+  username: z.string().trim().min(1).max(64)
+  password: z.string().min(1).max(128)
+
+passwordSetSchema:
+  password: z.string().min(12).max(128)
+  confirm: z.string()
+  refine equal
+
+Reject unknown keys (strict).
+
+Sanitize: trim usernames; never store password plaintext.
+
+================================================================================
+7. MIDDLEWARE
+================================================================================
+
+Edge middleware.ts:
+  - Public: /login, /rsvp, /api/auth/login, /api/health, static
+  - Explicit allowlist ONLY (not /api/auth/* blanket)
+  - /set-password requires valid session cookie
+  - Authenticated users hitting /login → /dashboard
+  - Missing session on protected pages → /login
+
+Route middleware helpers:
+  requireSession()
+  requireRole('head')
+  requireNotMustChangePassword() for app shell (redirect set-password)
+
+CSRF (specified for production):
+  - Validate Origin/Referer for mutating requests from browsers
+  - SameSite=Lax cookies
+  - Optional double-submit cookie CSRF_TOKEN for forms
+
+================================================================================
+8. ERROR HANDLING
+================================================================================
+
+Standard error body:
+  {
+    "error": {
+      "code": "UNAUTHORIZED" | "FORBIDDEN" | "VALIDATION_ERROR" | "RATE_LIMITED" | "INTERNAL",
+      "message": "Human readable",
+      "details": [] // field errors optional
+    },
+    "requestId": "uuid"
+  }
+
+Map ServiceError → status codes.
+Never expose stack traces in production.
+Log full error with requestId server-side.
+
+================================================================================
+9. LOGGING
+================================================================================
+
+logger.info/warn/error with fields:
+  requestId, userId, route, method, status, durationMs
+Redact: password, passwordHash, Authorization, cookie, tokens
+Never log starter passwords (remove createUser console plaintext)
+
+Log destinations: stdout JSON → platform log drain
+
+================================================================================
+10. RATE LIMITING
+================================================================================
+
+Redis token bucket / sliding window:
+
+  login:           5 attempts / 15 minutes / ip+username
+  password reset:  3 / hour / email
+  rsvp:            10 / hour / ip + 3 / hour / token
+  api general:     120 / minute / user
+  bootstrap legacy: 10 / minute / user (until removed)
+
+On limit: 429 + Retry-After
+
+If Redis unavailable in Phase 0 local dev: in-memory limiter with warning log.
+Production REQUIRES Redis (AUDIT_08).
+
+================================================================================
+11. FILE UPLOADS (PHASE 1–3; SPEC ONLY)
+================================================================================
+
+POST /api/v1/uploads/sign
+  Body: { purpose: 'avatar'|'evidence'|'invoice', contentType, size }
+  Validate MIME allowlist + max size
+  Return { uploadUrl, publicUrl or key, expiresAt }
+  Client PUT to S3
+  Server stores key on entity after confirm
+
+Allowlist: image/jpeg, image/png, image/webp, application/pdf
+Max: avatar 2MB; evidence 10MB; invoice 10MB
+
+================================================================================
+12. EMAIL SERVICES (PHASE 1; SPEC ONLY)
+================================================================================
+
+email.service.ts templates:
+  - member_invite
+  - password_reset
+  - password_changed_alert
+  - broadcast_digest (optional)
+
+Provider: RESEND_API_KEY or AWS SES
+From: EMAIL_FROM=Trak DLU <trak@domain.gov.ng>
+
+================================================================================
+13. BACKGROUND JOBS (PHASE 4; SPEC ONLY)
+================================================================================
+
+Queue: BullMQ + Redis
+Jobs:
+  - send_email
+  - recompute_activity_statuses (nightly + on read)
+  - purge_expired_tokens
+  - purge_expired_sessions
+  - generate_report_async (optional)
+
+================================================================================
+14. REPLACING JSON STORE
+================================================================================
+
+Phase 0: Introduce Prisma PostgreSQL for users/sessions/tokens/prefs only.
+  Existing domain continues on JSON temporarily OR app runs auth-only mode
+  if cutover strategy requires.
+
+Phase 1: Migrate all domain tables; dual-read if needed; then delete:
+  src/lib/db/store.ts
+  src/lib/mockDb/*
+  .data/trak-db.json
+  bootstrap full snapshot
+
+Migration script: scripts/migrate-json-to-postgres.ts (Phase 1)
+
+================================================================================
+15. ENVIRONMENT VARIABLES (BACKEND-RELEVANT)
+================================================================================
+
+See AUDIT_06 and AUDIT_08 for full list. Backend-critical:
+
+  DATABASE_URL
+  TRAK_SESSION_SECRET
+  REDIS_URL
+  EMAIL_PROVIDER / RESEND_API_KEY / EMAIL_FROM
+  S3_ENDPOINT S3_BUCKET S3_ACCESS_KEY_ID S3_SECRET_ACCESS_KEY S3_REGION
+  APP_URL
+  NODE_ENV
+  ENABLE_DEV_LOGIN=false
+  BCRYPT_COST=12
+  SESSION_TTL_DAYS=7
+  RATE_LIMIT_REDIS_PREFIX=trak:rl:
+
+================================================================================
+16. PHASE 0 DELIVERABLES (BACKEND ONLY)
+================================================================================
+
+[ ] env.ts validation
+[ ] prisma client singleton
+[ ] models: users, user_profiles, sessions, auth_tokens, user_preferences
+[ ] auth.service + password hashing bcrypt cost 12
+[ ] opaque session tokens (not JWT-only) stored hashed in sessions
+[ ] login/logout/session routes + server actions rewired
+[ ] middleware public allowlist hardened
+[ ] remove hardcoded secret fallback
+[ ] .env.example complete
+[ ] health endpoint
+[ ] STOP — no domain migration yet
+
+================================================================================
+END AUDIT_03
+================================================================================

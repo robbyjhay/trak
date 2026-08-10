@@ -4,15 +4,25 @@ import {
   parseJsonBody,
   requireSession,
 } from "@/lib/api/http";
-import { sendCommunity, wipeCommunity } from "@/lib/db/service";
-import { getSnapshot } from "@/lib/db/store";
+import {
+  listCommunity,
+  sendCommunity,
+  ServiceError,
+  wipeCommunity,
+} from "@/lib/db/service";
+import { parsePagination, pageMeta } from "@/lib/api/pagination";
+import { checkRateLimit } from "@/lib/auth/rate-limit";
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
     const { error } = await requireSession();
     if (error) return error;
-    const snap = await getSnapshot();
-    return jsonOk({ community: snap.db.community });
+
+    const url = new URL(req.url);
+    const { page, limit } = parsePagination(url.searchParams);
+    const { community, total } = await listCommunity({ page, limit });
+
+    return jsonOk({ community, meta: pageMeta(total, page, limit) });
   } catch (err) {
     return handleServiceError(err);
   }
@@ -22,10 +32,18 @@ export async function POST(req: Request) {
   try {
     const { session, error } = await requireSession();
     if (error) return error;
-    const body = await parseJsonBody<{ text?: string }>(req);
-    const result = await sendCommunity(session, body.text || "");
-    const snap = await getSnapshot();
-    return jsonOk({ id: result.id, community: snap.db.community });
+
+    const rl = await checkRateLimit(`msg:community:${session.id}`, 60, 60);
+    if (!rl.allowed) {
+      throw new ServiceError(429, "Message rate limit exceeded.");
+    }
+
+    const body = await parseJsonBody<{ text?: string; replyToId?: string }>(
+      req,
+    );
+    await sendCommunity(session, body.text || "", body.replyToId);
+    const { community } = await listCommunity({ limit: 100 });
+    return jsonOk({ community });
   } catch (err) {
     return handleServiceError(err);
   }

@@ -5,7 +5,6 @@ import { useTrak } from "@/context/TrakStore";
 import { addDays, iso, longDateLabel } from "@/lib/dates";
 import { firstName } from "@/lib/utils";
 import { rampColor } from "@/lib/constants";
-import { RESPONSIBILITIES } from "@/lib/mockDb";
 import { GhostBtn, PrimaryBtn } from "@/components/ui/Buttons";
 import { PATHS } from "@/components/icons";
 import type { User } from "@/lib/types";
@@ -112,17 +111,22 @@ function Kpi({
 function Card({
   title,
   sub,
+  action,
   children,
 }: {
   title: string;
   sub?: string;
+  action?: React.ReactNode;
   children: React.ReactNode;
 }) {
   return (
     <div className="mb-6 rounded-[18px] border border-line bg-card px-[26px] py-6 last:mb-0">
       <div className="mb-[18px] flex flex-wrap items-center justify-between gap-3">
         <h2 className="m-0 font-display text-[17px] font-semibold">{title}</h2>
-        {sub && <span className="text-[11.5px] text-ink-faint">{sub}</span>}
+        <div className="flex flex-wrap items-center gap-3">
+          {sub && <span className="text-[11.5px] text-ink-faint">{sub}</span>}
+          {action}
+        </div>
       </div>
       {children}
     </div>
@@ -246,7 +250,7 @@ function TypeBars({ userId }: { userId: string | null }) {
 }
 
 function RespBars({ userId }: { userId: string | null }) {
-  const { now, activitiesFor, db } = useTrak();
+  const { now, activitiesFor, db, responsibilities } = useTrak();
   const acts = (userId ? activitiesFor(userId) : db.activities).filter(
     (a) => a.createdAt >= iso(addDays(now, -90)),
   );
@@ -256,7 +260,9 @@ function RespBars({ userId }: { userId: string | null }) {
       counts[rid] = (counts[rid] || 0) + 1;
     }),
   );
-  const rb = RESPONSIBILITIES.map((r) => ({ ...r, count: counts[r.id] || 0 }))
+  const rb = responsibilities
+    .filter((r) => r.isActive !== false)
+    .map((r) => ({ ...r, count: counts[r.id] || 0 }))
     .sort((a, b) => b.count - a.count)
     .slice(0, 6);
   const respMax = Math.max(1, ...rb.map((r) => r.count));

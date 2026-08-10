@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTrak } from "@/context/TrakStore";
-import { RESPONSIBILITIES, RESP } from "@/lib/mockDb";
 import { TYPE_COLOR } from "@/lib/constants";
 import { TypeIcon } from "@/components/icons";
 import { PrimaryBtn } from "@/components/ui/Buttons";
@@ -15,7 +14,10 @@ const TYPES: ActivityType[] = ["Meeting", "Project", "Program", "Task"];
 
 export default function NewActivityPage() {
   const router = useRouter();
-  const { createActivity, showToast } = useTrak();
+  const { createActivity, responsibilities, showToast } = useTrak();
+  const respMap = Object.fromEntries(
+    responsibilities.map((r) => [r.id, r]),
+  );
   const [activityType, setActivityType] = useState<ActivityType | null>(null);
   const [selectedResp, setSelectedResp] = useState<Set<string>>(new Set());
   const [title, setTitle] = useState("");
@@ -24,6 +26,8 @@ export default function NewActivityPage() {
   const [end, setEnd] = useState("");
   const [time, setTime] = useState("");
   const [location, setLocation] = useState("");
+  const [hasBudget, setHasBudget] = useState(false);
+  const [estimatedAmount, setEstimatedAmount] = useState("");
 
   const multiDay = !!(start && end && end > start);
   const ok =
@@ -45,10 +49,10 @@ export default function NewActivityPage() {
   return (
     <div>
       <div className="mb-[22px]">
-        <div className="mb-2 text-[11.5px] font-bold tracking-[0.12em] text-saffron-dim uppercase">
+        <div className="mb-2 text-[11.5px] font-bold tracking-[0.12em] text-ink-soft uppercase">
           Create &amp; Log
         </div>
-        <h1 className="m-0 mb-1.5 font-display text-[30px] font-semibold">
+        <h1 className="m-0 mb-1.5 text-[30px] font-semibold">
           New Activity
         </h1>
         <p className="m-0 text-[13.5px] text-ink-soft">
@@ -65,7 +69,7 @@ export default function NewActivityPage() {
           <div className="mb-4 inline-flex rounded-full bg-saffron/15 px-2.5 py-1 text-[11.5px] font-bold text-saffron uppercase">
             {activityType || "Select a type"}
           </div>
-          <div className="mb-1.5 min-h-14 font-display text-[22px] leading-snug font-semibold">
+          <div className="mb-1.5 min-h-14 text-[22px] leading-snug font-semibold">
             {title.trim() || "Untitled activity"}
           </div>
           <div className="mb-[18px] text-[12.5px] leading-snug text-paper/60">
@@ -75,6 +79,16 @@ export default function NewActivityPage() {
           <Row label="Starts" value={start ? fmtDate(start) : "—"} />
           <Row label="Ends" value={end ? fmtDate(end) : "—"} />
           <Row label="Start time" value={time ? fmtTime(time) : "—"} />
+          {hasBudget && (
+            <Row
+              label="Est. budget"
+              value={
+                estimatedAmount
+                  ? `₦${Number(estimatedAmount).toLocaleString()}`
+                  : "—"
+              }
+            />
+          )}
           <div className="my-4 border-t border-dashed border-paper/22" />
           <div className="mb-1.5 text-[12.5px] text-paper/50">Responsibilities</div>
           <div className="flex flex-wrap gap-1.5">
@@ -84,7 +98,7 @@ export default function NewActivityPage() {
                   key={id}
                   className="rounded-full bg-paper/10 px-2.5 py-0.5 text-[10.5px]"
                 >
-                  {RESP[id]?.code}
+                  {respMap[id]?.code}
                 </span>
               ))
             ) : (
@@ -202,9 +216,45 @@ export default function NewActivityPage() {
             />
           </Section>
 
+          <Section label="Budget tracking" optional>
+            <div className="flex items-center gap-3 mb-3">
+              <button
+                type="button"
+                onClick={() => setHasBudget(!hasBudget)}
+                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors ${
+                  hasBudget ? "bg-aztec" : "bg-[#d4d4cc]"
+                }`}
+              >
+                <span
+                  className={`pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow-sm ring-0 transition-transform ${
+                    hasBudget ? "translate-x-5" : "translate-x-0"
+                  }`}
+                />
+              </button>
+              <span className="text-[13px] font-semibold">
+                {hasBudget ? "This activity has a budget" : "No budget tracking"}
+              </span>
+            </div>
+            {hasBudget && (
+              <div>
+                <div className="mb-2 text-[11px] font-bold text-ink-faint uppercase">
+                  Estimated amount (NGN)
+                </div>
+                <input
+                  type="number"
+                  min="0"
+                  value={estimatedAmount}
+                  onChange={(e) => setEstimatedAmount(e.target.value)}
+                  placeholder="e.g. 250000"
+                  className="w-full max-w-[300px] rounded-[11px] border-[1.5px] border-line px-[15px] py-3.5 text-sm outline-none focus:border-aztec-3"
+                />
+              </div>
+            )}
+          </Section>
+
           <Section label="Linked responsibilities" required>
             <div className="flex flex-wrap gap-2">
-              {RESPONSIBILITIES.map((r) => {
+              {responsibilities.filter((r) => r.isActive !== false).map((r) => {
                 const on = selectedResp.has(r.id);
                 return (
                   <button
@@ -225,7 +275,7 @@ export default function NewActivityPage() {
             </div>
           </Section>
 
-          <div className="mt-9 flex items-center justify-end border-t border-line pt-6">
+          <div className="sticky bottom-0 z-10 mt-9 flex items-center justify-end border-t border-line bg-card pt-6 pb-6 shadow-[0_-12px_24px_rgba(255,255,255,0.9)]">
             <PrimaryBtn
               disabled={!ok}
               onClick={async () => {
@@ -241,6 +291,10 @@ export default function NewActivityPage() {
                     endTime: "",
                     responsibilityIds: [...selectedResp],
                     location: location.trim(),
+                    hasBudget,
+                    estimatedAmountNgn: hasBudget && estimatedAmount
+                      ? Number(estimatedAmount)
+                      : null,
                   });
                   showToast(
                     "Saved to Pending Activities",

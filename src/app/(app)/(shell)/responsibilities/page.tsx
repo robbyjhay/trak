@@ -1,13 +1,16 @@
 "use client";
 
+import { useState } from "react";
 import { useTrak } from "@/context/TrakStore";
 import { RespManageList } from "@/components/activity/RespManageList";
+import { RespFormModal } from "@/components/activity/RespFormModal";
 import { GhostBtn } from "@/components/ui/Buttons";
 import { PATHS } from "@/components/icons";
 
 export default function ResponsibilitiesPage() {
-  const { sessionUser, showToast } = useTrak();
+  const { sessionUser } = useTrak();
   const isHead = sessionUser.role === "head";
+  const [adding, setAdding] = useState(false);
 
   return (
     <div>
@@ -26,14 +29,7 @@ export default function ResponsibilitiesPage() {
           </p>
         </div>
         {isHead && (
-          <GhostBtn
-            onClick={() =>
-              showToast(
-                "Add Responsibility",
-                "Design preview only — new responsibilities appear here and in every activity form.",
-              )
-            }
-          >
+          <GhostBtn onClick={() => setAdding(true)}>
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d={PATHS.plus} />
             </svg>
@@ -44,6 +40,13 @@ export default function ResponsibilitiesPage() {
       <div className="rounded-[18px] border border-line bg-card px-[26px] py-6">
         <RespManageList />
       </div>
+      {adding && (
+        <RespFormModal
+          open
+          onClose={() => setAdding(false)}
+          existing={null}
+        />
+      )}
     </div>
   );
 }

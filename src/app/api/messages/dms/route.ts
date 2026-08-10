@@ -4,15 +4,31 @@ import {
   parseJsonBody,
   requireSession,
 } from "@/lib/api/http";
-import { sendDm, ServiceError } from "@/lib/db/service";
-import { getSnapshot } from "@/lib/db/store";
+import {
+  listDmsForUser,
+  myNotifications,
+  sendDm,
+  ServiceError,
+} from "@/lib/db/service";
+import { parsePagination, pageMeta } from "@/lib/api/pagination";
+import { checkRateLimit } from "@/lib/auth/rate-limit";
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
-    const { error } = await requireSession();
+    const { session, error } = await requireSession();
     if (error) return error;
-    const snap = await getSnapshot();
-    return jsonOk({ dms: snap.db.dms });
+
+    const url = new URL(req.url);
+    const { page, limit } = parsePagination(url.searchParams);
+    const withUserId = url.searchParams.get("with") || undefined;
+
+    const { dms, total } = await listDmsForUser(session, {
+      page,
+      limit,
+      withUserId,
+    });
+
+    return jsonOk({ dms, meta: pageMeta(total, page, limit) });
   } catch (err) {
     return handleServiceError(err);
   }
@@ -22,16 +38,24 @@ export async function POST(req: Request) {
   try {
     const { session, error } = await requireSession();
     if (error) return error;
+
+    const rl = await checkRateLimit(`msg:dm:${session.id}`, 60, 60);
+    if (!rl.allowed) {
+      throw new ServiceError(429, "Message rate limit exceeded.");
+    }
+
     const body = await parseJsonBody<{ toId?: string; text?: string }>(req);
     if (!body.toId) {
       throw new ServiceError(400, "toId is required");
     }
     const result = await sendDm(session, body.toId, body.text || "");
-    const snap = await getSnapshot();
+    const { dms } = await listDmsForUser(session, { limit: 200 });
+    const notifications = await myNotifications(session);
+
     return jsonOk({
       id: result.id,
-      dms: snap.db.dms,
-      notifications: snap.db.notifications,
+      dms,
+      notifications,
     });
   } catch (err) {
     return handleServiceError(err);

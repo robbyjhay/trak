@@ -4,9 +4,28 @@ import {
   parseJsonBody,
   requireSession,
 } from "@/lib/api/http";
-import { submitDailyLog, ServiceError } from "@/lib/db/service";
-import { getSnapshot } from "@/lib/db/store";
+import {
+  getActivityLogs,
+  myNotifications,
+  submitDailyLog,
+  ServiceError,
+} from "@/lib/db/service";
 import type { SubmitDailyLogData } from "@/lib/types";
+
+export async function GET(
+  _req: Request,
+  ctx: { params: Promise<{ id: string }> },
+) {
+  try {
+    const { session, error } = await requireSession();
+    if (error) return error;
+    const { id } = await ctx.params;
+    const dailyLogs = await getActivityLogs(session, id);
+    return jsonOk({ dailyLogs });
+  } catch (err) {
+    return handleServiceError(err);
+  }
+}
 
 export async function POST(
   req: Request,
@@ -32,13 +51,16 @@ export async function POST(
       attendanceNotes: body.attendanceNotes,
       attendees: body.attendees,
       attachments: body.attachments,
+      amountReleasedNgn: body.amountReleasedNgn,
+      amountSpentNgn: body.amountSpentNgn,
+      spendingItems: body.spendingItems,
     });
 
-    const snap = await getSnapshot();
+    const notifications = await myNotifications(session);
     return jsonOk({
       log,
       activity,
-      notifications: snap.db.notifications,
+      notifications,
     });
   } catch (err) {
     return handleServiceError(err);

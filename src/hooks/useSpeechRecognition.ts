@@ -37,10 +37,10 @@ export function useSpeechRecognition() {
         rec.lang = "en-NG";
         recognitionRef.current = rec;
         liveOk.current = true;
-        setSupported(true);
+        setTimeout(() => setSupported(true), 0);
       } catch {
         liveOk.current = false;
-        setSupported(false);
+        setTimeout(() => setSupported(false), 0);
       }
     }
     return () => {

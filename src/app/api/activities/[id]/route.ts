@@ -5,8 +5,14 @@ import {
   parseJsonBody,
   requireSession,
 } from "@/lib/api/http";
-import { getActivity, updateActivityWrapup } from "@/lib/db/service";
-import { getSnapshot } from "@/lib/db/store";
+import {
+  getActivity,
+  getActivityComments,
+  getActivityLogs,
+  softDeleteActivity,
+  toggleActivityHidden,
+  updateActivityWrapup,
+} from "@/lib/db/service";
 import type { WrapupData } from "@/lib/types";
 
 export async function GET(
@@ -14,19 +20,18 @@ export async function GET(
   ctx: { params: Promise<{ id: string }> },
 ) {
   try {
-    const { error } = await requireSession();
+    const { session, error } = await requireSession();
     if (error) return error;
     const { id } = await ctx.params;
-    const activity = await getActivity(id);
+    const activity = await getActivity(session, id);
     if (!activity) return jsonError(404, "Activity not found");
-    const snap = await getSnapshot();
-    return jsonOk({
-      activity,
-      dailyLogs: snap.db.dailyLogs
-        .filter((l) => l.activityId === id)
-        .sort((a, b) => a.date.localeCompare(b.date)),
-      comments: snap.db.comments.filter((c) => c.activityId === id),
-    });
+
+    const [dailyLogs, comments] = await Promise.all([
+      getActivityLogs(session, id),
+      getActivityComments(session, id),
+    ]);
+
+    return jsonOk({ activity, dailyLogs, comments });
   } catch (err) {
     return handleServiceError(err);
   }
@@ -40,11 +45,26 @@ export async function PATCH(
     const { session, error } = await requireSession();
     if (error) return error;
     const { id } = await ctx.params;
-    const body = await parseJsonBody<WrapupData & { action?: string }>(req);
+    const body = await parseJsonBody<
+      WrapupData & { action?: string }
+    >(req);
 
-    if (body.action === "wrapup" || body.initiativeTeamwork !== undefined ||
-        body.challenges !== undefined || body.outcomes !== undefined ||
-        body.nextSteps !== undefined) {
+    if (body.action === "toggleHidden") {
+      const activity = await toggleActivityHidden(session, id);
+      return jsonOk({ activity });
+    }
+    if (body.action === "softDelete") {
+      const activity = await softDeleteActivity(session, id);
+      return jsonOk({ activity });
+    }
+
+    if (
+      body.action === "wrapup" ||
+      body.initiativeTeamwork !== undefined ||
+      body.challenges !== undefined ||
+      body.outcomes !== undefined ||
+      body.nextSteps !== undefined
+    ) {
       const activity = await updateActivityWrapup(session, id, {
         initiativeTeamwork: body.initiativeTeamwork,
         challenges: body.challenges,

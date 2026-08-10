@@ -1,10 +1,11 @@
 /**
  * Dev-only quick-select data. Username only — password never leaves server
- * except via a guarded API used solely in non-production.
+ * except via /api/auth/dev-fill when ENABLE_DEV_LOGIN=true.
  */
 import { DEV_ROSTER } from "@/lib/mockDb/users";
+import { isDevLoginEnabled } from "@/lib/env";
 
 export function getDevRoster() {
-  if (process.env.NODE_ENV === "production") return [];
+  if (!isDevLoginEnabled()) return [];
   return DEV_ROSTER;
 }

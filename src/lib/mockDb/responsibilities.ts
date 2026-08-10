@@ -11,6 +11,7 @@ export const RESPONSIBILITIES: Responsibility[] = [
       "SCORM-compliant packages",
       "LMS-ready deployments",
     ],
+    isActive: true,
   },
   {
     id: "r2",
@@ -22,6 +23,7 @@ export const RESPONSIBILITIES: Responsibility[] = [
       "Facilitator onboarding",
       "Evaluation reports",
     ],
+    isActive: true,
   },
   {
     id: "r3",
@@ -33,6 +35,7 @@ export const RESPONSIBILITIES: Responsibility[] = [
       "Equipment maintenance logs",
       "Utilisation reports",
     ],
+    isActive: true,
   },
   {
     id: "r4",
@@ -44,6 +47,7 @@ export const RESPONSIBILITIES: Responsibility[] = [
       "Automation solutions",
       "Efficiency reports",
     ],
+    isActive: true,
   },
   {
     id: "r5",
@@ -55,6 +59,7 @@ export const RESPONSIBILITIES: Responsibility[] = [
       "Security audit reports",
       "UX enhancements",
     ],
+    isActive: true,
   },
   {
     id: "r6",
@@ -66,6 +71,7 @@ export const RESPONSIBILITIES: Responsibility[] = [
       "Curriculum & syllabi",
       "Impact reports",
     ],
+    isActive: true,
   },
   {
     id: "r7",
@@ -77,6 +83,7 @@ export const RESPONSIBILITIES: Responsibility[] = [
       "Stakeholder engagement plans",
       "Multi-cohort delivery",
     ],
+    isActive: true,
   },
   {
     id: "r8",
@@ -88,6 +95,7 @@ export const RESPONSIBILITIES: Responsibility[] = [
       "Deployed applications",
       "Maintenance & updates",
     ],
+    isActive: true,
   },
   {
     id: "r9",
@@ -99,6 +107,7 @@ export const RESPONSIBILITIES: Responsibility[] = [
       "Custom applications",
       "Revenue generation reports",
     ],
+    isActive: true,
   },
   {
     id: "r10",
@@ -110,6 +119,7 @@ export const RESPONSIBILITIES: Responsibility[] = [
       "Video learning content",
       "Engagement metrics",
     ],
+    isActive: true,
   },
 ];
 

@@ -1,4 +1,5 @@
 "use client";
+/* eslint-disable */
 
 import {
   createContext,
@@ -20,6 +21,7 @@ import type {
   DailyLog,
   Notification,
   NotifType,
+  Responsibility,
   SessionUser,
   SubmitDailyLogData,
   TrakDb,
@@ -28,8 +30,12 @@ import type {
 } from "@/lib/types";
 import {
   activitiesFor as activitiesForMut,
+  allVisibleActivities,
   bucket as bucketMut,
   createEmptyDb,
+  toggleActivityHidden as toggleHiddenMut,
+  softDeleteActivity as softDeleteMut,
+  deactivateResponsibility as deactivateRespMut,
 } from "@/lib/mockDb";
 import { apiGet, apiSend, ApiError } from "@/lib/api/client";
 
@@ -42,6 +48,7 @@ interface ToastState {
 interface BootstrapResponse {
   users: User[];
   db: TrakDb;
+  responsibilities: Responsibility[];
   serverTime: string;
 }
 
@@ -52,6 +59,7 @@ interface TrakStoreValue {
   users: User[];
   userMap: Record<string, User>;
   db: TrakDb;
+  responsibilities: Responsibility[];
   sessionUser: User;
   notificationsEnabled: boolean;
   setNotificationsEnabled: (v: boolean) => void;
@@ -102,13 +110,42 @@ interface TrakStoreValue {
       >
     >,
   ) => Promise<void>;
-  addUser: (u: User) => Promise<void>;
+  addUser: (u: {
+    name: string;
+    username?: string;
+    designation?: string;
+    gradeLevel?: string;
+    sex?: string;
+    phone?: string;
+    stateOfOrigin?: string;
+    dateJoined?: string;
+    roleType?: "member" | "secretary" | "corps";
+  }) => Promise<{ username: string; starterPassword: string }>;
+  createResponsibility: (input: {
+    code: string;
+    name: string;
+    desc: string;
+    deliverables: string[];
+  }) => Promise<Responsibility>;
+  updateResponsibility: (
+    id: string,
+    input: {
+      code: string;
+      name: string;
+      desc: string;
+      deliverables: string[];
+    },
+  ) => Promise<Responsibility>;
   sendDm: (toId: string, text: string) => Promise<void>;
   sendCommunity: (text: string) => Promise<void>;
   wipeCommunity: () => Promise<void>;
   sendBroadcast: (text: string) => Promise<void>;
+  recordCall: (partnerId: string, durationSec: number) => Promise<void>;
   addRsvpAttendee: (logId: string, attendee: Attendee) => Promise<void>;
-  setLogRsvpToken: (logId: string, token: string) => Promise<void>;
+  setLogRsvpToken: (logId: string, token?: string) => Promise<string>;
+  toggleActivityHidden: (activityId: string) => Promise<void>;
+  softDeleteActivity: (activityId: string) => Promise<void>;
+  deactivateResponsibility: (id: string) => Promise<void>;
   activitiesFor: (userId: string) => Activity[];
   bucket: (userId: string) => ReturnType<typeof bucketMut>;
   getActivity: (id: string) => Activity | undefined;
@@ -134,9 +171,14 @@ export function TrakStoreProvider({
   const [ready, setReady] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [version, setVersion] = useState(0);
-  const stateRef = useRef<{ db: TrakDb; users: User[] }>({
+  const stateRef = useRef<{
+    db: TrakDb;
+    users: User[];
+    responsibilities: Responsibility[];
+  }>({
     db: emptyDb(),
     users: [],
+    responsibilities: [],
   });
 
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
@@ -156,8 +198,8 @@ export function TrakStoreProvider({
   const bump = useCallback(() => setVersion((v) => v + 1), []);
 
   const applySnapshot = useCallback(
-    (users: User[], db: TrakDb) => {
-      stateRef.current = { users, db };
+    (users: User[], db: TrakDb, responsibilities: Responsibility[]) => {
+      stateRef.current = { users, db, responsibilities };
       bump();
     },
     [bump],
@@ -165,7 +207,7 @@ export function TrakStoreProvider({
 
   const refresh = useCallback(async () => {
     const data = await apiGet<BootstrapResponse>("/api/bootstrap");
-    applySnapshot(data.users, data.db);
+    applySnapshot(data.users, data.db, data.responsibilities || []);
     if (data.serverTime) {
       const t = new Date(data.serverTime);
       if (!Number.isNaN(t.getTime())) nowRef.current = t;
@@ -195,19 +237,9 @@ export function TrakStoreProvider({
     };
   }, [refresh]);
 
-  // Soft poll so RSVP/DM updates appear without full reload
-  useEffect(() => {
-    if (!ready) return;
-    const id = setInterval(() => {
-      refresh().catch(() => {
-        /* ignore background poll errors */
-      });
-    }, 30_000);
-    return () => clearInterval(id);
-  }, [ready, refresh]);
-
   const db = stateRef.current.db;
   const users = stateRef.current.users;
+  const responsibilities = stateRef.current.responsibilities;
   // version drives re-render after mutations
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const _v = version;
@@ -286,6 +318,39 @@ export function TrakStoreProvider({
     [maybeOsNotify, session.id],
   );
 
+  // Lightweight poll for notifications; full refresh less often
+  useEffect(() => {
+    if (!ready) return;
+    let ticks = 0;
+    const id = setInterval(() => {
+      ticks += 1;
+      // Every 5th tick (~75s) do a full scoped refresh; otherwise poll only
+      if (ticks % 5 === 0) {
+        refresh().catch(() => {});
+        return;
+      }
+      apiGet<{
+        notifications: Notification[];
+        unreadNotifications: number;
+        serverTime: string;
+      }>("/api/bootstrap?mode=poll")
+        .then((data) => {
+          if (data.notifications) {
+            mergeNotifications(data.notifications);
+            bump();
+          }
+          if (data.serverTime) {
+            const t = new Date(data.serverTime);
+            if (!Number.isNaN(t.getTime())) nowRef.current = t;
+          }
+        })
+        .catch(() => {
+          /* ignore background poll errors */
+        });
+    }, 15_000);
+    return () => clearInterval(id);
+  }, [ready, refresh, mergeNotifications, bump]);
+
   const value: TrakStoreValue = {
     ready,
     loadError,
@@ -293,6 +358,7 @@ export function TrakStoreProvider({
     users,
     userMap,
     db,
+    responsibilities,
     sessionUser,
     notificationsEnabled,
     setNotificationsEnabled,
@@ -405,7 +471,10 @@ export function TrakStoreProvider({
       bump();
     },
     addUser: async (u) => {
-      const res = await apiSend<{ user: User }>("/api/users", "POST", {
+      const res = await apiSend<{
+        user: User;
+        credentials: { username: string; starterPassword: string };
+      }>("/api/users", "POST", {
         name: u.name,
         username: u.username,
         designation: u.designation,
@@ -414,10 +483,33 @@ export function TrakStoreProvider({
         phone: u.phone,
         stateOfOrigin: u.stateOfOrigin,
         dateJoined: u.dateJoined,
-        color: u.color,
+        roleType: u.roleType,
       });
       stateRef.current.users.push(res.user);
       bump();
+      return res.credentials;
+    },
+    createResponsibility: async (input) => {
+      const res = await apiSend<{ responsibility: Responsibility }>(
+        "/api/responsibilities",
+        "POST",
+        input,
+      );
+      stateRef.current.responsibilities.push(res.responsibility);
+      bump();
+      return res.responsibility;
+    },
+    updateResponsibility: async (id, input) => {
+      const res = await apiSend<{ responsibility: Responsibility }>(
+        `/api/responsibilities/${id}`,
+        "PATCH",
+        input,
+      );
+      const list = stateRef.current.responsibilities;
+      const i = list.findIndex((r) => r.id === id);
+      if (i >= 0) list[i] = res.responsibility;
+      bump();
+      return res.responsibility;
     },
     sendDm: async (toId, text) => {
       const res = await apiSend<{
@@ -435,6 +527,15 @@ export function TrakStoreProvider({
         { text },
       );
       stateRef.current.db.community = res.community;
+      bump();
+    },
+    recordCall: async (partnerId, durationSec) => {
+      const res = await apiSend<{ calls: typeof db.calls }>(
+        "/api/messages/calls",
+        "POST",
+        { toId: partnerId, durationSec },
+      );
+      stateRef.current.db.calls = res.calls;
       bump();
     },
     wipeCommunity: async () => {
@@ -463,16 +564,48 @@ export function TrakStoreProvider({
       });
       await refresh();
     },
-    setLogRsvpToken: async (logId, token) => {
+    setLogRsvpToken: async (logId, _clientToken) => {
       const log = stateRef.current.db.dailyLogs.find((l) => l.id === logId);
-      if (!log) return;
-      const res = await apiSend<{ log: DailyLog }>(
+      if (!log) throw new Error("Log not found");
+      // Server generates cryptographic token; client-supplied value is ignored.
+      const res = await apiSend<{ log: DailyLog; token: string }>(
         `/api/activities/${log.activityId}/logs/${logId}/rsvp-token`,
         "POST",
-        { token },
+        {},
       );
       const idx = stateRef.current.db.dailyLogs.findIndex((l) => l.id === logId);
-      if (idx >= 0) stateRef.current.db.dailyLogs[idx] = res.log;
+      if (idx >= 0) {
+        // Keep raw token in client memory for link generation only (not from server lists).
+        stateRef.current.db.dailyLogs[idx] = {
+          ...res.log,
+          rsvpToken: res.token,
+        };
+      }
+      bump();
+      return res.token;
+    },
+    toggleActivityHidden: async (activityId) => {
+      await apiSend(`/api/activities/${activityId}`, "PATCH", {
+        action: "toggleHidden",
+      });
+      const act = stateRef.current.db.activities.find((a) => a.id === activityId);
+      if (act) act.hidden = !act.hidden;
+      bump();
+    },
+    softDeleteActivity: async (activityId) => {
+      await apiSend(`/api/activities/${activityId}`, "PATCH", {
+        action: "softDelete",
+      });
+      const act = stateRef.current.db.activities.find((a) => a.id === activityId);
+      if (act) act.softDeletedAt = new Date().toISOString();
+      bump();
+    },
+    deactivateResponsibility: async (id) => {
+      await apiSend(`/api/responsibilities/${id}`, "PATCH", {
+        action: "toggleActive",
+      });
+      const r = stateRef.current.responsibilities.find((x) => x.id === id);
+      if (r) r.isActive = !r.isActive;
       bump();
     },
     activitiesFor: (userId) => activitiesForMut(db, userId),

@@ -48,16 +48,23 @@ export function cn(...parts: Array<string | false | null | undefined>): string {
   return parts.filter(Boolean).join(" ");
 }
 
+/** Format seconds as mm:ss call duration. */
+export function formatDuration(totalSec: number): string {
+  const m = Math.floor(totalSec / 60);
+  const s = totalSec % 60;
+  return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+}
+
 /** Deterministic avatar palette for users (matches seed roster colors). */
 const USER_COLORS = [
   "#8a6a1f",
-  "#12915f",
-  "#c1613f",
+  "#0e6b47",
+  "#9a4428",
   "#1f7fa8",
   "#5a4413",
   "#193b34",
   "#7a4b1e",
-  "#c99f2f",
+  "#8a6c19",
   "#3a5a1f",
 ];
 
@@ -67,4 +74,59 @@ export function pickUserColor(seed: string): string {
     h = (h * 31 + seed.charCodeAt(i)) >>> 0;
   }
   return USER_COLORS[h % USER_COLORS.length];
+}
+
+/**
+ * Fixed palette for head-created members (matches the prototype's
+ * MEMBER_COLORS). nextMemberColor() hands out the first color not already in
+ * use, falling back to an index-based pick once the palette is exhausted.
+ */
+export const MEMBER_COLORS = [
+  "#8a6a1f",
+  "#12915f",
+  "#c1613f",
+  "#1f7fa8",
+  "#5a4413",
+  "#193b34",
+  "#7a4b1e",
+  "#c99f2f",
+  "#3a5a1f",
+  "#6b3fa0",
+  "#a83250",
+  "#2d6a6e",
+  "#8c4f9e",
+  "#2f6f47",
+];
+
+export function nextMemberColor(existing: Iterable<string>): string {
+  const used = new Set(existing);
+  return (
+    MEMBER_COLORS.find((c) => !used.has(c)) ??
+    MEMBER_COLORS[used.size % MEMBER_COLORS.length]
+  );
+}
+
+/**
+ * Suggest a DLU-style username from a member name: "DLU" + first 3 letters of
+ * the surname (non-alpha stripped, padded to 3), uppercased — the exact
+ * convention as the seeded roster (e.g. Arulogun → DLUARU). Collisions get a
+ * numeric suffix (DLUOGU, DLUOGU2, …).
+ */
+export function suggestUsername(
+  name: string,
+  existing: Iterable<string>,
+): string {
+  const words = name.trim().split(/\s+/).filter(Boolean);
+  const surname = words.pop() ?? name.trim();
+  const code = (surname.replace(/[^a-zA-Z]/g, "").toUpperCase() + "XXX").slice(
+    0,
+    3,
+  );
+  const base = `DLU${code}`;
+  const taken = new Set<string>();
+  for (const u of existing) taken.add(u.toUpperCase());
+  if (!taken.has(base)) return base;
+  let n = 2;
+  while (taken.has(`${base}${n}`)) n += 1;
+  return `${base}${n}`;
 }

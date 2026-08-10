@@ -1,0 +1,187 @@
+================================================================================
+TRAK — PRODUCTION READINESS AUDIT
+DOCUMENT 00: EXECUTIVE SUMMARY
+================================================================================
+Application:     Trak (Digital Learning Unit activity & operations register)
+Organization:    Lagos State Government · PSSDC · Digital Learning Unit
+Audit date:      2026-08-10
+Codebase path:   /home/urfavtechbro/Desktop/Trak
+Stack observed:  Next.js 16.3.0 · React 19.2.8 · Tailwind CSS 4 · Prisma 7.9.1
+                 jose · bcryptjs · TypeScript 5 · SQLite (schema only, unused at runtime)
+Status:          PROTOTYPE / PRE-PRODUCTION — NOT READY TO SHIP
+================================================================================
+
+1. WHAT TRAK IS
+--------------------------------------------------------------------------------
+Trak is an internal government unit application for the Digital Learning Unit
+(DLU). It tracks activities (meetings, projects, programs, tasks), daily logs,
+attendance (including public RSVP links), responsibilities, team messaging
+(DMs, community chat, broadcasts), in-app call records (UI-only), notifications,
+profile management, and printable activity reports.
+
+Intended users:
+  - Head of Unit (role = "head") — full unit oversight, delegation, comments,
+    team profiles, responsibilities, wipe community, broadcasts
+  - Members (role = "member") — own activities, logs, DMs, community, profile
+  - Secretary flag (isSecretary) — can broadcast with Head
+  - NYSC Corps flag (isCorps) — role label and optional corps end date
+
+2. CURRENT ARCHITECTURE (AS BUILT)
+--------------------------------------------------------------------------------
+Frontend:
+  - Next.js App Router under src/app
+  - Client-heavy state via TrakStoreProvider (bootstrap full DB every 30s)
+  - Shell routes: dashboard, activities, activity/[id], new-activity, profile,
+    responsibilities, settings, member/[id]
+  - Connect routes: messages, contacts
+  - Public: login, rsvp/[encoded], set-password
+  - UI: custom Tailwind design system (aztec/saffron palette), Rail + Topbar +
+    MobileNav
+
+Backend (partial):
+  - Next.js Route Handlers under src/app/api/*
+  - Service layer: src/lib/db/service.ts
+  - Persistence: JSON file store at .data/trak-db.json (NOT Prisma at runtime)
+  - Auth: JWT session cookie (trak_session), bcrypt password hashes
+  - Middleware: src/middleware.ts validates JWT for protected routes
+
+Database:
+  - prisma/schema.prisma exists (SQLite models) but is NOT wired into the app
+  - No migrations folder with applied production migrations
+  - Runtime truth is a single JSON document with users, credentials, db.*,
+    responsibilities, uidN
+
+3. MATURITY SCORECARD
+--------------------------------------------------------------------------------
+Area                         Score (0-10)   Notes
+---------------------------  ------------   --------------------------------
+Product completeness              6         Core flows work; v3 features partial
+Backend production readiness      2         JSON file store, no Postgres, no jobs
+Database production readiness     2         Prisma schema incomplete & unused
+Authentication                    4         Cookie JWT exists; shared password, weak
+Authorization / RBAC              5         Permissions helpers exist; holes remain
+Security                          2         Secrets, bootstrap leak, RSVP abuse
+UX / UI polish                    6         Strong visual design; missing states
+Accessibility                     3         Sparse ARIA; focus/keyboard incomplete
+Performance                       3         Full-DB bootstrap + 30s polling
+Scalability                       1         Single-process JSON mutex
+Observability                     0         No metrics, tracing, structured logs
+Testing                           0         No unit/integration/e2e tests
+CI/CD                             0         No pipeline
+Documentation                     2         README is create-next-app default
+Production ops                    1         No backups, health checks, runbooks
+
+Overall ship readiness:           2.5 / 10  DO NOT DEPLOY TO PRODUCTION
+
+4. TOP 10 CRITICAL BLOCKERS
+--------------------------------------------------------------------------------
+C1. Data layer is a process-local JSON file (.data/trak-db.json). Not multi-
+    instance safe, not transactional for complex ops, not backed up, not
+    suitable for concurrent government multi-user production.
+
+C2. Prisma schema is present but unused; schema diverges from runtime types
+    (calls, credentials.mustChangePassword, budget fields, hidden activities,
+    message reply/mentions all missing or incomplete).
+
+C3. Shared default password "DLUactsys360" for all seeded and newly created
+    accounts; starter password logged to server console in plaintext.
+
+C4. Hardcoded JWT fallback secret in middleware and session:
+    "trak-dev-secret-change-me-in-production-32b"
+
+C5. GET /api/bootstrap returns the entire database (all users' DMs,
+    notifications, activities, comments, calls) to any authenticated user.
+
+C6. Public RSVP API accepts arbitrary logId with no token verification —
+    anyone who guesses/enumerates log IDs can inject attendees.
+
+C7. No rate limiting on login, RSVP, messaging, or bootstrap.
+
+C8. No tests, no CI, no staging environment definition, no health endpoint.
+
+C9. No email system — cannot verify accounts, reset passwords, or notify
+    offline users of broadcasts/activities.
+
+C10. File attachments are client-side constructs without secure object
+     storage, virus scanning, or durable URLs.
+
+5. DOCUMENT MAP (SOURCE OF TRUTH)
+--------------------------------------------------------------------------------
+AUDIT_00_EXECUTIVE_SUMMARY.txt     This document
+AUDIT_01_ISSUES_AND_FINDINGS.txt   Exhaustive issue inventory with priorities
+AUDIT_02_MISSING_FEATURES_UX.txt   Features, UX states, user flows
+AUDIT_03_BACKEND_PLAN.txt          Production backend architecture
+AUDIT_04_DATABASE_DESIGN.txt       Full schema, indexes, migrations, seed
+AUDIT_05_AUTHENTICATION_PLAN.txt   Auth, sessions, RBAC, password flows
+AUDIT_06_SECURITY_CHECKLIST.txt    Security controls and verification
+AUDIT_07_PERFORMANCE_SCALE.txt     Performance and scalability plan
+AUDIT_08_PRODUCTION_CHECKLIST.txt  Ship checklist + phased implementation order
+
+6. IMPLEMENTATION PHASES (AUTHORIZED ORDER)
+--------------------------------------------------------------------------------
+Phase 0 / Sprint 1 — Foundation (DO FIRST; STOP AFTER COMPLETION)
+  - Project hygiene: .env.example, hardened .gitignore, remove dead code
+  - Remove hardcoded secrets; wire env-only secrets
+  - Foundation Next.js App Router structure (auth routes, protected shell,
+    loading/error boundaries as specified)
+  - Database tables ONLY:
+      users, user_profiles, sessions, auth_tokens, user_preferences
+  - Server-driven authentication (register if specified, login, logout,
+    session create/validate, password hashing bcrypt cost 12, secure cookies,
+    middleware route guards)
+  - Note: Product domain tables (activities, messages, etc.) are Phase 1+
+
+Phase 1 — Core data domain
+  - Migrate activities, daily_logs, attendees, attachments, responsibilities
+  - Replace JSON store with Prisma + PostgreSQL
+  - Scoped API responses (no full-DB bootstrap)
+
+Phase 2 — Messaging, notifications, RSVP hardening
+  - DMs, community, broadcasts with proper isolation
+  - Token-bound public RSVP
+  - Real-time or efficient poll strategy
+
+Phase 3 — Media, reports, budget/v3 feature parity
+  - Object storage for photos and evidence
+  - Budget/cost tracking end-to-end
+  - Hide/unhide, @mentions, replies, report hardening
+
+Phase 4 — Production hardening
+  - Rate limits, email, monitoring, backups, CI/CD, e2e tests
+  - Accessibility pass, offline/error states, settings completion
+  - Security review and penetration test
+
+Phase 5 — Launch
+  - Staging soak, UAT with DLU staff, go-live checklist
+  - Runbooks, training, data migration from seed/JSON if needed
+
+7. OUT OF SCOPE FOR PHASE 0
+--------------------------------------------------------------------------------
+- Domain tables beyond the five foundation tables listed above
+- Real-time WebRTC calling
+- Payments
+- Multi-tenant multi-unit SaaS (unless later authorized)
+- AI rewrite of reports (extractive summary remains product choice)
+- Renaming product "Trak" (product name stays Trak)
+
+8. SUCCESS CRITERIA FOR PHASE 0
+--------------------------------------------------------------------------------
+- All AUDIT documents present and treated as immutable specs during execution
+- No hardcoded session secrets or shared production passwords in source
+- .env.example documents every variable required by later phases
+- PostgreSQL-ready Prisma models for users, user_profiles, sessions,
+  auth_tokens, user_preferences with UUID PKs, indexes, constraints
+- Login/logout/session middleware work against the new session store design
+- Application builds; Phase 0 complete; STOP and wait for approval
+
+9. RISK STATEMENT
+--------------------------------------------------------------------------------
+Shipping the current JSON-backed prototype as "production" would expose unit
+personnel data, messages, and credentials practices to unacceptable risk,
+and would not survive multi-user concurrency or multi-instance hosting.
+The path to production is a sequenced rebuild of the data and auth layers
+while preserving the existing product UX and domain language.
+
+================================================================================
+END AUDIT_00
+================================================================================

@@ -70,18 +70,15 @@ function RailItem({
     <Link
       href={href}
       className={cn(
-        "group relative flex h-12 w-12 items-center justify-center rounded-rail transition-colors",
+        "group relative flex h-12 w-12 items-center justify-center rounded-rail transition-colors focus-visible:ring-2 focus-visible:ring-saffron focus-visible:outline-none",
         active
-          ? "bg-saffron/16 text-saffron"
+          ? "bg-saffron text-aztec"
           : "text-white hover:bg-paper/8 hover:text-white",
       )}
       aria-label={label}
       aria-current={active ? "page" : undefined}
     >
-      {active && (
-        <span className="absolute top-1/2 left-[-11px] h-[22px] w-[3px] -translate-y-1/2 rounded-[3px] bg-saffron" />
-      )}
-      <span className="pointer-events-none absolute left-16 z-20 rounded-[7px] bg-aztec px-2.5 py-1.5 text-[11px] whitespace-nowrap text-white opacity-0 shadow-[0_6px_16px_rgba(0,0,0,0.3)] transition-opacity group-hover:opacity-100">
+      <span className="pointer-events-none absolute left-16 z-20 rounded-[7px] bg-aztec px-2.5 py-1.5 text-[11px] whitespace-nowrap text-white opacity-0 shadow-[0_6px_16px_rgba(0,0,0,0.3)] transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100 group-focus-within:opacity-100">
         {label}
       </span>
       <svg
@@ -89,7 +86,7 @@ function RailItem({
         height="19"
         viewBox="0 0 24 24"
         fill="none"
-        stroke={active ? "#f6c642" : "#ffffff"}
+        stroke={active ? "#0d1d1a" : "#ffffff"}
         strokeWidth="2"
       >
         <path d={path} />

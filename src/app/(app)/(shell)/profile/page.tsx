@@ -132,9 +132,9 @@ export default function ProfilePage() {
       )}
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1.5fr_1fr]">
-        <div className="rounded-[18px] border border-line bg-card px-[26px] py-6 text-center">
+        <div className="rounded-[18px] border border-line bg-card px-[26px] py-6 text-center shadow-card">
           <div
-            className="mx-auto mb-[18px] flex h-[132px] w-[132px] items-center justify-center overflow-hidden rounded-full font-display text-[40px] font-bold text-white"
+            className="mx-auto mb-5 flex h-[132px] w-[132px] items-center justify-center overflow-hidden rounded-full font-display text-[40px] font-bold text-white shadow-[0_14px_28px_-12px_rgba(13,29,26,0.45)]"
             style={{ background: u.color }}
           >
             {u.photoUrl ? (
@@ -144,12 +144,12 @@ export default function ProfilePage() {
               initials(u.name)
             )}
           </div>
-          <div className="font-display text-xl font-semibold">{u.name}</div>
-          <div className="mt-0.5 text-[13px] text-ink-soft">
+          <div className="font-display text-xl leading-tight font-semibold">{u.name}</div>
+          <div className="mt-1 text-[13px] text-ink-soft">
             {u.designation || roleLabel(u)}
           </div>
           <GhostBtn
-            className="mt-[18px] w-full justify-center"
+            className="mt-[18px] justify-center"
             onClick={() => selfie.openCapture()}
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -159,43 +159,45 @@ export default function ProfilePage() {
           </GhostBtn>
         </div>
 
-        <div className="rounded-[18px] border border-line bg-card px-[26px] py-6">
-          <div className="mb-[18px] flex items-center justify-between">
+        <div className="rounded-[18px] border border-line bg-card px-[26px] py-6 shadow-card">
+          <div className="mb-6 border-b border-line pb-4">
             <h2 className="m-0 font-display text-[17px] font-semibold">
               Personnel record
             </h2>
-            <span className="text-[11.5px] text-ink-faint">
+            <p className="mt-1 text-[12.5px] text-ink-soft">
               {u.role === "head"
                 ? "You manage this for the unit"
                 : "Managed by the Head of Unit"}
-            </span>
+            </p>
           </div>
-          {(
-            [
-              ["Full name", u.name],
-              ["Designation", u.designation || "—"],
-              ["Role", roleLabel(u)],
-              ["Grade level", u.gradeLevel || "—"],
-              ["Sex", u.sex || "—"],
-              ["Phone", u.phone || "—"],
-              ["State of origin", u.stateOfOrigin || "—"],
-              ["Date joined PSSDC", u.dateJoined ? fmtDate(u.dateJoined) : "—"],
-              ["Username", u.username],
-            ] as const
-          ).map(([k, v]) => (
-            <div
-              key={k}
-              className="mb-3 flex items-center justify-between gap-2 last:mb-0"
-            >
-              <span className="text-ink-faint">{k}</span>
-              <span
-                className={`text-right font-bold ${k === "Username" ? "font-mono" : ""}`}
+          <dl>
+            {(
+              [
+                ["Full name", u.name],
+                ["Designation", u.designation || "—"],
+                ["Role", roleLabel(u)],
+                ["Grade level", u.gradeLevel || "—"],
+                ["Sex", u.sex || "—"],
+                ["Phone", u.phone || "—"],
+                ["State of origin", u.stateOfOrigin || "—"],
+                ["Date joined PSSDC", u.dateJoined ? fmtDate(u.dateJoined) : "—"],
+                ["Username", u.username],
+              ] as const
+            ).map(([k, v]) => (
+              <div
+                key={k}
+                className="grid grid-cols-1 items-baseline gap-x-6 border-b border-line/60 py-2.5 first:pt-0 last:border-none last:pb-0 sm:grid-cols-[160px_1fr]"
               >
-                {v}
-              </span>
-            </div>
-          ))}
-          <div className="mt-3.5 text-[11.5px] leading-relaxed text-ink-faint">
+                <dt className="text-[12.5px] text-ink-soft">{k}</dt>
+                <dd
+                  className={`text-[13px] font-bold text-ink ${k === "Username" ? "font-mono" : ""}`}
+                >
+                  {v}
+                </dd>
+              </div>
+            ))}
+          </dl>
+          <div className="mt-5 rounded-[10px] border border-line bg-neutral-bg p-3 text-[12px] leading-relaxed text-ink-soft">
             {u.role !== "head" ? (
               <>
                 Spot something out of date? Message the Head of Unit via{" "}

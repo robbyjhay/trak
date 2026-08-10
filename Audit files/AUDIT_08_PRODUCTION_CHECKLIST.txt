@@ -1,0 +1,255 @@
+================================================================================
+TRAK — PRODUCTION READINESS AUDIT
+DOCUMENT 08: PRODUCTION READINESS CHECKLIST + IMPLEMENTATION ORDER
+================================================================================
+
+================================================================================
+PART 1 — PHASED IMPLEMENTATION ORDER (MANDATORY SEQUENCE)
+================================================================================
+
+------------------------------------------------------------------------
+PHASE 0 / SPRINT 1 — FOUNDATION  [AUTHORIZED FOR IMPLEMENTATION FIRST]
+------------------------------------------------------------------------
+Goal: Secure baseline auth + project hygiene + first PostgreSQL tables.
+STOP when complete. Wait for explicit approval before Phase 1.
+
+0.1 Global naming
+  - No LUWA/Luwa AI assistant references exist today; if any appear, rename
+    to StudyBud AI. Product name remains Trak. Hosting brand Luwa must not
+    be used as AI name.
+
+0.2 Project hygiene & security
+  [ ] Create complete .env.example (keys from AUDIT_06)
+  [ ] Harden .gitignore (do not ignore .env.example; ignore .data/)
+  [ ] Remove hardcoded TRAK_SESSION_SECRET fallback
+  [ ] Remove production use of shared PLAIN_PASSWORD
+  [ ] Gate dev-fill and login roster behind ENABLE_DEV_LOGIN
+  [ ] Stop logging starter passwords
+  [ ] Add env validation module (fail fast if required env missing)
+
+0.3 Foundation App Router structure
+  [ ] Auth route group pages: login, set-password (register/forgot shells
+      as specified in AUDIT_03 if included)
+  [ ] Protected app layout with session gate + mustChangePassword gate
+  [ ] loading.tsx and error.tsx for app shell
+  [ ] Root layout metadata for Trak
+  [ ] /api/health endpoint
+
+0.4 Database (ONLY these tables)
+  [ ] users
+  [ ] user_profiles
+  [ ] sessions
+  [ ] auth_tokens
+  [ ] user_preferences
+  [ ] UUID PKs, cascades, indexes, enums, timestamps per AUDIT_04 Part A
+  [ ] PostgreSQL provider
+  [ ] Initial migration
+  [ ] Seed script for Head (+ demo only if SEED_DEMO_USERS)
+
+0.5 Authentication (server-driven)
+  [ ] bcrypt cost 12
+  [ ] login / logout / session validation
+  [ ] opaque session tokens hashed in DB
+  [ ] secure cookies
+  [ ] middleware public allowlist (no blanket /api/auth)
+  [ ] set-initial password; skip disabled when NODE_ENV=production
+  [ ] requireSession on APIs
+  [ ] Replace legacy client-trusted auth assumptions
+
+0.6 Explicitly OUT OF SCOPE for Phase 0
+  - Domain tables (activities, messages, etc.)
+  - Bootstrap rewrite (Phase 1) unless trivial safety fixes
+  - Email provider integration (scaffold env only)
+  - S3 uploads
+  - Budget features
+  - WebRTC
+  - Full test suite (add minimal auth smoke if time; not required to expand)
+
+EXIT CRITERIA PHASE 0:
+  - `npm run build` succeeds
+  - Migration applies on empty Postgres
+  - Login/logout works against sessions table
+  - No hardcoded secrets remain
+  - All AUDIT_00–08 present
+  - STOP
+
+------------------------------------------------------------------------
+PHASE 1 — CORE DOMAIN DATA MIGRATION
+------------------------------------------------------------------------
+  [ ] activities, daily_logs, attendees, attachments, responsibilities, comments
+  [ ] Migrate off JSON store; delete store.ts JSON path
+  [ ] Replace /api/bootstrap with scoped APIs
+  [ ] Enforce RBAC on all domain services
+  [ ] UUID everywhere; map seed data
+  [ ] Pagination on list endpoints
+  [ ] Fix Head greeting + Personnel Active KPI
+  [ ] Settings: change password + notification prefs wired to user_preferences
+  [ ] Remove skip password if not already
+  [ ] Unique temp passwords / invite tokens for new members
+
+------------------------------------------------------------------------
+PHASE 2 — MESSAGING, NOTIFICATIONS, RSVP HARDENING
+------------------------------------------------------------------------
+  [ ] DMs isolation (no cross-user leak)
+  [ ] Community + broadcast with pagination
+  [ ] @Mentions + replies + notification types
+  [ ] Notification deep links complete
+  [ ] RSVP signed/opaque token verification + rate limits
+  [ ] Redis rate limiting production
+  [ ] Lightweight unread polling or SSE
+
+------------------------------------------------------------------------
+PHASE 3 — MEDIA, REPORTS, V3 FEATURE PARITY
+------------------------------------------------------------------------
+  [ ] S3 uploads avatars, evidence, invoices
+  [ ] Budget & spending end-to-end + report section
+  [ ] Hide/unhide activities
+  [ ] Unit feed time filters
+  [ ] Report XSS audit + Word export verification
+  [ ] Call UI honesty or WebRTC decision implemented
+  [ ] Soft delete + responsibility deactivation
+
+------------------------------------------------------------------------
+PHASE 4 — HARDENING, OBSERVABILITY, QA
+------------------------------------------------------------------------
+  [ ] Email: invite, reset, password changed
+  [ ] Security headers CSP HSTS
+  [ ] Structured logging + request IDs
+  [ ] Sentry or equivalent
+  [ ] Health/ready probes
+  [ ] Automated backups + restore drill
+  [ ] Vitest unit tests (auth, rbac, rsvp)
+  [ ] Playwright e2e critical paths
+  [ ] CI pipeline (lint, typecheck, test, migrate)
+  [ ] Accessibility AA pass
+  [ ] Load test staging
+  [ ] Dependency audit
+  [ ] Runbooks + updated README
+  [ ] audit_events for admin actions
+
+------------------------------------------------------------------------
+PHASE 5 — LAUNCH
+------------------------------------------------------------------------
+  [ ] Staging UAT with DLU Head + sample members
+  [ ] Production env secrets set
+  [ ] DNS + TLS
+  [ ] Seed/migrate production data
+  [ ] Disable ENABLE_DEV_LOGIN and SEED_DEMO_USERS
+  [ ] Monitoring alerts live
+  [ ] Go-live communication
+  [ ] Hypercare period 2 weeks
+
+================================================================================
+PART 2 — PRE-SHIP GO / NO-GO CHECKLIST
+================================================================================
+
+Security
+  [ ] No shared default password
+  [ ] No secret fallbacks in code
+  [ ] Sessions revocable
+  [ ] Bootstrap leak fixed
+  [ ] RSVP secured
+  [ ] Rate limits on
+  [ ] Security headers on
+  [ ] npm audit reviewed
+
+Data
+  [ ] PostgreSQL primary
+  [ ] Migrations versioned
+  [ ] Backups verified
+  [ ] PII policy accepted by unit
+
+Auth
+  [ ] Login/logout/set-password/reset work
+  [ ] RBAC verified for Head vs Member
+  [ ] Dev endpoints off
+
+Product
+  [ ] Critical flows UAT signed off
+  [ ] Settings usable
+  [ ] Reports printable
+  [ ] Mobile smoke pass
+
+Ops
+  [ ] Health checks
+  [ ] Logging/monitoring
+  [ ] On-call owner named
+  [ ] Rollback plan documented
+
+Legal / org
+  [ ] Data hosted in approved region
+  [ ] Access control list of who can be Head
+
+================================================================================
+PART 3 — INTEGRATIONS REQUIRED
+================================================================================
+Integration          Purpose                         Phase
+-------------------  ------------------------------  -----
+PostgreSQL           Primary data store              0
+Redis                Rate limit + jobs               0 env / 2 use
+Email (Resend/SES)   Invite, reset, alerts           1–4
+S3-compatible        Photos, evidence, invoices      3
+Sentry (or similar)  Error monitoring                4
+Analytics (optional) Usage                           4
+WebRTC/TURN          Only if real calls              later
+OAuth                Not required for v1 launch      reserved
+SMS                  Optional invite/RSVP            optional
+WhatsApp deep links  Already phone-based UI          keep
+
+================================================================================
+PART 4 — RECOMMENDED IMPLEMENTATION PRIORITY QUEUE
+================================================================================
+P0 CRITICAL (before any real user data):
+  1. Phase 0 foundation auth + secrets
+  2. Postgres users/sessions
+  3. Kill data leak (bootstrap scope) ASAP in Phase 1 start
+  4. RSVP token + rate limit
+  5. Remove shared password
+
+P1 HIGH:
+  6. Domain migration
+  7. Settings + password reset email
+  8. Pagination
+  9. Security headers + CSRF origin checks
+  10. Tests for auth/RBAC
+
+P2 MEDIUM:
+  11. Budget feature parity
+  12. Mentions/replies
+  13. Hide activities
+  14. A11y pass
+  15. Audit log
+
+P3 LOW:
+  16. Real WebRTC
+  17. PWA
+  18. i18n
+  19. Dark mode
+
+================================================================================
+PART 5 — DEFINITION OF DONE FOR "PRODUCTION READY"
+================================================================================
+Trak is production-ready only when:
+  - All CRITICAL issues in AUDIT_01 are closed
+  - Phases 0–4 complete (or risk-accepted in writing by product owner)
+  - UAT signed by Head of Unit
+  - Monitoring and backups live
+  - No CRITICAL items open on AUDIT_06 checklist
+
+================================================================================
+PART 6 — DOCUMENT CONTROL
+================================================================================
+These AUDIT_00 through AUDIT_08 files are the immutable specification for
+implementation. Execution agents must not redesign architecture, invent fields,
+or skip validation. If a required detail is missing from these documents, STOP
+and request clarification rather than guessing.
+
+Related non-audit docs (contextual, not specs):
+  MIGRATION_NOTES.md
+  trak-v3-changelog.md
+  trak-v3-delta-prompt.md
+  prompt.txt
+
+================================================================================
+END AUDIT_08
+================================================================================

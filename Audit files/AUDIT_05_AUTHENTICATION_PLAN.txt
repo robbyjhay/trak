@@ -1,0 +1,266 @@
+================================================================================
+TRAK — PRODUCTION READINESS AUDIT
+DOCUMENT 05: AUTHENTICATION PLAN
+================================================================================
+
+1. GOALS
+--------------------------------------------------------------------------------
+- Entirely server-driven authentication (no client-trusted role flags)
+- Opaque session tokens stored hashed in PostgreSQL sessions table
+- Password hashing with bcrypt cost factor 12 (specified)
+- Invite / Head-provisioned accounts (no open public registration by default)
+- Forced initial password change without skip in production
+- RBAC aligned with existing permissions helpers
+- Password reset and email verification via auth_tokens
+- Secure cookies; CSRF protections as specified in AUDIT_03/06
+
+2. PASSWORD HASHING
+--------------------------------------------------------------------------------
+Algorithm: bcrypt
+Cost: 12 (BCRYPT_COST env, default 12)
+Library: bcryptjs acceptable; prefer bcrypt native in production if available
+
+Functions:
+  hashPassword(plain: string): Promise<string>
+  verifyPassword(plain: string, hash: string): Promise<boolean>
+
+Rules:
+  - Never log plaintext passwords
+  - Never return passwordHash to client
+  - Constant-time compare via library verify
+
+3. PASSWORD POLICY
+--------------------------------------------------------------------------------
+Production minimum:
+  - Length >= 12
+  - Max length 128 (DoS guard)
+  - Reject if equal to username
+  - Reject common passwords list (top 10k) — implement Phase 0 minimum length;
+    common list can be Phase 1 if file large
+  - Optional: require mix of letter + number for government policy
+
+Initial set and change:
+  - password === confirm
+  - On success: mustChangePassword = false
+  - Optionally revoke other sessions on change
+
+4. SESSION MODEL (REPLACE JWT-ONLY)
+--------------------------------------------------------------------------------
+Current: jose JWT in cookie, 7d, self-contained claims, non-revocable.
+Target (Phase 0):
+
+  1. Generate opaque token: 32 bytes cryptographically random (base64url)
+  2. Store SHA-256(token) in sessions.token_hash
+  3. Set cookie trak_session = raw token
+     Attributes:
+       httpOnly: true
+       secure: true in production
+       sameSite: "lax"
+       path: /
+       maxAge: SESSION_TTL_DAYS * 86400 (default 7)
+  4. On each request: hash cookie → lookup session → check expiry/revoked
+     → load user (isActive) → attach SessionUser
+  5. Update lastUsedAt throttled (e.g. every 5 minutes)
+  6. Logout: set revokedAt = now(); clear cookie
+  7. Password change / reset: revoke all sessions for user (or all except current)
+
+SessionUser payload (server-only DTO):
+  id, username, role, isSecretary, isCorps, name (from profile),
+  mustChangePassword
+
+Do NOT put role authorization solely in cookie without DB check.
+
+Migration note: Remove dependency on jose for primary session if opaque sessions
+adopted. jose may remain only if short-lived CSRF or signed RSVP tokens needed.
+
+5. COOKIE NAME
+--------------------------------------------------------------------------------
+COOKIE_NAME = "trak_session" (keep for continuity)
+
+6. REGISTRATION / USER PROVISIONING
+--------------------------------------------------------------------------------
+Product default: NO public self-registration.
+
+Head-only create user (existing createUser flow, Phase 1 domain API):
+  - Head authenticated
+  - Input: name, phone, designation, gradeLevel, sex, stateOfOrigin, dateJoined,
+    roleType member|secretary|corps
+  - Server generates username (DLU + surname code + collision suffix)
+  - Server generates secure random temporary password OR invite token
+  - mustChangePassword = true
+  - email optional until email field collected
+  - Return username + temp password ONCE to Head UI (show once; do not re-fetch)
+  - Prefer invite email link when EMAIL configured:
+      auth_tokens type=invite → /register?token= or /accept-invite?token=
+
+Phase 0 register page:
+  - If invite-only accept: POST accepts invite token + password
+  - If product defers invite accept UI, Head-created password handoff remains
+    temporary but production must not use shared PLAIN_PASSWORD
+
+7. LOGIN
+--------------------------------------------------------------------------------
+Endpoint: POST /api/auth/login and/or loginAction
+
+Steps:
+  1. Rate limit
+  2. Normalize username (trim, case-insensitive match on username_normalized)
+  3. Find user + verify password
+  4. Reject if !isActive
+  5. Create session
+  6. Set cookie
+  7. If mustChangePassword → redirect /set-password
+  8. Else redirect /dashboard (CHANGE from current /profile default —
+     product decision in AUDIT_02: use /dashboard for production)
+
+Failure: always same message; same response timing as much as practical.
+
+8. LOGOUT
+--------------------------------------------------------------------------------
+POST /api/auth/logout or logoutAction
+  - Revoke session
+  - Clear cookie
+  - Redirect /login
+
+9. FORCED INITIAL PASSWORD CHANGE
+--------------------------------------------------------------------------------
+Route: /set-password
+  - Requires valid session
+  - If !mustChangePassword → redirect /dashboard
+  - Form: password + confirm
+  - PRODUCTION: remove "Skip for now" entirely
+  - DEV only: skip allowed if ENABLE_DEV_LOGIN=true
+
+App layout:
+  - If session && mustChangePassword → force /set-password for all app routes
+
+10. PASSWORD RESET (EMAIL)
+--------------------------------------------------------------------------------
+POST /api/auth/password/forgot { username or email }
+  - Always return generic success message
+  - If user found and email present: create auth_token password_reset 1h
+  - Email link: APP_URL/reset-password?token=RAW
+
+POST /api/auth/password/reset { token, password, confirm }
+  - Validate token hash, type, expiry, not consumed
+  - Update password; consume token; revoke sessions; mustChangePassword=false
+
+11. EMAIL VERIFICATION
+--------------------------------------------------------------------------------
+On email set/change: create email_verify token; until verified,
+  emailVerifiedAt null; still allow login by username.
+
+12. PROTECTED ROUTES
+--------------------------------------------------------------------------------
+Public pages:
+  /login
+  /rsvp/*
+  /reset-password
+  /forgot-password
+  /api/health
+  /api/auth/login
+  /api/auth/password/forgot
+  /api/auth/password/reset
+  /api/rsvp (tokenized)
+
+Session required:
+  everything else including /set-password
+
+mustChangePassword gate:
+  all (app) routes except /set-password and logout
+
+13. RBAC
+--------------------------------------------------------------------------------
+Keep and enforce server-side (mirror src/lib/permissions.ts):
+
+  canComment              → role === head
+  canWipeCommunity        → role === head
+  canBroadcast            → head || isSecretary
+  canDelegate             → role === head
+  canManageTeamProfiles   → role === head
+  canManageResponsibilities → role === head
+  isHead                  → role === head
+
+Rules:
+  - Every mutating service checks RBAC
+  - Never trust client-sent role
+  - Future: permission table if roles grow
+
+14. PROFILE MANAGEMENT
+--------------------------------------------------------------------------------
+Users may update own profile fields (designation, phone, photo, etc.)
+Head may update any member profile
+Cannot self-escalate role
+Only Head can set isSecretary / isCorps / role (service-enforced)
+Username immutable after create (or Head-only with uniqueness check)
+
+15. DEV LOGIN
+--------------------------------------------------------------------------------
+/api/auth/dev-fill and login roster:
+  Allowed only when:
+    NODE_ENV !== 'production' AND ENABLE_DEV_LOGIN === 'true'
+  Production builds must tree-shake or 404 these routes
+
+16. CSRF
+--------------------------------------------------------------------------------
+- sameSite=Lax on session cookie
+- Middleware rejects mutating requests with mismatched Origin vs APP_URL
+- Server actions rely on Next.js origin checks; keep Next version patched
+
+17. INPUT SANITIZATION
+--------------------------------------------------------------------------------
+- Trim username
+- Password not trimmed (or only trailing newline strip carefully — prefer no trim)
+- Zod max lengths
+- Reject control characters in username
+
+18. ERROR HANDLING
+--------------------------------------------------------------------------------
+Auth errors map to:
+  401 UNAUTHORIZED
+  403 FORBIDDEN / MUST_CHANGE_PASSWORD
+  429 RATE_LIMITED
+  400 VALIDATION_ERROR
+
+19. LEGACY REMOVAL CHECKLIST
+--------------------------------------------------------------------------------
+[ ] Remove PLAIN_PASSWORD production usage
+[ ] Remove JWT as sole session mechanism (replace with opaque sessions)
+[ ] Remove hardcoded secret fallback
+[ ] Remove skip password in production UI
+[ ] Remove credentials array in JSON store after Phase 0/1
+[ ] Stop returning starterPassword in API responses in production logs
+[ ] Align login redirect to /dashboard
+
+20. PHASE 0 AUTH IMPLEMENTATION CHECKLIST
+--------------------------------------------------------------------------------
+[ ] users + user_profiles + sessions + auth_tokens + user_preferences migrated
+[ ] bcrypt cost 12 hashing
+[ ] login creates DB session + httpOnly cookie
+[ ] middleware validates session via DB (or edge-compatible session strategy:
+      if edge cannot touch DB, use short-lived signed cookie + server revalidation
+      pattern documented below)
+[ ] logout revokes session
+[ ] set-initial password endpoint/action
+[ ] mustChangePassword gate in app layout
+[ ] env-required TRAK_SESSION_SECRET (for any signing) and DATABASE_URL
+[ ] ENABLE_DEV_LOGIN gating
+[ ] STOP
+
+EDGE CONSTRAINT NOTE:
+Next.js middleware runs on Edge and may not use Prisma directly.
+Phase 0 acceptable approaches (choose one; implement fully):
+  A) Middleware only checks cookie presence; full session validation in
+     server layouts/route handlers via Prisma (required for real security)
+  B) Encrypted/sealed session cookie (iron-session style) + server revocation
+     list check on sensitive actions
+  C) JWT access cookie 15m + opaque refresh in DB (more complex; not preferred)
+
+Specified preferred approach for this audit:
+  Opaque random token in cookie; middleware checks presence for page routing;
+  EVERY server component layout and API requireSession() does DB validation.
+  Unauthenticated API gets 401 even if middleware missed a path.
+
+================================================================================
+END AUDIT_05
+================================================================================

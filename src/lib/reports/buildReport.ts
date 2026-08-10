@@ -1,15 +1,25 @@
 import { daysBetween, fmtDate, fmtDateFull, fmtTime, iso } from "@/lib/dates";
-import { RESP } from "@/lib/mockDb/responsibilities";
 import { roleLabel } from "@/lib/permissions";
 import { escapeHtml } from "@/lib/utils";
-import type { Activity, Comment, DailyLog, TrakDb, User } from "@/lib/types";
+import type {
+  Activity,
+  Comment,
+  DailyLog,
+  Responsibility,
+  TrakDb,
+  User,
+} from "@/lib/types";
 
 export function buildActivityReportHTML(
   act: Activity,
   db: TrakDb,
   userMap: Record<string, User>,
+  responsibilities: Responsibility[],
   now: Date,
 ): string {
+  const RESP = Object.fromEntries(
+    responsibilities.map((r) => [r.id, r]),
+  );
   const logs = db.dailyLogs
     .filter((l) => l.activityId === act.id)
     .sort((a, b) => a.date.localeCompare(b.date));
@@ -84,6 +94,15 @@ export function buildActivityReportHTML(
     (sum, l) => sum + (l.attachments?.length || 0),
     0,
   );
+  const totalReleased = logs.reduce(
+    (sum, l) => sum + (l.amountReleasedNgn || 0),
+    0,
+  );
+  const totalSpent = logs.reduce(
+    (sum, l) => sum + (l.amountSpentNgn || 0),
+    0,
+  );
+  const allSpendingItems = logs.flatMap((l) => l.spendingItems || []);
   const outputsLines: string[] = [];
   if (submittedLogs.length)
     outputsLines.push(
@@ -198,6 +217,18 @@ export function buildActivityReportHTML(
 
     <h2>8. Outputs / Deliverables</h2>
     <ul>${outputsLines.map((l) => `<li>${l}</li>`).join("")}</ul>
+
+    ${act.hasBudget ? `
+    <h2>8a. Budget &amp; Spending</h2>
+    <div class="field"><b>Estimated budget:</b> ${act.estimatedAmountNgn ? "₦" + act.estimatedAmountNgn.toLocaleString() : "Not specified"}</div>
+    <div class="field"><b>Total amount released:</b> ${totalReleased > 0 ? "₦" + totalReleased.toLocaleString() : "—"}</div>
+    <div class="field"><b>Total amount spent:</b> ${totalSpent > 0 ? "₦" + totalSpent.toLocaleString() : "—"}</div>
+    ${totalReleased > 0 && totalSpent > 0 ? `<div class="field"><b>Balance:</b> ₦${(totalReleased - totalSpent).toLocaleString()}</div>` : ""}
+    ${allSpendingItems.length > 0 ? `
+    <table><tr><th>Description</th><th>Amount (₦)</th></tr>
+    ${allSpendingItems.map((s) => `<tr><td>${escapeHtml(s.description)}</td><td>${s.amount.toLocaleString()}</td></tr>`).join("")}
+    </table>` : ""}
+    ` : ""}
 
     <h2>9. Performance Assessment</h2>
     <div class="field"><b>Quality:</b> ${submittedLogs.length ? "Met standard, as logged." : "Not yet logged."}</div>

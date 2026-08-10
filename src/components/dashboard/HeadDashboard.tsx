@@ -7,18 +7,21 @@ import { MemberDashboard, Kpi, Card, RespBars } from "./MemberDashboard";
 import { addDays, fmtDate, iso, longDateLabel } from "@/lib/dates";
 import { firstName, initials } from "@/lib/utils";
 import { roleLabel } from "@/lib/permissions";
-import { HEAD_USER_ID, TYPE_COLOR } from "@/lib/constants";
-import { RESPONSIBILITIES } from "@/lib/mockDb";
+import { TYPE_COLOR } from "@/lib/constants";
 import { TypeIcon, PATHS } from "@/components/icons";
 import { GhostBtn, PrimaryMini } from "@/components/ui/Buttons";
 import { ModalBackdrop, ModalPanel } from "@/components/ui/Modal";
+import { AddMember } from "@/components/messaging/AddMember";
 import { useReportPreview } from "@/components/reports/ReportPreview";
 import { RespManageList } from "@/components/activity/RespManageList";
 
 export function HeadDashboard() {
-  const { userMap } = useTrak();
+  const { userMap, users, sessionUser } = useTrak();
   const [panel, setPanel] = useState<"mine" | "ao">("ao");
-  const head = userMap[HEAD_USER_ID];
+  const head =
+    users.find((u) => u.role === "head") ||
+    userMap[sessionUser.id] ||
+    sessionUser;
 
   return (
     <div>
@@ -27,7 +30,7 @@ export function HeadDashboard() {
           {longDateLabel(useTrak().now)} · PSSDC — Digital Learning Unit
         </div>
         <h1 className="m-0 mb-1.5 font-display text-[30px] font-semibold">
-          Good day, Babajide
+          Good day, {firstName(head.name || sessionUser.name)}
         </h1>
         <p className="m-0 text-[13.5px] text-ink-soft">Head of Unit view.</p>
       </div>
@@ -75,8 +78,16 @@ function AccountingOfficer() {
     addComment,
     updateUserProfile,
     showToast,
+    responsibilities,
+    toggleActivityHidden,
+    softDeleteActivity,
+    sessionUser,
   } = useTrak();
   const { openReport } = useReportPreview();
+  const head =
+    users.find((u) => u.role === "head") ||
+    userMap[sessionUser.id] ||
+    sessionUser;
 
   const allActive = db.activities;
   const thisMonth = allActive.filter((a) => a.createdAt >= iso(addDays(now, -30)));
@@ -91,6 +102,7 @@ function AccountingOfficer() {
   const [commentActId, setCommentActId] = useState("");
   const [commentText, setCommentText] = useState("");
   const [profileOpen, setProfileOpen] = useState(false);
+  const [addMemberOpen, setAddMemberOpen] = useState(false);
   const [editUserId, setEditUserId] = useState("");
   const [pe, setPe] = useState({
     designation: "",
@@ -101,9 +113,15 @@ function AccountingOfficer() {
     dateJoined: "",
   });
   const [taskTitle, setTaskTitle] = useState("");
-  const [assignTo, setAssignTo] = useState(users.find((u) => u.id !== HEAD_USER_ID)?.id || "");
-  const [taskResp, setTaskResp] = useState("r1");
+  const [assignTo, setAssignTo] = useState(
+    () => users.find((u) => u.role !== "head")?.id || "",
+  );
+  const [taskResp, setTaskResp] = useState(
+    () => responsibilities.find((r) => r.isActive)?.id || "",
+  );
   const [taskDue, setTaskDue] = useState(iso(addDays(now, 5)));
+  const [feedFilter, setFeedFilter] = useState<"all" | "week" | "month" | "quarter">("all");
+  const [showHidden, setShowHidden] = useState(false);
 
   const teamCounts = users
     .map((u) => ({
@@ -115,7 +133,19 @@ function AccountingOfficer() {
     .sort((a, b) => b.count - a.count);
   const teamMax = Math.max(1, ...teamCounts.map((t) => t.count));
 
-  const unitSorted = [...allActive].sort((a, b) =>
+  const unitAll = showHidden
+    ? [...allActive]
+    : allActive.filter((a) => !a.hidden);
+  const unitFiltered = unitAll.filter((a) => {
+    if (feedFilter === "all") return true;
+    const d = new Date(a.createdAt);
+    const diffMs = now.getTime() - d.getTime();
+    if (feedFilter === "week") return diffMs <= 7 * 86400_000;
+    if (feedFilter === "month") return diffMs <= 30 * 86400_000;
+    if (feedFilter === "quarter") return diffMs <= 90 * 86400_000;
+    return true;
+  });
+  const unitSorted = [...unitFiltered].sort((a, b) =>
     b.createdAt.localeCompare(a.createdAt),
   );
   const unitShown = unitSorted.slice(0, 8);
@@ -187,6 +217,44 @@ function AccountingOfficer() {
               unitSorted.length > 8
                 ? `Most recent 8 of ${unitSorted.length}`
                 : "Most recent across the unit"
+            }
+            action={
+              <div className="flex items-center gap-2">
+                <div className="flex gap-1 rounded-lg bg-neutral-bg p-0.5">
+                  {(
+                    [
+                      ["all", "All"],
+                      ["week", "Week"],
+                      ["month", "Month"],
+                      ["quarter", "Quarter"],
+                    ] as const
+                  ).map(([key, label]) => (
+                    <button
+                      key={key}
+                      type="button"
+                      onClick={() => setFeedFilter(key)}
+                      className={`cursor-pointer rounded-md border-none px-2.5 py-1 text-[10.5px] font-bold ${
+                        feedFilter === key
+                          ? "bg-card text-ink shadow-sm"
+                          : "bg-transparent text-ink-faint"
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowHidden(!showHidden)}
+                  className={`cursor-pointer rounded-md border-[1.5px] px-2.5 py-1 text-[10.5px] font-bold transition-colors ${
+                    showHidden
+                      ? "border-saffron bg-[#fff8e6] text-saffron-dim"
+                      : "border-line bg-transparent text-ink-faint hover:border-saffron-dim"
+                  }`}
+                >
+                  {showHidden ? "Showing hidden" : "Show hidden"}
+                </button>
+              </div>
             }
           >
             {unitShown.length === 0 ? (
@@ -269,6 +337,38 @@ function AccountingOfficer() {
                         </svg>
                         Comment
                       </UaBtn>
+                      <UaBtn
+                        onClick={() => {
+                          void toggleActivityHidden(a.id)
+                            .then(() =>
+                              showToast(
+                                a.hidden ? "Activity unhidden" : "Activity hidden",
+                                a.hidden
+                                  ? `"${a.title}" is now visible to the unit.`
+                                  : `"${a.title}" is now hidden from the unit feed.`,
+                              ),
+                            )
+                            .catch(() =>
+                              showToast("Could not update activity", "Please try again."),
+                            );
+                        }}
+                      >
+                        {a.hidden ? "Unhide" : "Hide"}
+                      </UaBtn>
+                      <UaBtn
+                        onClick={() => {
+                          if (!confirm(`Soft delete "${a.title}"? It can be restored later.`)) return;
+                          void softDeleteActivity(a.id)
+                            .then(() =>
+                              showToast("Activity deleted", `"${a.title}" has been removed from view.`),
+                            )
+                            .catch(() =>
+                              showToast("Could not delete activity", "Please try again."),
+                            );
+                        }}
+                      >
+                        Delete
+                      </UaBtn>
                     </div>
                   </div>
                 );
@@ -336,7 +436,18 @@ function AccountingOfficer() {
             <RespManageList />
           </Card>
 
-          <Card title="Team profiles" sub="Personnel record — you edit this for the unit">
+          <Card
+            title="Team profiles"
+            sub="Personnel record — you edit this for the unit"
+            action={
+              <GhostBtn
+                className="px-3.5 py-2 text-xs"
+                onClick={() => setAddMemberOpen(true)}
+              >
+                + Add member
+              </GhostBtn>
+            }
+          >
             {users.map((u) => (
               <div key={u.id} className="mb-3 flex items-center gap-3 last:mb-0">
                 <div
@@ -394,7 +505,7 @@ function AccountingOfficer() {
               className="field-input"
             >
               {users
-                .filter((u) => u.id !== HEAD_USER_ID)
+                .filter((u) => u.id !== head.id)
                 .map((u) => (
                   <option key={u.id} value={u.id}>
                     {u.name}
@@ -416,7 +527,7 @@ function AccountingOfficer() {
               onChange={(e) => setTaskResp(e.target.value)}
               className="field-input"
             >
-              {RESPONSIBILITIES.map((r) => (
+              {responsibilities.filter((r) => r.isActive !== false).map((r) => (
                 <option key={r.id} value={r.id}>
                   {r.code} — {r.name}
                 </option>
@@ -449,7 +560,7 @@ function AccountingOfficer() {
                   type: "Task",
                   description: "",
                   createdBy: assignTo,
-                  delegatedBy: HEAD_USER_ID,
+                  delegatedBy: head.id,
                   startDate: taskDue,
                   endDate: taskDue,
                   startTime: "09:00",
@@ -504,7 +615,7 @@ function AccountingOfficer() {
               onClick={() => {
                 if (!commentText.trim() || !commentActId) return;
                 const act = db.activities.find((x) => x.id === commentActId);
-                void addComment(commentActId, commentText.trim(), HEAD_USER_ID)
+                void addComment(commentActId, commentText.trim(), head.id)
                   .then(() => {
                     setCommentOpen(false);
                     showToast(
@@ -591,6 +702,8 @@ function AccountingOfficer() {
           </div>
         </ModalPanel>
       </ModalBackdrop>
+
+      {addMemberOpen && <AddMember onClose={() => setAddMemberOpen(false)} />}
 
       <style jsx global>{`
         .field-input {

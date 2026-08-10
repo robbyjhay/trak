@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTrak } from "@/context/TrakStore";
 import { roleLabel } from "@/lib/permissions";
-import { initials } from "@/lib/utils";
+import { initials, firstName } from "@/lib/utils";
 import { ActRow } from "@/components/activity/ActRow";
 import { PrimaryBtn } from "@/components/ui/Buttons";
 import { PATHS } from "@/components/icons";
@@ -13,12 +13,21 @@ import { Kpi } from "@/components/dashboard/MemberDashboard";
 
 export function PersonActivities({ userId }: { userId: string }) {
   const router = useRouter();
-  const { sessionUser, userMap, bucket } = useTrak();
+  const { sessionUser, userMap, bucket, responsibilities } = useTrak();
   const { openReport } = useReportPreview();
   const person = userMap[userId] || sessionUser;
   const isSelf = person.id === sessionUser.id;
-  const b = bucket(person.id);
+  const isHead = sessionUser.role === "head";
+  const rawBucket = bucket(person.id);
+  const b = {
+    pending: rawBucket.pending.filter((a) => isHead || !a.hidden),
+    completed: rawBucket.completed.filter((a) => isHead || !a.hidden),
+    missed: rawBucket.missed.filter((a) => isHead || !a.hidden),
+  };
   const [tab, setTab] = useState<"pending" | "completed" | "missed">("pending");
+
+  const hour = new Date().getHours();
+  const greeting = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
 
   const items = b[tab];
 
@@ -33,11 +42,11 @@ export function PersonActivities({ userId }: { userId: string }) {
             {initials(person.name)}
           </div>
           <div>
-            <div className="mb-1 text-[11.5px] font-bold tracking-[0.12em] text-saffron-dim uppercase">
+            <div className="mb-1 text-[11.5px] font-bold tracking-[0.12em] text-ink-soft uppercase">
               {isSelf ? "My Activities" : "Viewing as Head of Unit — read only"}
             </div>
-            <h1 className="m-0 mb-1 font-display text-[30px] font-semibold">
-              {isSelf ? "Your activities" : `${person.name}'s activities`}
+            <h1 className="m-0 mb-1 text-[30px] font-semibold">
+              {isSelf ? `${greeting}, ${firstName(person.name)}` : `${person.name}'s activities`}
             </h1>
             <p className="m-0 text-[13.5px] text-ink-soft">
               {roleLabel(person)} · {person.username}
@@ -75,7 +84,7 @@ export function PersonActivities({ userId }: { userId: string }) {
               onClick={() => setTab(key)}
               className={`cursor-pointer rounded-lg border-none px-4 py-2 text-[12.5px] font-bold ${
                 tab === key
-                  ? "bg-card text-ink shadow-[0_2px_6px_rgba(0,0,0,0.06)]"
+                  ? "bg-card text-ink shadow-sm ring-1 ring-line"
                   : "bg-transparent text-ink-soft"
               }`}
             >
@@ -105,8 +114,8 @@ export function PersonActivities({ userId }: { userId: string }) {
                         <div className="mt-0.5 mb-2.5 text-[11px] font-bold tracking-wider text-ink-faint uppercase">
                           Self Created Activities ({selfCreated.length})
                         </div>
-                        {selfCreated.map((a) => (
-                          <ActRow key={a.id} activity={a} onReport={openReport} />
+                        {selfCreated.map((a, idx) => (
+                          <ActRow key={a.id} activity={a} onReport={openReport} index={idx} />
                         ))}
                       </>
                     )}
@@ -115,8 +124,8 @@ export function PersonActivities({ userId }: { userId: string }) {
                         <div className="mt-[18px] mb-2.5 text-[11px] font-bold tracking-wider text-ink-faint uppercase">
                           Delegated Activities ({delegated.length})
                         </div>
-                        {delegated.map((a) => (
-                          <ActRow key={a.id} activity={a} onReport={openReport} />
+                        {delegated.map((a, idx) => (
+                          <ActRow key={a.id} activity={a} onReport={openReport} index={idx} />
                         ))}
                       </>
                     )}
@@ -125,8 +134,8 @@ export function PersonActivities({ userId }: { userId: string }) {
               })()}
             </>
           ) : (
-            items.map((a) => (
-              <ActRow key={a.id} activity={a} onReport={openReport} />
+            items.map((a, idx) => (
+              <ActRow key={a.id} activity={a} onReport={openReport} hideStatus={tab === "completed"} index={idx} />
             ))
           )}
         </div>

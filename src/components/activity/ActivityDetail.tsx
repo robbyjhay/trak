@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useTrak } from "@/context/TrakStore";
-import { RESP } from "@/lib/mockDb";
 import { canComment } from "@/lib/permissions";
 import { fmtDate, fmtTime } from "@/lib/dates";
 import { firstName, initials, toBase64Url } from "@/lib/utils";
@@ -10,7 +10,6 @@ import { PATHS } from "@/components/icons";
 import { PrimaryBtn, GhostBtn } from "@/components/ui/Buttons";
 import { useReportPreview } from "@/components/reports/ReportPreview";
 import { useSpeechRecognition } from "@/hooks/useSpeechRecognition";
-import { uid } from "@/lib/mockDb";
 import type { Attendee, Attachment } from "@/lib/types";
 
 export function ActivityDetail({
@@ -20,6 +19,7 @@ export function ActivityDetail({
   activityId: string;
   onSubmitted?: () => void;
 }) {
+  const router = useRouter();
   const {
     getActivity,
     getLogs,
@@ -34,7 +34,11 @@ export function ActivityDetail({
     refresh,
     users,
     now,
+    responsibilities,
   } = useTrak();
+  const respMap = Object.fromEntries(
+    responsibilities.map((r) => [r.id, r]),
+  );
   const { openReport } = useReportPreview();
 
   // Refresh so public RSVP submissions appear while this page is open.
@@ -70,7 +74,17 @@ export function ActivityDetail({
   return (
     <div>
       <div className="mb-[22px]">
-        <div className="mb-2 text-[11.5px] font-bold tracking-[0.12em] text-saffron-dim uppercase">
+        <button
+          type="button"
+          onClick={() => router.back()}
+          className="mb-4 inline-flex items-center gap-1.5 rounded-full border border-line bg-white px-3 py-1.5 text-[11.5px] font-bold text-ink-soft transition-colors hover:border-saffron-dim hover:text-ink cursor-pointer"
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M15 18l-6-6 6-6" />
+          </svg>
+          Back
+        </button>
+        <div className="mb-2 text-[11.5px] font-bold tracking-[0.12em] text-ink-soft uppercase">
           {act.type} ·{" "}
           {act.status === "completed"
             ? "Completed"
@@ -79,7 +93,7 @@ export function ActivityDetail({
               : "Pending"}
           {owner && owner.id !== sessionUser.id ? ` · ${owner.name}` : ""}
         </div>
-        <h1 className="m-0 max-w-[640px] font-display text-[30px] font-semibold">
+        <h1 className="m-0 max-w-[640px] text-[30px] font-semibold">
           {act.title}
         </h1>
         <div className="mt-1.5 flex flex-wrap gap-2">
@@ -96,7 +110,7 @@ export function ActivityDetail({
               key={id}
               className="rounded-full bg-neutral-bg px-2.5 py-1 text-[11px] font-bold text-ink-soft"
             >
-              {RESP[id]?.code} — {RESP[id]?.name}
+              {respMap[id]?.code} — {respMap[id]?.name}
             </span>
           ))}
           {act.delegatedBy && (
@@ -113,6 +127,16 @@ export function ActivityDetail({
                 <path d={PATHS.pin} />
               </svg>
               {act.location}
+            </span>
+          )}
+          {act.hasBudget && (
+            <span className="inline-flex items-center gap-1 rounded-full bg-[#fff8e6] px-2.5 py-1 text-[11px] font-bold text-[#9a7b4f]">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <path d="M12 1v22M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6" />
+              </svg>
+              {act.estimatedAmountNgn
+                ? `₦${act.estimatedAmountNgn.toLocaleString()}`
+                : "Budget tracked"}
             </span>
           )}
         </div>
@@ -196,6 +220,49 @@ export function ActivityDetail({
                     {l.attendanceNotes ? ` · ${l.attendanceNotes}` : ""}
                   </FieldBlock>
                 ) : null}
+                {act.hasBudget &&
+                  (l.amountReleasedNgn != null ||
+                    l.amountSpentNgn != null ||
+                    (l.spendingItems && l.spendingItems.length > 0)) && (
+                    <div className="mb-3.5">
+                      <div className="mb-1.5 text-[11px] font-bold text-ink-faint uppercase">
+                        Budget &amp; spending
+                      </div>
+                      <div className="rounded-[11px] bg-[#fcfbf8] border border-[#f0dba9] p-3 text-[12.5px]">
+                        {l.amountReleasedNgn != null && (
+                          <div className="mb-1">
+                            <span className="text-ink-faint">Released:</span>{" "}
+                            <span className="font-bold">
+                              ₦{l.amountReleasedNgn.toLocaleString()}
+                            </span>
+                          </div>
+                        )}
+                        {l.amountSpentNgn != null && (
+                          <div className="mb-1">
+                            <span className="text-ink-faint">Spent:</span>{" "}
+                            <span className="font-bold">
+                              ₦{l.amountSpentNgn.toLocaleString()}
+                            </span>
+                          </div>
+                        )}
+                        {l.spendingItems && l.spendingItems.length > 0 && (
+                          <div className="mt-2 border-t border-[#f0dba9] pt-2">
+                            <div className="mb-1 text-[10.5px] font-bold text-ink-faint uppercase">
+                              Items
+                            </div>
+                            {l.spendingItems.map((s, i) => (
+                              <div key={i} className="flex justify-between text-[12px]">
+                                <span>{s.description}</span>
+                                <span className="font-bold">
+                                  ₦{s.amount.toLocaleString()}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
               </div>
             ))}
             {(act.initiativeTeamwork ||
@@ -267,18 +334,18 @@ export function ActivityDetail({
               )}
             </div>
             <div className="rounded-[18px] border border-line bg-card px-[26px] py-6">
-              <h2 className="mb-[18px] font-display text-[17px] font-semibold">
+              <h2 className="mb-[18px] text-[17px] font-semibold">
                 Report
               </h2>
-              <GhostBtn
-                className="w-full justify-center py-3"
+              <PrimaryBtn
+                className="w-full justify-center py-3 shadow-md"
                 onClick={() => openReport(act.id)}
               >
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <path d={PATHS.download} />
                 </svg>
                 Preview &amp; Download Report
-              </GhostBtn>
+              </PrimaryBtn>
             </div>
           </div>
         </div>
@@ -344,7 +411,7 @@ function CommentInput({ onSend }: { onSend: (t: string) => void }) {
       />
       <button
         type="button"
-        className="cursor-pointer rounded-[9px] border-none bg-aztec-3 px-3.5 py-2 text-xs font-bold text-white"
+        className="cursor-pointer rounded-[9px] border-[1.5px] border-line bg-neutral-bg px-3.5 py-2 text-xs font-bold text-ink-soft hover:bg-line hover:text-ink transition-colors"
         onClick={() => {
           if (!text.trim()) return;
           onSend(text.trim());
@@ -374,7 +441,7 @@ function PendingForm({
   ownerName: string;
   users: ReturnType<typeof useTrak>["users"];
   now: Date;
-  setLogRsvpToken: (id: string, t: string) => Promise<void>;
+  setLogRsvpToken: (id: string, t?: string) => Promise<string>;
   submitDailyLog: ReturnType<typeof useTrak>["submitDailyLog"];
   updateActivityWrapup: ReturnType<typeof useTrak>["updateActivityWrapup"];
   showToast: ReturnType<typeof useTrak>["showToast"];
@@ -398,6 +465,13 @@ function PendingForm({
   const [attachedFiles, setAttachedFiles] = useState<Attachment[]>([]);
   const [rsvpLink, setRsvpLink] = useState("");
   const [showRsvp, setShowRsvp] = useState(false);
+  const [amountReleased, setAmountReleased] = useState("");
+  const [amountSpent, setAmountSpent] = useState("");
+  const [spendingItems, setSpendingItems] = useState<
+    { description: string; amount: string }[]
+  >([]);
+  const [spendDesc, setSpendDesc] = useState("");
+  const [spendAmt, setSpendAmt] = useState("");
 
   const canSubmit =
     objectives.trim().length > 3 && activityDescription.trim().length > 3;
@@ -500,7 +574,7 @@ function PendingForm({
               />
             </Section>
             <Section label="Record objectives / summary" optional>
-              <div className="rounded-2xl border-[1.5px] border-dashed border-line bg-[#fcfbf8] p-[22px]">
+              <div className="rounded-2xl border-[1.5px] border-line bg-[#fcfbf8] p-[22px]">
                 <div className="flex items-center gap-4">
                   <button
                     type="button"
@@ -604,7 +678,7 @@ function PendingForm({
             </Section>
 
             <Section label="Attendance" optional>
-              <div className="rounded-2xl border-[1.5px] border-dashed border-line bg-[#fcfbf8] px-[22px] py-5">
+              <div className="rounded-2xl border-[1.5px] border-line bg-[#fcfbf8] px-[22px] py-5">
                 <div className="mb-2.5 text-xs font-bold text-ink-soft">
                   Pick unit members who attended
                 </div>
@@ -715,10 +789,14 @@ function PendingForm({
                   <GhostBtn
                     onClick={() => {
                       void (async () => {
-                        let token = activeLog.rsvpToken;
-                        if (!token) {
-                          token = uid("tok");
-                          await setLogRsvpToken(activeLog.id, token);
+                        // Always mint/refresh a cryptographic server token
+                        const token = await setLogRsvpToken(activeLog.id);
+                        if (!token || token === "set") {
+                          showToast(
+                            "Could not generate link",
+                            "Server did not return an RSVP token.",
+                          );
+                          return;
                         }
                         const payload = {
                           logId: activeLog.id,
@@ -790,7 +868,97 @@ function PendingForm({
               </div>
             </Section>
 
-            <div className="mt-9 flex justify-end border-t border-line pt-6">
+            {act.hasBudget && (
+              <Section label="Budget & spending" optional>
+                <div className="rounded-2xl border-[1.5px] border-line bg-[#fcfbf8] px-[22px] py-5">
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 mb-4">
+                    <div>
+                      <div className="mb-2 text-xs font-bold text-ink-soft">
+                        Amount released (NGN)
+                      </div>
+                      <input
+                        type="number"
+                        min="0"
+                        value={amountReleased}
+                        onChange={(e) => setAmountReleased(e.target.value)}
+                        placeholder="0"
+                        className="w-full rounded-[10px] border-[1.5px] border-line px-3 py-2.5 text-[13px]"
+                      />
+                    </div>
+                    <div>
+                      <div className="mb-2 text-xs font-bold text-ink-soft">
+                        Amount spent (NGN)
+                      </div>
+                      <input
+                        type="number"
+                        min="0"
+                        value={amountSpent}
+                        onChange={(e) => setAmountSpent(e.target.value)}
+                        placeholder="0"
+                        className="w-full rounded-[10px] border-[1.5px] border-line px-3 py-2.5 text-[13px]"
+                      />
+                    </div>
+                  </div>
+                  <div className="mb-2 text-xs font-bold text-ink-soft">
+                    Spending items
+                  </div>
+                  <div className="mb-3 grid grid-cols-1 gap-2 sm:grid-cols-[1.5fr_1fr_auto]">
+                    <input
+                      value={spendDesc}
+                      onChange={(e) => setSpendDesc(e.target.value)}
+                      placeholder="Description"
+                      className="rounded-[10px] border-[1.5px] border-line px-3 py-2.5 text-[13px]"
+                    />
+                    <input
+                      type="number"
+                      min="0"
+                      value={spendAmt}
+                      onChange={(e) => setSpendAmt(e.target.value)}
+                      placeholder="Amount"
+                      className="rounded-[10px] border-[1.5px] border-line px-3 py-2.5 text-[13px]"
+                    />
+                    <GhostBtn
+                      onClick={() => {
+                        if (!spendDesc.trim() || !spendAmt) return;
+                        setSpendingItems((prev) => [
+                          ...prev,
+                          { description: spendDesc.trim(), amount: spendAmt },
+                        ]);
+                        setSpendDesc("");
+                        setSpendAmt("");
+                      }}
+                    >
+                      Add
+                    </GhostBtn>
+                  </div>
+                  {spendingItems.length > 0 && (
+                    <div className="flex flex-wrap gap-2">
+                      {spendingItems.map((item, i) => (
+                        <span
+                          key={i}
+                          className="inline-flex items-center gap-1.5 rounded-full border-[1.5px] border-line bg-white py-1.5 pr-2 pl-3 text-xs font-semibold"
+                        >
+                          {item.description} — ₦{Number(item.amount).toLocaleString()}
+                          <button
+                            type="button"
+                            className="flex h-[18px] w-[18px] items-center justify-center rounded-full border-none bg-neutral-bg text-xs text-ink-soft"
+                            onClick={() =>
+                              setSpendingItems((prev) =>
+                                prev.filter((_, j) => j !== i),
+                              )
+                            }
+                          >
+                            ×
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </Section>
+            )}
+
+            <div className="sticky bottom-0 z-10 mt-9 flex justify-end border-t border-line bg-card pt-6 pb-6 shadow-[0_-12px_24px_rgba(255,255,255,0.9)]">
               <PrimaryBtn
                 disabled={!canSubmit}
                 onClick={() => {
@@ -818,6 +986,14 @@ function PendingForm({
                       attendanceCount: String(attendees.length),
                       attendees,
                       attachments: attachedFiles,
+                      amountReleasedNgn: amountReleased
+                        ? Number(amountReleased)
+                        : null,
+                      amountSpentNgn: amountSpent ? Number(amountSpent) : null,
+                      spendingItems: spendingItems.map((s) => ({
+                        description: s.description,
+                        amount: Number(s.amount),
+                      })),
                     });
                     if (isLastDay) {
                       await updateActivityWrapup(act.id, {
@@ -849,11 +1025,28 @@ function PendingForm({
               </PrimaryBtn>
             </div>
           </div>
+        </div>
+
+        <div className="flex flex-col gap-6">
+          <div className="h-fit rounded-[18px] border border-line bg-card px-[26px] py-6">
+            <h2 className="mb-[18px] text-[17px] font-semibold">
+              Activity details
+            </h2>
+            <DetailRow label="Type" value={act.type} />
+            <DetailRow
+              label="Dates"
+              value={`${fmtDate(act.startDate)}${act.startDate !== act.endDate ? ` – ${fmtDate(act.endDate)}` : ""}`}
+            />
+            <DetailRow label="Time" value={fmtTime(act.startTime)} />
+            {act.location && (
+              <DetailRow label="Location" value={act.location} />
+            )}
+          </div>
 
           {isLastDay && (
-            <div className="mt-6 rounded-[18px] border border-line bg-card px-[26px] py-6">
-              <div className="mb-[18px] flex items-center justify-between">
-                <h2 className="m-0 font-display text-[17px] font-semibold">
+            <div className="rounded-[18px] border border-line bg-card px-[26px] py-6">
+              <div className="mb-[18px] flex flex-col gap-1">
+                <h2 className="m-0 text-[17px] font-semibold">
                   Wrap up this activity
                 </h2>
                 <span className="text-[11.5px] text-ink-faint">
@@ -877,21 +1070,6 @@ function PendingForm({
                 </Section>
               ))}
             </div>
-          )}
-        </div>
-
-        <div className="h-fit rounded-[18px] border border-line bg-card px-[26px] py-6">
-          <h2 className="mb-[18px] font-display text-[17px] font-semibold">
-            Activity details
-          </h2>
-          <DetailRow label="Type" value={act.type} />
-          <DetailRow
-            label="Dates"
-            value={`${fmtDate(act.startDate)}${act.startDate !== act.endDate ? ` – ${fmtDate(act.endDate)}` : ""}`}
-          />
-          <DetailRow label="Time" value={fmtTime(act.startTime)} />
-          {act.location && (
-            <DetailRow label="Location" value={act.location} />
           )}
         </div>
       </div>

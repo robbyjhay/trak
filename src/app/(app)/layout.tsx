@@ -8,7 +8,7 @@ import { Toast } from "@/components/ui/Toast";
 import { ReportPreviewProvider } from "@/components/reports/ReportPreview";
 import { ConnectNavProvider } from "@/context/ConnectNav";
 import { CallProvider } from "@/context/CallContext";
-import { CallScreen } from "@/components/call/CallScreen";
+import { IncomingCallOverlay } from "@/components/call/IncomingCallOverlay";
 
 export default async function AppLayout({
   children,
@@ -18,11 +18,15 @@ export default async function AppLayout({
   const session = await readSession();
   if (!session) redirect("/login");
 
+  // First-login forced password change is blocking — no app page before it.
+  if (session.mustChangePassword) redirect("/set-password");
+
   return (
     <TrakStoreProvider session={session}>
       <ReportPreviewProvider>
         <ConnectNavProvider>
-          <CallProvider>
+          <CallProvider userId={session.id}>
+            <IncomingCallOverlay />
             <div className="flex min-h-screen">
               <div className="hidden md:block">
                 <Rail />
@@ -34,7 +38,6 @@ export default async function AppLayout({
             </div>
             <MobileNav />
             <Toast />
-            <CallScreen />
           </CallProvider>
         </ConnectNavProvider>
       </ReportPreviewProvider>

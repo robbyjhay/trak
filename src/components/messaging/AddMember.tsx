@@ -2,15 +2,14 @@
 
 import { useState } from "react";
 import { useTrak } from "@/context/TrakStore";
-import { pickUserColor } from "@/lib/utils";
+import { firstName, suggestUsername } from "@/lib/utils";
 import { ModalBackdrop, ModalPanel } from "@/components/ui/Modal";
-import type { User } from "@/lib/types";
 
 const FIELD_INPUT =
   "w-full rounded-[10px] border-[1.5px] border-line bg-white px-3.5 py-2.5 text-[13px] outline-none focus:border-aztec-3";
 
 export function AddMember({ onClose }: { onClose: () => void }) {
-  const { addUser, showToast } = useTrak();
+  const { users, addUser, showToast } = useTrak();
   const [form, setForm] = useState({
     name: "",
     username: "",
@@ -20,7 +19,9 @@ export function AddMember({ onClose }: { onClose: () => void }) {
     phone: "",
     stateOfOrigin: "",
     dateJoined: "",
+    roleType: "member",
   });
+  const [usernameTouched, setUsernameTouched] = useState(false);
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
 
@@ -29,43 +30,36 @@ export function AddMember({ onClose }: { onClose: () => void }) {
     if (error) setError("");
   }
 
-  function save() {
+  async function save() {
     const name = form.name.trim();
-    const username = form.username.trim();
     const phone = form.phone.trim();
-    if (!name || !username || !phone) {
-      setError("Full name, username and phone are required.");
+    if (!name || !phone) {
+      setError("Full name and phone are required.");
       return;
     }
-    const u: User = {
-      id: "",
-      name,
-      username,
-      role: "member",
-      isSecretary: false,
-      isCorps: false,
-      color: pickUserColor(name),
-      phone,
-      designation: form.designation.trim(),
-      gradeLevel: form.gradeLevel.trim(),
-      sex: form.sex,
-      stateOfOrigin: form.stateOfOrigin.trim(),
-      dateJoined: form.dateJoined,
-      photoUrl: null,
-    };
     setSaving(true);
-    void addUser(u)
-      .then(() => {
-        setSaving(false);
-        onClose();
-        showToast("Member added", `${name} is now on the unit roster.`);
-      })
-      .catch((err) => {
-        setSaving(false);
-        setError(
-          err instanceof Error ? err.message : "Could not add member.",
-        );
+    try {
+      const { username, starterPassword } = await addUser({
+        name,
+        username: form.username.trim() || undefined,
+        designation: form.designation.trim(),
+        gradeLevel: form.gradeLevel.trim(),
+        sex: form.sex,
+        phone,
+        stateOfOrigin: form.stateOfOrigin.trim(),
+        dateJoined: form.dateJoined,
+        roleType: form.roleType as "member" | "secretary" | "corps",
       });
+      setSaving(false);
+      onClose();
+      showToast(
+        `${firstName(name)} added to the unit`,
+        `Username ${username} · starter password ${starterPassword} — share this with them; they'll be prompted to change it at first sign-in.`,
+      );
+    } catch (err) {
+      setSaving(false);
+      setError(err instanceof Error ? err.message : "Could not add member.");
+    }
   }
 
   return (
@@ -73,25 +67,41 @@ export function AddMember({ onClose }: { onClose: () => void }) {
       <ModalPanel>
         <h3 className="m-0 mb-1.5 font-display text-xl">Add member</h3>
         <p className="mb-5 text-[12.5px] text-ink-soft">
-          Adds a roster entry to the unit contacts. No sign-in account is
-          created.
+          Creates their Trak login — you&apos;ll get their username &amp; a
+          starter password to share, and they&apos;re prompted to set their own
+          at first sign-in.
         </p>
 
         <Field label="Full name *">
           <input
             value={form.name}
-            onChange={(e) => set("name", e.target.value)}
+            onChange={(e) => {
+              const value = e.target.value;
+              set("name", value);
+              if (!usernameTouched) {
+                set(
+                  "username",
+                  suggestUsername(value, users.map((u) => u.username)),
+                );
+              }
+            }}
             placeholder="e.g. Adaeze Nwosu"
             className={FIELD_INPUT}
           />
         </Field>
-        <Field label="Username *">
+        <Field label="Username">
           <input
             value={form.username}
-            onChange={(e) => set("username", e.target.value)}
-            placeholder="e.g. DLUADO"
+            onChange={(e) => {
+              setUsernameTouched(true);
+              set("username", e.target.value);
+            }}
+            placeholder="Auto-generated from surname"
             className={FIELD_INPUT}
           />
+          <div className="mt-1 text-[11px] text-ink-soft">
+            Leave blank to auto-generate (DLU + surname) — you can override.
+          </div>
         </Field>
         <Field label="Designation">
           <input
@@ -118,6 +128,17 @@ export function AddMember({ onClose }: { onClose: () => void }) {
             <option value="">Select…</option>
             <option value="Male">Male</option>
             <option value="Female">Female</option>
+          </select>
+        </Field>
+        <Field label="Role type">
+          <select
+            value={form.roleType}
+            onChange={(e) => set("roleType", e.target.value)}
+            className={FIELD_INPUT}
+          >
+            <option value="member">Member</option>
+            <option value="secretary">Secretary</option>
+            <option value="corps">NYSC Corps</option>
           </select>
         </Field>
         <Field label="Phone *">
