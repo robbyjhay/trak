@@ -32,8 +32,8 @@ function makeUser(role: UserRole, overrides: Partial<User> = {}): User {
 }
 
 describe("RBAC - Role Labels", () => {
-  test("head role returns Head of Unit", () => {
-    expect(roleLabel({ role: "head" })).toBe("Head of Unit");
+  test("head role returns Unit Head", () => {
+    expect(roleLabel({ role: "head" })).toBe("Unit Head");
   });
 
   test("corps member returns NYSC Corps Member", () => {
@@ -48,8 +48,8 @@ describe("RBAC - Role Labels", () => {
     expect(roleLabel({ role: "member" })).toBe("Member");
   });
 
-  test("head with corps flag still returns Head of Unit", () => {
-    expect(roleLabel({ role: "head", isCorps: true })).toBe("Head of Unit");
+  test("head with corps flag still returns Unit Head", () => {
+    expect(roleLabel({ role: "head", isCorps: true })).toBe("Unit Head");
   });
 });
 

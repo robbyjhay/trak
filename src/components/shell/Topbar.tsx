@@ -37,7 +37,7 @@ export function Topbar() {
   const segment = pathname.split("/").filter(Boolean)[0] || "dashboard";
   let crumb = CRUMBS[segment] || "Dashboard";
   if (segment === "dashboard" && sessionUser.role === "head") {
-    crumb = "Head of Unit";
+    crumb = "Unit Head";
   }
 
   const notifs = myNotifications();

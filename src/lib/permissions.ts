@@ -5,7 +5,7 @@ export function roleLabel(u: {
   isCorps?: boolean;
   isSecretary?: boolean;
 }): string {
-  if (u.role === "head") return "Head of Unit";
+  if (u.role === "head") return "Unit Head";
   if (u.isCorps) return "NYSC Corps Member";
   if (u.isSecretary) return "Secretary";
   return "Member";

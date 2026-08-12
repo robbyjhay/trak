@@ -215,7 +215,7 @@ export function seedDb(now: Date): { db: TrakDb; users: User[] } {
     outcomes:
       "Cohort 5 is now fully caught up with Cohort 4 on the syllabus; ready for the joint assessment next week.",
     nextSteps:
-      "Share the recording with the participants who dropped off, and confirm the assessment date with the Head.",
+      "Share the recording with the participants who dropped off, and confirm the assessment date with the Unit Head.",
   });
 
   const rev2 = createActivity(
@@ -411,7 +411,7 @@ export function seedDb(now: Date): { db: TrakDb; users: User[] } {
     },
   );
 
-  // Sweep missed for Head
+  // Sweep missed for Unit Head
   db.activities
     .filter((a) => a.status === "missed")
     .forEach((a) => {

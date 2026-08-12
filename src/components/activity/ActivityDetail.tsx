@@ -116,7 +116,7 @@ export function ActivityDetail({
             <span className="rounded-full bg-warning-bg px-2.5 py-1 text-[9.5px] font-bold tracking-wide text-warning-ink uppercase">
               Delegated by{" "}
               {act.delegatedBy === "babajide"
-                ? "Head"
+                ? "Unit Head"
                 : firstName(userMap[act.delegatedBy]?.name || "")}
             </span>
           )}
@@ -296,7 +296,7 @@ export function ActivityDetail({
           <div>
             <div className="mb-6 rounded-[18px] border border-line bg-card px-[26px] py-6">
               <h2 className="mb-[18px] font-display text-[17px] font-semibold">
-                Head&apos;s remarks
+                Unit Head&apos;s remarks
               </h2>
               {comments.length ? (
                 comments.map((c) => (

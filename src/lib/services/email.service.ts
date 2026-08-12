@@ -78,8 +78,8 @@ export async function sendPasswordChangedEmail(to: string) {
     from,
     to,
     subject: "Your Trak password was changed",
-    text: `Your Trak password has been changed successfully. If you did not make this change, contact your Head of Unit immediately.`,
-    html: `<p>Your Trak password has been changed successfully.</p><p style="color:#5f7069;font-size:13px">If you did not make this change, contact your Head of Unit immediately.</p>`,
+    text: `Your Trak password has been changed successfully. If you did not make this change, contact your Unit Head immediately.`,
+    html: `<p>Your Trak password has been changed successfully.</p><p style="color:#5f7069;font-size:13px">If you did not make this change, contact your Unit Head immediately.</p>`,
   };
 
   try {

@@ -49,7 +49,7 @@ export default async function AcceptInvitePage({
             <AcceptInviteForm token={token} />
           ) : (
             <div role="alert" className="text-[13.5px] font-semibold text-critical">
-              This invite link is missing a token. Ask your Head of Unit to
+              This invite link is missing a token. Ask your Unit Head to
               resend the invitation.
             </div>
           )}

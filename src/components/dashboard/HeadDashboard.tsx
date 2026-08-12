@@ -32,7 +32,7 @@ export function HeadDashboard() {
         <h1 className="m-0 mb-1.5 font-display text-[30px] font-semibold">
           Good day, {firstName(head.name || sessionUser.name)}
         </h1>
-        <p className="m-0 text-[13.5px] text-ink-soft">Head of Unit view.</p>
+        <p className="m-0 text-[13.5px] text-ink-soft">Unit Head view.</p>
       </div>
 
       <div className="mb-7 flex w-fit gap-2 rounded-[14px] bg-aztec p-1.5">
@@ -496,7 +496,7 @@ function AccountingOfficer() {
         <ModalPanel>
           <h3 className="m-0 mb-1.5 font-display text-xl">Delegate a Task</h3>
           <p className="mb-5 text-[12.5px] text-ink-soft">
-            Lands in the member&apos;s activity list, tagged &quot;Delegated by Head.&quot;
+            Lands in the member&apos;s activity list, tagged &quot;Delegated by Unit Head.&quot;
           </p>
           <Field label="Assign to">
             <select
@@ -571,7 +571,7 @@ function AccountingOfficer() {
                     setTaskTitle("");
                     showToast(
                       `Delegated to ${firstName(userMap[assignTo].name)}`,
-                      `"${title}" now appears in their activities, tagged Delegated by Head.`,
+                      `"${title}" now appears in their activities, tagged Delegated by Unit Head.`,
                     );
                   })
                   .catch(() =>

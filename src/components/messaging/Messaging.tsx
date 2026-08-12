@@ -323,7 +323,7 @@ export function Messaging({
                   Broadcast to the unit
                 </h3>
                 <p className="mb-[22px] max-w-[380px] text-[13px] text-ink-soft">
-                  Only the Head and the Secretary can send this. It reaches all{" "}
+                  Only the Unit Head and the Secretary can send this. It reaches all{" "}
                   {users.length} members at once.
                 </p>
                 <textarea

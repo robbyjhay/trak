@@ -32,11 +32,18 @@ if (!DATABASE_URL) {
   process.exit(1);
 }
 
+import { Pool } from "pg";
+
 // Reuse existing auth settings
 const BCRYPT_COST = Number(process.env.BCRYPT_COST) || 12;
 
 // Initialize Prisma
-const adapter = new PrismaPg({ connectionString: DATABASE_URL });
+const pool = new Pool({
+  connectionString: DATABASE_URL,
+  connectionTimeoutMillis: 30000,
+  idleTimeoutMillis: 30000,
+});
+const adapter = new PrismaPg(pool);
 const prisma = new PrismaClient({ adapter });
 
 async function prompt(rl: readline.Interface, query: string, isPassword = false): Promise<string> {

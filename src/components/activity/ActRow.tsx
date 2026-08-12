@@ -100,8 +100,8 @@ export function ActRow({
             <span className="rounded-full bg-warning-bg px-2 py-0.5 text-[9.5px] font-bold tracking-wide text-warning-ink uppercase">
               Delegated by{" "}
               {a.delegatedBy === "babajide"
-                ? "Head"
-                : firstName((userMap[a.delegatedBy] as User)?.name || "Head")}
+                ? "Unit Head"
+                : firstName((userMap[a.delegatedBy] as User)?.name || "Unit Head")}
             </span>
           )}
           {a.hasBudget && (

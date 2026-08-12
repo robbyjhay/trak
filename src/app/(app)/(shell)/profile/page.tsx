@@ -180,7 +180,7 @@ export default function ProfilePage() {
             <p className="mt-1 text-[12.5px] text-ink-soft">
               {u.role === "head"
                 ? "You manage this for the unit"
-                : "Managed by the Head of Unit"}
+                : "Managed by the Unit Head"}
             </p>
           </div>
           <dl>
@@ -213,7 +213,7 @@ export default function ProfilePage() {
           <div className="mt-5 rounded-[10px] border border-line bg-neutral-bg p-3 text-[12px] leading-relaxed text-ink-soft">
             {u.role !== "head" ? (
               <>
-                Spot something out of date? Message the Head of Unit via{" "}
+                Spot something out of date? Message the Unit Head via{" "}
                 <b className="text-ink">Connect</b> — these details are kept up
                 to date from the Accounting Officer dashboard.
               </>

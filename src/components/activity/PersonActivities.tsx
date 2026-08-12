@@ -43,7 +43,7 @@ export function PersonActivities({ userId }: { userId: string }) {
           </div>
           <div>
             <div className="mb-1 text-[11.5px] font-bold tracking-[0.12em] text-ink-soft uppercase">
-              {isSelf ? "My Activities" : "Viewing as Head of Unit — read only"}
+              {isSelf ? "My Activities" : "Viewing as Unit Head — read only"}
             </div>
             <h1 className="m-0 mb-1 text-[30px] font-semibold">
               {isSelf ? `${greeting}, ${firstName(person.name)}` : `${person.name}'s activities`}

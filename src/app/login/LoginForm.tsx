@@ -125,8 +125,8 @@ export function LoginForm({
                       {firstName(u.name)}
                     </div>
                     <div className="text-[9.5px] text-ink-faint uppercase">
-                      {roleLabel(u) === "Head of Unit"
-                        ? "Head"
+                      {roleLabel(u) === "Unit Head"
+                        ? "Unit Head"
                         : u.isCorps
                           ? "Corps"
                           : u.isSecretary

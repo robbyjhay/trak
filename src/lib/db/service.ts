@@ -297,7 +297,7 @@ export async function createUser(
 ): Promise<{ user: User; credentials: CreatedUserCredentials }> {
   const actor = await requireActor(session);
   if (!canManageTeamProfiles(mapUser(actor))) {
-    throw new ServiceError(403, "Only the Head can add members.");
+    throw new ServiceError(403, "Only the Unit Head can add members.");
   }
 
   const name = (input.name || "").trim();
@@ -392,7 +392,7 @@ export async function createUser(
         meta: { email },
       });
     } catch {
-      // Invite email is best-effort; Head still receives starter password once.
+      // Invite email is best-effort; Unit Head still receives starter password once.
     }
   }
 
@@ -451,10 +451,10 @@ export async function createActivity(
   const createdBy = input.createdBy || session.id;
 
   if (createdBy !== session.id && !canDelegate(mapUser(actor))) {
-    throw new ServiceError(403, "Only the Head can delegate activities.");
+    throw new ServiceError(403, "Only the Unit Head can delegate activities.");
   }
   if (input.delegatedBy && !canDelegate(mapUser(actor))) {
-    throw new ServiceError(403, "Only the Head can set delegatedBy.");
+    throw new ServiceError(403, "Only the Unit Head can set delegatedBy.");
   }
 
   if (!input.title?.trim()) {
@@ -723,7 +723,7 @@ export async function addComment(
 ): Promise<Comment> {
   const actor = await requireActor(session);
   if (!canComment(mapUser(actor))) {
-    throw new ServiceError(403, "Only the Head can comment.");
+    throw new ServiceError(403, "Only the Unit Head can comment.");
   }
   const act = await prisma.activity.findUnique({ where: { id: activityId } });
   if (!act || act.softDeletedAt) throw new ServiceError(404, "Activity not found.");
@@ -997,7 +997,7 @@ export async function sendCommunity(
 export async function wipeCommunity(session: SessionUser): Promise<void> {
   const actor = await requireActor(session);
   if (!canWipeCommunity(mapUser(actor))) {
-    throw new ServiceError(403, "Only the Head can wipe community chat.");
+    throw new ServiceError(403, "Only the Unit Head can wipe community chat.");
   }
   await prisma.communityMessage.deleteMany();
 }
@@ -1181,7 +1181,7 @@ export async function createResponsibility(
 ): Promise<Responsibility> {
   const actor = await requireActor(session);
   if (!canManageResponsibilities(mapUser(actor))) {
-    throw new ServiceError(403, "Only the Head can manage responsibilities.");
+    throw new ServiceError(403, "Only the Unit Head can manage responsibilities.");
   }
   const code = (input.code || "").trim().toUpperCase();
   const name = (input.name || "").trim();
@@ -1218,7 +1218,7 @@ export async function updateResponsibility(
 ): Promise<Responsibility> {
   const actor = await requireActor(session);
   if (!canManageResponsibilities(mapUser(actor))) {
-    throw new ServiceError(403, "Only the Head can manage responsibilities.");
+    throw new ServiceError(403, "Only the Unit Head can manage responsibilities.");
   }
   const existing = await prisma.responsibility.findUnique({ where: { id } });
   if (!existing) throw new ServiceError(404, "Responsibility not found.");
@@ -1262,7 +1262,7 @@ export async function deactivateResponsibility(
 ): Promise<Responsibility> {
   const actor = await requireActor(session);
   if (!canManageResponsibilities(mapUser(actor))) {
-    throw new ServiceError(403, "Only the Head can manage responsibilities.");
+    throw new ServiceError(403, "Only the Unit Head can manage responsibilities.");
   }
   const existing = await prisma.responsibility.findUnique({ where: { id } });
   if (!existing) throw new ServiceError(404, "Responsibility not found.");
@@ -1284,7 +1284,7 @@ export async function toggleActivityHidden(
 ): Promise<Activity> {
   const actor = await requireActor(session);
   if (!canDelegate(mapUser(actor))) {
-    throw new ServiceError(403, "Only the Head can hide/unhide activities.");
+    throw new ServiceError(403, "Only the Unit Head can hide/unhide activities.");
   }
   const act = await prisma.activity.findUnique({
     where: { id: activityId },
@@ -1306,7 +1306,7 @@ export async function softDeleteActivity(
 ): Promise<Activity> {
   const actor = await requireActor(session);
   if (!canDelegate(mapUser(actor))) {
-    throw new ServiceError(403, "Only the Head can delete activities.");
+    throw new ServiceError(403, "Only the Unit Head can delete activities.");
   }
   const act = await prisma.activity.findUnique({
     where: { id: activityId },

@@ -56,7 +56,7 @@ export function buildActivityReportHTML(
     .join("");
 
   const background = act.delegatedBy
-    ? `Directive from ${act.delegatedBy === "babajide" ? "the Head of Unit" : escapeHtml(userMap[act.delegatedBy]?.name || "")}, assigned via Trak on ${fmtDate(act.createdAt)}.`
+    ? `Directive from ${act.delegatedBy === "babajide" ? "the Unit Head" : escapeHtml(userMap[act.delegatedBy]?.name || "")}, assigned via Trak on ${fmtDate(act.createdAt)}.`
     : `Logged under the Digital Learning Unit's regular activity tracking (Trak), within the unit's ${escapeHtml(respNames)} responsibility area${respObjs.length > 1 ? "s" : ""}.`;
 
   const purpose =
@@ -129,9 +129,9 @@ export function buildActivityReportHTML(
             `<li>${escapeHtml(c.text)} <i>— ${escapeHtml(userMap[c.authorId]?.name || "")}, ${fmtDate(c.createdAt)}</i></li>`,
         )
         .join("")
-    : `<li>No Head's remarks yet.</li>`;
+    : `<li>No Unit Head's remarks yet.</li>`;
 
-  const conclusion = `${escapeHtml(owner?.name || "")} ${act.status === "completed" ? "completed" : "carried out"} "${escapeHtml(act.title)}" over ${days} day${days > 1 ? "s" : ""}, covering ${escapeHtml(respNames)}. ${comments.length ? "Reviewed by the Head of Unit — see remarks below." : "Awaiting Head of Unit review."}`;
+  const conclusion = `${escapeHtml(owner?.name || "")} ${act.status === "completed" ? "completed" : "carried out"} "${escapeHtml(act.title)}" over ${days} day${days > 1 ? "s" : ""}, covering ${escapeHtml(respNames)}. ${comments.length ? "Reviewed by the Unit Head — see remarks below." : "Awaiting Unit Head review."}`;
 
   const refNo = `PSSDC/DLU/TRAK/${act.id.replace("act_", "").toUpperCase()}`;
   const lastReview = comments.length ? comments[comments.length - 1] : null;
@@ -264,14 +264,14 @@ export function buildActivityReportHTML(
       <td>
         ${
           lastReview
-            ? `<div class="sign-line"><b>${escapeHtml(userMap[lastReview.authorId]?.name || "")}</b><br>Head of Unit<br>Reviewed, ${fmtDateFull(lastReview.createdAt)}</div>`
-            : `<div class="sign-line" style="border-top-color:#ccc; color:#999;">Head of Unit<br><span class="note">Pending review</span></div>`
+            ? `<div class="sign-line"><b>${escapeHtml(userMap[lastReview.authorId]?.name || "")}</b><br>Unit Head<br>Reviewed, ${fmtDateFull(lastReview.createdAt)}</div>`
+            : `<div class="sign-line" style="border-top-color:#ccc; color:#999;">Unit Head<br><span class="note">Pending review</span></div>`
         }
       </td>
     </tr></table>
 
     <div class="remarks-block">
-      <h2 style="text-transform:none; border-bottom-color:#ccc;">Head of Unit's Remarks</h2>
+      <h2 style="text-transform:none; border-bottom-color:#ccc;">Unit Head's Remarks</h2>
       <ul>${headRemarks}</ul>
     </div>
 

@@ -8,7 +8,7 @@ import {
 
 describe('RBAC Permissions', () => {
   test('roleLabel formats correctly', () => {
-    expect(roleLabel({ role: 'head' })).toBe('Head of Unit');
+    expect(roleLabel({ role: 'head' })).toBe('Unit Head');
     expect(roleLabel({ role: 'member', isCorps: true })).toBe('NYSC Corps Member');
     expect(roleLabel({ role: 'member', isSecretary: true })).toBe('Secretary');
     expect(roleLabel({ role: 'member' })).toBe('Member');
