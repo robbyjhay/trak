@@ -52,6 +52,11 @@ async function getRedis(): Promise<import("ioredis").default | null> {
   }
 }
 
+export async function checkRedisReady(): Promise<boolean> {
+  const redis = await getRedis();
+  return redis ? redis.status === "ready" : false;
+}
+
 function memoryCheck(
   key: string,
   max: number,

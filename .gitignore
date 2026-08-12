@@ -60,6 +60,7 @@ prisma/dev.db-journal
 .agents/
 skills-lock.json
 note.txt
+*.txt
 *.log
 
 # Backups

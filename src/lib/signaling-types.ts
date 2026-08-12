@@ -1,6 +1,7 @@
 /** Messages sent by the client to the server */
 export type OutgoingMessage =
-  | { type: "register"; userId: string }
+  /** Optional handshake; server binds identity from session cookie only. */
+  | { type: "register"; userId?: string }
   | { type: "call_offer"; to: string; sdp: RTCSessionDescriptionInit }
   | { type: "call_answer"; to: string; sdp: RTCSessionDescriptionInit }
   | { type: "ice_candidate"; to: string; candidate: RTCIceCandidateInit }
@@ -21,4 +22,5 @@ export type IncomingMessage =
   | { type: "call_reject"; from: string }
   | { type: "call_end"; from: string }
   | { type: "peer_busy"; from: string }
-  | { type: "peer_unavailable"; from: string };
+  | { type: "peer_unavailable"; from: string }
+  | { type: "error"; code: string; message?: string };

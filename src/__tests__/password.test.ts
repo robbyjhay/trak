@@ -1,5 +1,5 @@
 import { expect, test, describe } from 'vitest';
-import { validatePasswordPolicy, generateTemporaryPassword, getDevSeedPassword } from '@/lib/auth/password';
+import { validatePasswordPolicy, generateTemporaryPassword } from '@/lib/auth/password';
 
 describe('Password Policy', () => {
   test('rejects short passwords', () => {

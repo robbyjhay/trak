@@ -2,7 +2,7 @@
 
 import { useCall } from "@/context/CallContext";
 import { useTrak } from "@/context/TrakStore";
-import { initials, firstName } from "@/lib/utils";
+import { initials } from "@/lib/utils";
 import { PATHS } from "@/components/icons";
 
 export function IncomingCallOverlay() {

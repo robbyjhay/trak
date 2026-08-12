@@ -34,7 +34,7 @@ export async function POST(req: Request) {
     const confirm = String(body.confirm || "");
 
     await setInitialPassword(
-      session.authUserId,
+      session.authUserId || session.id,
       password,
       confirm,
       session.username,

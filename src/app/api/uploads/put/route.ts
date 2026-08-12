@@ -19,12 +19,12 @@ export async function PUT(req: Request) {
       throw new ServiceError(400, "key and token are required");
     }
 
-    const buf = Buffer.from(await req.arrayBuffer());
-    if (buf.length > 10 * 1024 * 1024) {
+    const contentLength = Number(req.headers.get("content-length")) || 0;
+    if (contentLength > 10 * 1024 * 1024) {
       throw new ServiceError(400, "File too large");
     }
 
-    await putLocalObject(key, buf, token, session.id);
+    await putLocalObject(key, req.body, token, session.id);
     return jsonOk({ ok: true, key });
   } catch (err) {
     return handleServiceError(err);

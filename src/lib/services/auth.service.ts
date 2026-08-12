@@ -365,3 +365,207 @@ export async function skipPasswordChange(userId: string): Promise<void> {
     data: { mustChangePassword: false },
   });
 }
+
+/**
+ * Request a password-reset email. Always resolves without revealing whether
+ * the account exists (AUDIT_05 enumeration resistance).
+ */
+export async function requestPasswordReset(
+  identifier: string,
+): Promise<{ sent: boolean }> {
+  const raw = identifier.trim();
+  if (!raw) return { sent: false };
+
+  const normalized = raw.toLowerCase();
+  let user = await prisma.user.findUnique({
+    where: { usernameNormalized: normalized },
+    include: { profile: true },
+  });
+
+  // Emails are stored lowercased at write time
+  if (!user && raw.includes("@")) {
+    user = await prisma.user.findUnique({
+      where: { email: normalized },
+      include: { profile: true },
+    });
+  }
+
+  if (!user || !user.isActive || !user.email) {
+    return { sent: false };
+  }
+
+  const { createAuthToken } = await import("@/lib/auth/tokens");
+  const { rawToken } = await createAuthToken("password_reset", user.id);
+
+  try {
+    const { sendPasswordResetEmail } = await import(
+      "@/lib/services/email.service"
+    );
+    await sendPasswordResetEmail(user.email, rawToken);
+  } catch {
+    // Swallow transport errors so the API still returns a generic success.
+    return { sent: false };
+  }
+
+  try {
+    const { recordAuditEvent } = await import("@/lib/services/audit.service");
+    await recordAuditEvent({
+      userId: user.id,
+      action: "password_reset_request",
+      targetId: user.id,
+      targetType: "user",
+    });
+  } catch {
+    /* non-critical */
+  }
+
+  return { sent: true };
+}
+
+/**
+ * Consume a password_reset token and set a new password; revokes all sessions.
+ */
+export async function resetPasswordWithToken(
+  rawToken: string,
+  password: string,
+  confirm: string,
+): Promise<void> {
+  const { consumeAuthToken } = await import("@/lib/auth/tokens");
+  const consumed = await consumeAuthToken(rawToken, "password_reset");
+  if (!consumed) {
+    throw new AuthError(
+      400,
+      "INVALID_TOKEN",
+      "This reset link is invalid or has expired.",
+    );
+  }
+
+  const user = await findById(consumed.userId);
+  if (!user || !user.isActive) {
+    throw new AuthError(
+      400,
+      "INVALID_TOKEN",
+      "This reset link is invalid or has expired.",
+    );
+  }
+
+  const policyErr = validatePasswordPolicy(password, {
+    username: user.username,
+    confirm,
+  });
+  if (policyErr) {
+    throw new AuthError(
+      400,
+      "VALIDATION_ERROR",
+      passwordPolicyMessage(policyErr),
+    );
+  }
+
+  const passwordHash = await hashPassword(password);
+  await prisma.user.update({
+    where: { id: user.id },
+    data: {
+      passwordHash,
+      mustChangePassword: false,
+    },
+  });
+
+  await revokeAllSessions(user.id);
+
+  try {
+    const { recordAuditEvent } = await import("@/lib/services/audit.service");
+    await recordAuditEvent({
+      userId: user.id,
+      action: "password_reset_complete",
+      targetId: user.id,
+      targetType: "user",
+    });
+  } catch {
+    /* non-critical */
+  }
+
+  if (user.email) {
+    try {
+      const { sendPasswordChangedEmail } = await import(
+        "@/lib/services/email.service"
+      );
+      await sendPasswordChangedEmail(user.email);
+    } catch {
+      /* non-critical */
+    }
+  }
+}
+
+/**
+ * Accept an invite token and set the initial password; creates a session.
+ */
+export async function acceptInvite(
+  rawToken: string,
+  password: string,
+  confirm: string,
+  meta?: { ip?: string | null; userAgent?: string | null },
+): Promise<{ user: SessionUser; rawToken: string }> {
+  const { consumeAuthToken } = await import("@/lib/auth/tokens");
+  const consumed = await consumeAuthToken(rawToken, "invite");
+  if (!consumed) {
+    throw new AuthError(
+      400,
+      "INVALID_TOKEN",
+      "This invite link is invalid or has expired.",
+    );
+  }
+
+  const user = await findById(consumed.userId);
+  if (!user || !user.isActive) {
+    throw new AuthError(
+      400,
+      "INVALID_TOKEN",
+      "This invite link is invalid or has expired.",
+    );
+  }
+
+  const policyErr = validatePasswordPolicy(password, {
+    username: user.username,
+    confirm,
+  });
+  if (policyErr) {
+    throw new AuthError(
+      400,
+      "VALIDATION_ERROR",
+      passwordPolicyMessage(policyErr),
+    );
+  }
+
+  const passwordHash = await hashPassword(password);
+  await prisma.user.update({
+    where: { id: user.id },
+    data: {
+      passwordHash,
+      mustChangePassword: false,
+      emailVerifiedAt: user.email ? new Date() : user.emailVerifiedAt,
+    },
+  });
+
+  const session = await createSession(user.id, meta);
+
+  try {
+    const { recordAuditEvent } = await import("@/lib/services/audit.service");
+    await recordAuditEvent({
+      userId: user.id,
+      action: "invite_accept",
+      targetId: user.id,
+      targetType: "user",
+    });
+  } catch {
+    /* non-critical */
+  }
+
+  return {
+    user: toSessionUser({
+      ...user,
+      mustChangePassword: false,
+      passwordHash,
+    }),
+    rawToken: session.rawToken,
+  };
+}

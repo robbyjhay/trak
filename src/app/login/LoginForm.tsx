@@ -20,16 +20,18 @@ type RosterItem = {
 export function LoginForm({
   roster,
   showRoster,
+  passwordResetNotice = false,
 }: {
   roster: RosterItem[];
   showRoster: boolean;
+  passwordResetNotice?: boolean;
 }) {
   const [state, formAction, pending] = useActionState<LoginResult | null, FormData>(
     loginAction,
     null,
   );
-  const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
+  const [username, setUsername] = useState(showRoster ? "dev" : "");
+  const [password, setPassword] = useState(showRoster ? "dev" : "");
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
   async function fillUser(id: string) {
@@ -138,6 +140,15 @@ export function LoginForm({
           )}
 
           <form action={formAction}>
+            {passwordResetNotice && (
+              <div
+                className="mb-4 rounded-[12px] border border-good/30 bg-good-bg px-3.5 py-3 text-[13px] font-semibold text-good"
+                role="status"
+                aria-live="polite"
+              >
+                Password updated. Sign in with your new password.
+              </div>
+            )}
             <div className="mb-4">
               <label
                 htmlFor="loginUser"
@@ -181,12 +192,20 @@ export function LoginForm({
                 {state.error}
               </div>
             )}
+            <div className="mb-1 flex justify-end">
+              <a
+                href="/forgot-password"
+                className="text-[12.5px] font-bold text-aztec-3 underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-saffron"
+              >
+                Forgot password?
+              </a>
+            </div>
             <button
               type="submit"
               disabled={pending}
-              className="mt-3.5 flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl border-none bg-linear-to-br from-aztec-3 to-aztec py-3.5 text-[14.5px] font-bold text-paper disabled:opacity-60"
+              className="mt-3.5 flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl border-none bg-linear-to-br from-aztec-3 to-aztec py-3.5 text-[14.5px] font-bold text-paper focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-saffron disabled:opacity-60"
             >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
                 <path d={PATHS.login} />
               </svg>
               {pending ? "Signing in…" : "Sign in to Trak"}

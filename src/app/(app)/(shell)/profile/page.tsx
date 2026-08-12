@@ -30,7 +30,20 @@ export default function ProfilePage() {
     Notification.permission !== "denied" &&
     !dismissedNotifNudges.has(u.id);
 
-  const selfie = useSelfieCapture();
+  // Destructure so state/handlers are plain values (not a ref-tainted object).
+  const {
+    open: selfieOpen,
+    error: selfieError,
+    hint: selfieHint,
+    previewUrl: selfiePreview,
+    offerNewTab,
+    videoRef,
+    canvasRef,
+    openCapture,
+    close: closeSelfie,
+    shoot,
+    retake,
+  } = useSelfieCapture();
 
   return (
     <div>
@@ -64,7 +77,7 @@ export default function ProfilePage() {
           <div className="flex shrink-0 items-center gap-2">
             <PrimaryBtn
               className="bg-saffron text-aztec shadow-none"
-              onClick={() => selfie.openCapture()}
+              onClick={() => openCapture()}
             >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d={PATHS.camera} />
@@ -150,7 +163,7 @@ export default function ProfilePage() {
           </div>
           <GhostBtn
             className="mt-[18px] justify-center"
-            onClick={() => selfie.openCapture()}
+            onClick={() => openCapture()}
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d={PATHS.camera} />
@@ -215,7 +228,7 @@ export default function ProfilePage() {
         </div>
       </div>
 
-      <ModalBackdrop open={selfie.open} onClose={selfie.close}>
+      <ModalBackdrop open={selfieOpen} onClose={closeSelfie}>
         <ModalPanel className="w-[420px]">
           <h3 className="m-0 mb-1.5 font-display text-xl">Take a selfie</h3>
           <p className="mb-5 text-[12.5px] text-ink-soft">
@@ -223,41 +236,40 @@ export default function ProfilePage() {
             upload one from your gallery.
           </p>
           <div className="relative aspect-square overflow-hidden rounded-2xl bg-[#111]">
-            {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
             <video
-              ref={selfie.videoRef}
+              ref={videoRef}
               autoPlay
               playsInline
               muted
-              className={`h-full w-full object-cover ${selfie.previewUrl ? "hidden" : "block"} scale-x-[-1]`}
+              className={`h-full w-full object-cover ${selfiePreview ? "hidden" : "block"} scale-x-[-1]`}
             />
-            {selfie.previewUrl && (
+            {selfiePreview && (
               // eslint-disable-next-line @next/next/no-img-element
               <img
-                src={selfie.previewUrl}
+                src={selfiePreview}
                 alt="Preview"
                 className="h-full w-full object-cover"
               />
             )}
-            <canvas ref={selfie.canvasRef} className="hidden" />
+            <canvas ref={canvasRef} className="hidden" />
           </div>
-          {selfie.error && (
+          {selfieError && (
             <div className="mt-3.5 text-[12.5px] leading-snug text-critical">
-              {selfie.error}
+              {selfieError}
             </div>
           )}
-          {selfie.hint && (
+          {selfieHint && (
             <div className="mt-2 text-[11.5px] leading-snug text-ink-faint">
-              {selfie.hint}
+              {selfieHint}
             </div>
           )}
           <div className="mt-[22px] flex gap-2.5">
-            {selfie.previewUrl ? (
+            {selfiePreview ? (
               <>
                 <button
                   type="button"
                   className="flex-1 cursor-pointer rounded-[10px] border-[1.5px] border-line py-3 font-bold"
-                  onClick={selfie.retake}
+                  onClick={retake}
                 >
                   Retake
                 </button>
@@ -265,12 +277,12 @@ export default function ProfilePage() {
                   type="button"
                   className="flex-[1.3] cursor-pointer rounded-[10px] border-none bg-aztec py-3 font-bold text-white"
                   onClick={() => {
-                    if (selfie.previewUrl) {
+                    if (selfiePreview) {
                       void updateUserProfile(u.id, {
-                        photoUrl: selfie.previewUrl,
+                        photoUrl: selfiePreview,
                       })
                         .then(() => {
-                          selfie.close();
+                          closeSelfie();
                           showToast("Profile photo saved", "Looking good!");
                         })
                         .catch(() =>
@@ -285,16 +297,16 @@ export default function ProfilePage() {
                   Use this photo
                 </button>
               </>
-            ) : selfie.error ? (
+            ) : selfieError ? (
               <>
                 <button
                   type="button"
                   className="flex-1 cursor-pointer rounded-[10px] border-[1.5px] border-line py-3 font-bold"
-                  onClick={selfie.close}
+                  onClick={closeSelfie}
                 >
                   Cancel
                 </button>
-                {selfie.offerNewTab && (
+                {offerNewTab && (
                   <button
                     type="button"
                     className="flex-1 cursor-pointer rounded-[10px] border-[1.5px] border-line py-3 font-bold"
@@ -306,7 +318,7 @@ export default function ProfilePage() {
                 <button
                   type="button"
                   className="flex-[1.3] cursor-pointer rounded-[10px] border-none bg-aztec py-3 font-bold text-white"
-                  onClick={() => selfie.openCapture()}
+                  onClick={() => openCapture()}
                 >
                   Try again
                 </button>
@@ -316,14 +328,14 @@ export default function ProfilePage() {
                 <button
                   type="button"
                   className="flex-1 cursor-pointer rounded-[10px] border-[1.5px] border-line py-3 font-bold"
-                  onClick={selfie.close}
+                  onClick={closeSelfie}
                 >
                   Cancel
                 </button>
                 <button
                   type="button"
                   className="flex-[1.3] cursor-pointer rounded-[10px] border-none bg-aztec py-3 font-bold text-white"
-                  onClick={selfie.shoot}
+                  onClick={shoot}
                 >
                   Capture
                 </button>

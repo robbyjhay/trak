@@ -1,7 +1,8 @@
 "use server";
 
-import { redirect } from "next/navigation";
+import { redirect, unstable_rethrow } from "next/navigation";
 import { headers } from "next/headers";
+import { revalidatePath } from "next/cache";
 import {
   login as authLogin,
   setInitialPassword,
@@ -16,6 +17,7 @@ import {
 } from "@/lib/auth/session";
 import { checkRateLimit } from "@/lib/auth/rate-limit";
 import { getEnv, isDevLoginEnabled } from "@/lib/env";
+import { log } from "@/lib/log";
 
 export type LoginResult =
   | { ok: true }
@@ -66,8 +68,14 @@ export async function loginAction(
     if (err instanceof AuthError) {
       return { ok: false, error: err.message };
     }
-    // Next.js redirect throws; rethrow
-    throw err;
+    // Next.js redirect()/notFound() must propagate; do not swallow.
+    unstable_rethrow(err);
+    log.error("login_action_unexpected", err, { username });
+    // DB/timeouts/etc. — fail closed with a safe message (no internals).
+    return {
+      ok: false,
+      error: "Unable to sign in right now. Please try again.",
+    };
   }
 }
 
@@ -86,11 +94,12 @@ export async function setNewPasswordAction(
 
   try {
     await setInitialPassword(
-      session.authUserId,
+      session.authUserId || session.id,
       password,
       confirm,
       session.username,
     );
+    revalidatePath("/", "layout");
     redirect("/dashboard");
   } catch (err) {
     if (err instanceof AuthError) {
@@ -110,7 +119,12 @@ export async function skipPasswordChangeAction(): Promise<void> {
   }
   const session = await readSession();
   if (!session) redirect("/login");
-  await skipPasswordChange(session.authUserId);
+  const userId = session.authUserId || session.id;
+  await skipPasswordChange(userId);
+  // Bust cached layout session gate so dashboard does not bounce back to set-password.
+  revalidatePath("/", "layout");
+  revalidatePath("/set-password");
+  revalidatePath("/dashboard");
   redirect("/dashboard");
 }
 

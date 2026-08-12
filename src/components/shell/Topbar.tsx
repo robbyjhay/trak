@@ -129,7 +129,7 @@ export function Topbar() {
                         void markNotifRead(n.id);
                         setNotifOpen(false);
                         if (n.activityId) router.push(`/activity/${n.activityId}`);
-                        else if (n.type === "dm") router.push("/messages");
+                        else if (n.type === "dm" || n.type === "mention" || n.type === "broadcast") router.push("/messages");
                       }}
                     >
                       <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-[9px] bg-aztec-2 text-saffron">

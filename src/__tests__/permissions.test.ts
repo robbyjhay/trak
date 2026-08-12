@@ -1,11 +1,10 @@
 import { expect, test, describe } from 'vitest';
-import { 
-  roleLabel, 
-  canComment, 
-  canBroadcast, 
-  canManageTeamProfiles 
+import {
+  roleLabel,
+  canComment,
+  canBroadcast,
+  canManageTeamProfiles,
 } from '@/lib/permissions';
-import type { UserRole } from '@/lib/types';
 
 describe('RBAC Permissions', () => {
   test('roleLabel formats correctly', () => {

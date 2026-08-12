@@ -45,11 +45,27 @@ interface ToastState {
   show: boolean;
 }
 
-interface BootstrapResponse {
+export interface BootstrapSnapshot {
   users: User[];
   db: TrakDb;
   responsibilities: Responsibility[];
-  serverTime: string;
+  serverTime?: string;
+}
+
+interface BootstrapResponse extends BootstrapSnapshot {}
+
+function normalizeDb(db: Partial<TrakDb> | null | undefined): TrakDb {
+  const empty = createEmptyDb();
+  return {
+    activities: db?.activities ?? empty.activities,
+    dailyLogs: db?.dailyLogs ?? empty.dailyLogs,
+    comments: db?.comments ?? empty.comments,
+    dms: db?.dms ?? empty.dms,
+    calls: db?.calls ?? empty.calls,
+    community: db?.community ?? empty.community,
+    broadcasts: db?.broadcasts ?? empty.broadcasts,
+    notifications: db?.notifications ?? empty.notifications,
+  };
 }
 
 interface TrakStoreValue {
@@ -113,6 +129,7 @@ interface TrakStoreValue {
   addUser: (u: {
     name: string;
     username?: string;
+    email?: string;
     designation?: string;
     gradeLevel?: string;
     sex?: string;
@@ -162,13 +179,19 @@ function emptyDb(): TrakDb {
 
 export function TrakStoreProvider({
   session,
+  initialBootstrap = null,
   children,
 }: {
   session: SessionUser;
+  /** Server-loaded snapshot — when present, dashboard paints immediately. */
+  initialBootstrap?: BootstrapSnapshot | null;
   children: ReactNode;
 }) {
   const nowRef = useRef(createNow());
-  const [ready, setReady] = useState(false);
+  const hadInitial = Boolean(
+    initialBootstrap && Array.isArray(initialBootstrap.users),
+  );
+  const [ready, setReady] = useState(hadInitial);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [version, setVersion] = useState(0);
   const stateRef = useRef<{
@@ -180,6 +203,19 @@ export function TrakStoreProvider({
     users: [],
     responsibilities: [],
   });
+  const seededFromServer = useRef(false);
+  if (!seededFromServer.current && hadInitial && initialBootstrap) {
+    seededFromServer.current = true;
+    stateRef.current = {
+      users: initialBootstrap.users,
+      db: normalizeDb(initialBootstrap.db),
+      responsibilities: initialBootstrap.responsibilities || [],
+    };
+    if (initialBootstrap.serverTime) {
+      const t = new Date(initialBootstrap.serverTime);
+      if (!Number.isNaN(t.getTime())) nowRef.current = t;
+    }
+  }
 
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
   const [dismissedPhoto, setDismissedPhoto] = useState<Set<string>>(
@@ -206,48 +242,60 @@ export function TrakStoreProvider({
   );
 
   const refresh = useCallback(async () => {
-    const data = await apiGet<BootstrapResponse>("/api/bootstrap");
-    applySnapshot(data.users, data.db, data.responsibilities || []);
+    const data = await apiGet<BootstrapResponse>("/api/bootstrap", {
+      timeoutMs: 25_000,
+    });
+    if (!data || !Array.isArray(data.users) || !data.db) {
+      throw new ApiError(500, "Invalid bootstrap response from server");
+    }
+    applySnapshot(
+      data.users,
+      normalizeDb(data.db),
+      data.responsibilities || [],
+    );
     if (data.serverTime) {
       const t = new Date(data.serverTime);
       if (!Number.isNaN(t.getTime())) nowRef.current = t;
     }
   }, [applySnapshot]);
 
+  const refreshRef = useRef(refresh);
+  refreshRef.current = refresh;
+
+  // Client fetch only when the server did not already provide a snapshot.
+  // Do NOT abort on unmount — Strict Mode abort was leaving ready=false forever.
   useEffect(() => {
-    let cancelled = false;
+    if (hadInitial) return;
+
+    let alive = true;
     (async () => {
       try {
-        await refresh();
-        if (!cancelled) {
-          setReady(true);
-          setLoadError(null);
-        }
+        await refreshRef.current();
+        if (!alive) return;
+        setLoadError(null);
+        setReady(true);
       } catch (err) {
-        if (!cancelled) {
-          setLoadError(
-            err instanceof ApiError ? err.message : "Failed to load data",
-          );
-          setReady(true);
-        }
+        if (!alive) return;
+        setLoadError(
+          err instanceof ApiError ? err.message : "Failed to load data",
+        );
+        setReady(true);
       }
     })();
+
     return () => {
-      cancelled = true;
+      alive = false;
     };
-  }, [refresh]);
+  }, [hadInitial]);
 
   const db = stateRef.current.db;
   const users = stateRef.current.users;
   const responsibilities = stateRef.current.responsibilities;
-  // version drives re-render after mutations
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const _v = version;
+  // Subscribe to version so mutations that replace state trigger re-render.
+  void version;
 
   const userMap = useMemo(
     () => Object.fromEntries(users.map((u) => [u.id, u])) as Record<string, User>,
-    // users mutates by replacement; version drives refresh
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [version, users],
   );
 
@@ -477,6 +525,7 @@ export function TrakStoreProvider({
       }>("/api/users", "POST", {
         name: u.name,
         username: u.username,
+        email: u.email,
         designation: u.designation,
         gradeLevel: u.gradeLevel,
         sex: u.sex,
@@ -625,8 +674,16 @@ export function TrakStoreProvider({
 
   if (!ready) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-paper text-ink-soft">
+      <div
+        className="flex min-h-screen items-center justify-center bg-paper text-ink-soft"
+        role="status"
+        aria-live="polite"
+      >
         <div className="text-center">
+          <div
+            className="mx-auto mb-4 h-8 w-8 animate-spin rounded-full border-2 border-line border-t-aztec"
+            aria-hidden
+          />
           <div className="mb-2 font-display text-lg font-semibold text-ink">
             Loading Trak…
           </div>
@@ -650,8 +707,12 @@ export function TrakStoreProvider({
             onClick={() => {
               setReady(false);
               setLoadError(null);
-              refresh()
-                .then(() => setReady(true))
+              refreshRef
+                .current()
+                .then(() => {
+                  setLoadError(null);
+                  setReady(true);
+                })
                 .catch((e) => {
                   setLoadError(
                     e instanceof ApiError ? e.message : "Failed to load data",

@@ -1,36 +1,89 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Trak
 
-## Getting Started
+**Trak** is the Digital Learning Unit (DLU) activity & operations register for
+PSSDC · Lagos State Government. It tracks activities, daily logs, attendance
+(including public RSVP links), responsibilities, team messaging, notifications,
+profiles, and printable reports.
 
-First, run the development server:
+## Stack
+
+- Next.js (App Router) · React · TypeScript · Tailwind CSS
+- PostgreSQL via Prisma 7
+- Opaque session cookies · bcrypt (cost 12)
+- Redis (optional locally; required for multi-instance rate limiting)
+- Nodemailer SMTP for invite / password-reset / password-changed mail
+- Vitest (unit) · Playwright (e2e) · GitHub Actions CI
+
+## Quick start
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+cp .env.example .env
+# Fill DATABASE_URL, TRAK_SESSION_SECRET (≥32 chars), and optional SMTP/Redis
+
+npm ci
+npm run db:migrate
+npm run db:seed          # dev: Head (+ demo when SEED_DEMO_USERS=true); prod: catalog only
+npm run dev              # http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Scripts
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+| Script | Purpose |
+|--------|---------|
+| `npm run dev` | Custom server (HTTP + WebSocket signaling) |
+| `npm run build` / `start` | Production build & serve |
+| `npm run lint` | ESLint |
+| `npm run typecheck` | `tsc --noEmit` |
+| `npm test` | Vitest unit suite |
+| `npm run test:e2e` | Playwright critical paths |
+| `npm run db:migrate` | Prisma migrate (dev) |
+| `npm run db:migrate:deploy` | Prisma migrate (prod/CI) |
+| `npm run db:seed` | Dev: Head (+ demo if `SEED_DEMO_USERS`); prod: responsibilities only (no users) |
+| `npm run db:backup` | `pg_dump` snapshot under `backups/` |
+| `npm run db:restore` | Restore drill helper |
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Health probes
 
-## Learn More
+- `GET /api/health` — liveness (process up)
+- `GET /api/ready` — readiness (Postgres reachable)
 
-To learn more about Next.js, take a look at the following resources:
+## Auth flows
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+- Sign in: `/login`
+- Forced initial password: `/set-password`
+- Forgot / reset: `/forgot-password` → email → `/reset-password?token=…`
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+### Phase 5 launch tooling
 
-## Deploy on Vercel
+```bash
+npm run check:prod-env          # production env gate
+npm run smoke:launch            # health + login + bootstrap against BASE_URL
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+See `docs/go-live-checklist.md`, `docs/uat-script.md`, and `docs/hypercare.md`.
+- Invite accept: `/accept-invite?token=…` (sent when Head adds a member with email)
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Production notes
+
+See `docs/runbooks.md` and `docs/go-live-checklist.md`.
+
+**Before go-live:**
+
+1. Set production secrets (`TRAK_SESSION_SECRET`, `DATABASE_URL`, SMTP, Redis, Sentry).
+2. `ENABLE_DEV_LOGIN=false` and `SEED_DEMO_USERS=false`.
+3. Run migrations: `npm run db:migrate:deploy`.
+4. Confirm HTTPS / HSTS / CSP (middleware emits production security headers).
+5. Verify backups and a restore drill.
+
+## Documentation
+
+| Path | Contents |
+|------|----------|
+| `Audit files/` | Immutable production-readiness specs (AUDIT_00–08) |
+| `docs/runbooks.md` | Deploy, backup, load-test ops |
+| `docs/go-live-checklist.md` | Phase 5 launch checklist |
+| `.env.example` | All environment variables |
+
+## License
+
+Private — Lagos State Government · PSSDC · Digital Learning Unit.

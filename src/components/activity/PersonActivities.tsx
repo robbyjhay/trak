@@ -13,7 +13,7 @@ import { Kpi } from "@/components/dashboard/MemberDashboard";
 
 export function PersonActivities({ userId }: { userId: string }) {
   const router = useRouter();
-  const { sessionUser, userMap, bucket, responsibilities } = useTrak();
+  const { sessionUser, userMap, bucket } = useTrak();
   const { openReport } = useReportPreview();
   const person = userMap[userId] || sessionUser;
   const isSelf = person.id === sessionUser.id;

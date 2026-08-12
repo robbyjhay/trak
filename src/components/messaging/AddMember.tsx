@@ -13,6 +13,7 @@ export function AddMember({ onClose }: { onClose: () => void }) {
   const [form, setForm] = useState({
     name: "",
     username: "",
+    email: "",
     designation: "",
     gradeLevel: "",
     sex: "",
@@ -39,9 +40,11 @@ export function AddMember({ onClose }: { onClose: () => void }) {
     }
     setSaving(true);
     try {
+      const email = form.email.trim() || undefined;
       const { username, starterPassword } = await addUser({
         name,
         username: form.username.trim() || undefined,
+        email,
         designation: form.designation.trim(),
         gradeLevel: form.gradeLevel.trim(),
         sex: form.sex,
@@ -54,7 +57,9 @@ export function AddMember({ onClose }: { onClose: () => void }) {
       onClose();
       showToast(
         `${firstName(name)} added to the unit`,
-        `Username ${username} · starter password ${starterPassword} — share this with them; they'll be prompted to change it at first sign-in.`,
+        email
+          ? `Username ${username} · invite email sent to ${email}. Starter password ${starterPassword} (share if email delivery fails).`
+          : `Username ${username} · starter password ${starterPassword} — share this with them; they'll be prompted to change it at first sign-in.`,
       );
     } catch (err) {
       setSaving(false);
@@ -63,13 +68,15 @@ export function AddMember({ onClose }: { onClose: () => void }) {
   }
 
   return (
-    <ModalBackdrop open onClose={onClose}>
+    <ModalBackdrop open onClose={onClose} labelledBy="add-member-title">
       <ModalPanel>
-        <h3 className="m-0 mb-1.5 font-display text-xl">Add member</h3>
+        <h3 id="add-member-title" className="m-0 mb-1.5 font-display text-xl">
+          Add member
+        </h3>
         <p className="mb-5 text-[12.5px] text-ink-soft">
           Creates their Trak login — you&apos;ll get their username &amp; a
           starter password to share, and they&apos;re prompted to set their own
-          at first sign-in.
+          at first sign-in. With an email on file, an invite link is also sent.
         </p>
 
         <Field label="Full name *">
@@ -87,6 +94,7 @@ export function AddMember({ onClose }: { onClose: () => void }) {
             }}
             placeholder="e.g. Adaeze Nwosu"
             className={FIELD_INPUT}
+            autoComplete="name"
           />
         </Field>
         <Field label="Username">
@@ -98,9 +106,24 @@ export function AddMember({ onClose }: { onClose: () => void }) {
             }}
             placeholder="Auto-generated from surname"
             className={FIELD_INPUT}
+            autoComplete="username"
           />
           <div className="mt-1 text-[11px] text-ink-soft">
             Leave blank to auto-generate (DLU + surname) — you can override.
+          </div>
+        </Field>
+        <Field label="Email (optional)">
+          <input
+            type="email"
+            value={form.email}
+            onChange={(e) => set("email", e.target.value)}
+            placeholder="name@example.gov.ng"
+            className={FIELD_INPUT}
+            autoComplete="email"
+          />
+          <div className="mt-1 text-[11px] text-ink-soft">
+            When set, an invite link is emailed so they can set their own
+            password.
           </div>
         </Field>
         <Field label="Designation">
@@ -166,7 +189,10 @@ export function AddMember({ onClose }: { onClose: () => void }) {
         </Field>
 
         {error && (
-          <div className="mb-1 rounded-lg bg-critical-bg px-3 py-2 text-[12px] font-semibold text-critical">
+          <div
+            className="mb-1 rounded-lg bg-critical-bg px-3 py-2 text-[12px] font-semibold text-critical"
+            role="alert"
+          >
             {error}
           </div>
         )}

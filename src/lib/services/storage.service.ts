@@ -4,7 +4,7 @@
  */
 import "server-only";
 import { createHash, randomBytes } from "node:crypto";
-import { promises as fs } from "node:fs";
+import { promises as fs, createWriteStream } from "node:fs";
 import path from "node:path";
 
 class StorageError extends Error {
@@ -132,8 +132,12 @@ export async function createSignedUpload(input: {
   }
 
   // Local dev: signed path token for our own upload route
+  const secret = process.env.TRAK_SESSION_SECRET;
+  if (!secret) {
+    throw new StorageError(500, "Upload signing secret not configured");
+  }
   const token = createHash("sha256")
-    .update(`${key}:${input.userId}:${process.env.TRAK_SESSION_SECRET || "dev"}`)
+    .update(`${key}:${input.userId}:${secret}`)
     .digest("hex")
     .slice(0, 32);
   const appUrl = process.env.APP_URL || "http://localhost:3000";
@@ -145,12 +149,16 @@ export async function createSignedUpload(input: {
 
 export async function putLocalObject(
   key: string,
-  body: Buffer,
+  stream: ReadableStream<Uint8Array> | null,
   expectedToken: string,
   userId: string,
 ): Promise<void> {
+  const secret = process.env.TRAK_SESSION_SECRET;
+  if (!secret) {
+    throw new StorageError(500, "Upload signing secret not configured");
+  }
   const expected = createHash("sha256")
-    .update(`${key}:${userId}:${process.env.TRAK_SESSION_SECRET || "dev"}`)
+    .update(`${key}:${userId}:${secret}`)
     .digest("hex")
     .slice(0, 32);
   if (expected !== expectedToken) {
@@ -162,7 +170,40 @@ export async function putLocalObject(
 
   const full = path.join(localUploadDir(), key);
   await fs.mkdir(path.dirname(full), { recursive: true });
-  await fs.writeFile(full, body);
+  
+  if (!stream) {
+    await fs.writeFile(full, Buffer.alloc(0));
+    return;
+  }
+
+  const writeStream = createWriteStream(full);
+  let bytesWritten = 0;
+
+  try {
+    const reader = stream.getReader();
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (value) {
+        bytesWritten += value.length;
+        if (bytesWritten > 10 * 1024 * 1024) {
+          writeStream.destroy();
+          await fs.unlink(full).catch(() => {});
+          throw new StorageError(400, "File too large");
+        }
+        writeStream.write(value);
+      }
+    }
+    writeStream.end();
+    await new Promise<void>((resolve, reject) => {
+      writeStream.on("finish", () => resolve());
+      writeStream.on("error", reject);
+    });
+  } catch (err) {
+    writeStream.destroy();
+    await fs.unlink(full).catch(() => {});
+    throw err;
+  }
 }
 
 export async function readLocalObject(key: string): Promise<Buffer | null> {

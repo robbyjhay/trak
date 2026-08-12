@@ -14,8 +14,10 @@ import {
   toSessionUser,
 } from "@/lib/services/auth.service";
 import { getEnv } from "@/lib/env";
+import { SESSION_COOKIE_NAME } from "@/lib/auth/session-cookie";
 
-export const COOKIE_NAME = "trak_session";
+/** Must match SESSION_COOKIE_NAME (used by WebSocket auth in server.ts). */
+export const COOKIE_NAME = SESSION_COOKIE_NAME;
 
 export async function readSession(): Promise<SessionUser | null> {
   const jar = await cookies();

@@ -18,6 +18,7 @@ const PUBLIC_PAGE_PREFIXES = [
   "/rsvp",
   "/forgot-password",
   "/reset-password",
+  "/accept-invite",
 ];
 
 /** Exact public API paths (not prefixes under /api/auth). */
@@ -26,12 +27,16 @@ const PUBLIC_API_EXACT = new Set([
   "/api/health",
   "/api/ready",
   "/api/rsvp",
+  "/api/auth/password/forgot",
+  "/api/auth/password/reset",
+  "/api/auth/invite/accept",
 ]);
 
 /** Public API path prefixes (parameterized routes). */
 const PUBLIC_API_PREFIXES = [
   "/api/auth/password/forgot",
   "/api/auth/password/reset",
+  "/api/auth/invite/accept",
 ];
 
 function isPublicApi(pathname: string): boolean {
@@ -48,11 +53,8 @@ function isPublicPage(pathname: string): boolean {
 }
 
 function isStaticOrInternal(pathname: string): boolean {
-  return (
-    pathname.startsWith("/_next") ||
-    pathname.startsWith("/favicon") ||
-    /\.(?:svg|png|jpg|jpeg|gif|webp|ico)$/i.test(pathname)
-  );
+  return (pathname.startsWith("/_next") ||
+  pathname.startsWith("/favicon") || /\.(?:svg|png|jpg|jpeg|gif|webp|ico)$/i.test(pathname));
 }
 
 /**
@@ -103,14 +105,52 @@ function applySecurityHeaders(
   }
 }
 
-/** Route the request and decorate the response with Phase 4 headers. */
-export async function middleware(req: NextRequest) {
+/**
+ * Phase 0F: CSRF Origin validation for state-changing API requests.
+ * Returns a 403 response if CSRF validation fails, or null if it passes.
+ */
+function csrfCheck(req: NextRequest): NextResponse | null {
+  const method = req.method.toUpperCase();
+  if (!["POST", "PUT", "PATCH", "DELETE"].includes(method)) return null;
+  if (!req.nextUrl.pathname.startsWith("/api/")) return null;
+
+  const origin = req.headers.get("origin");
+  const host = req.headers.get("host");
+
+  if (!origin) {
+    return new NextResponse(
+      JSON.stringify({ error: "CSRF failed: Missing Origin header" }),
+      { status: 403, headers: { "Content-Type": "application/json" } },
+    );
+  }
+
+  try {
+    const originUrl = new URL(origin);
+    if (host && originUrl.host !== host) {
+      return new NextResponse(
+        JSON.stringify({ error: "CSRF failed: Origin mismatch" }),
+        { status: 403, headers: { "Content-Type": "application/json" } },
+      );
+    }
+  } catch {
+    return new NextResponse(
+      JSON.stringify({ error: "CSRF failed: Invalid Origin" }),
+      { status: 403, headers: { "Content-Type": "application/json" } },
+    );
+  }
+
+  return null;
+}
+
+/** Route the request, enforce CSRF, and decorate the response with Phase 4 headers. */
+export async function proxy(req: NextRequest) {
   const requestId = req.headers.get("x-request-id") || crypto.randomUUID();
   const nonce = crypto.randomUUID();
   req.headers.set("x-request-id", requestId);
   req.headers.set("x-trak-nonce", nonce);
 
   const { pathname } = req.nextUrl;
+  const isHttps = req.nextUrl.protocol === "https:";
 
   if (isStaticOrInternal(pathname)) {
     const res = NextResponse.next();
@@ -118,18 +158,25 @@ export async function middleware(req: NextRequest) {
     return res;
   }
 
+  // Phase 0F: CSRF check on all state-changing API requests
+  const csrfResult = csrfCheck(req);
+  if (csrfResult) {
+    applySecurityHeaders(csrfResult, requestId, nonce, isHttps);
+    return csrfResult;
+  }
+
   // Dev-fill is gated in the route handler; allow through only non-production
   // and only this exact path (handler enforces ENABLE_DEV_LOGIN).
   if (pathname === "/api/auth/dev-fill") {
     const res = NextResponse.next();
-    applySecurityHeaders(res, requestId, nonce, req.nextUrl.protocol === "https:");
+    applySecurityHeaders(res, requestId, nonce, isHttps);
     return res;
   }
 
   if (pathname.startsWith("/api/")) {
     if (isPublicApi(pathname)) {
       const res = NextResponse.next();
-      applySecurityHeaders(res, requestId, nonce, req.nextUrl.protocol === "https:");
+      applySecurityHeaders(res, requestId, nonce, isHttps);
       return res;
     }
     // Protected API: require cookie presence (full validation in handler)
@@ -144,11 +191,11 @@ export async function middleware(req: NextRequest) {
         },
         { status: 401 },
       );
-      applySecurityHeaders(res, requestId, nonce, req.nextUrl.protocol === "https:");
+      applySecurityHeaders(res, requestId, nonce, isHttps);
       return res;
     }
     const res = NextResponse.next();
-    applySecurityHeaders(res, requestId, nonce, req.nextUrl.protocol === "https:");
+    applySecurityHeaders(res, requestId, nonce, isHttps);
     return res;
   }
 
@@ -157,12 +204,8 @@ export async function middleware(req: NextRequest) {
   const hasCookie = Boolean(req.cookies.get(COOKIE_NAME)?.value);
 
   if (pathname === "/login") {
-    if (hasCookie) {
-      res = NextResponse.redirect(new URL("/dashboard", req.url));
-    } else {
-      res = NextResponse.next();
-    }
-    applySecurityHeaders(res, requestId, nonce, req.nextUrl.protocol === "https:");
+    res = NextResponse.next();
+    applySecurityHeaders(res, requestId, nonce, isHttps);
     return res;
   }
 
@@ -173,13 +216,13 @@ export async function middleware(req: NextRequest) {
     } else {
       res = NextResponse.next();
     }
-    applySecurityHeaders(res, requestId, nonce, req.nextUrl.protocol === "https:");
+    applySecurityHeaders(res, requestId, nonce, isHttps);
     return res;
   }
 
   if (isPublicPage(pathname)) {
     res = NextResponse.next();
-    applySecurityHeaders(res, requestId, nonce, req.nextUrl.protocol === "https:");
+    applySecurityHeaders(res, requestId, nonce, isHttps);
     return res;
   }
 
@@ -189,18 +232,18 @@ export async function middleware(req: NextRequest) {
       login.searchParams.set("next", pathname);
     }
     res = NextResponse.redirect(login);
-    applySecurityHeaders(res, requestId, nonce, req.nextUrl.protocol === "https:");
+    applySecurityHeaders(res, requestId, nonce, isHttps);
     return res;
   }
 
   if (pathname === "/") {
     res = NextResponse.redirect(new URL("/dashboard", req.url));
-    applySecurityHeaders(res, requestId, nonce, req.nextUrl.protocol === "https:");
+    applySecurityHeaders(res, requestId, nonce, isHttps);
     return res;
   }
 
   res = NextResponse.next();
-  applySecurityHeaders(res, requestId, nonce, req.nextUrl.protocol === "https:");
+  applySecurityHeaders(res, requestId, nonce, isHttps);
   return res;
 }
 

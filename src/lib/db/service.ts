@@ -276,6 +276,7 @@ export async function updateUserProfile(
 export type NewUserInput = {
   name: string;
   username?: string;
+  email?: string;
   designation?: string;
   gradeLevel?: string;
   sex?: string;
@@ -305,6 +306,18 @@ export async function createUser(
     throw new ServiceError(400, "Full name and phone are required.");
   }
 
+  const emailRaw = (input.email || "").trim().toLowerCase();
+  const email = emailRaw || null;
+  if (email) {
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      throw new ServiceError(400, "Enter a valid email address.");
+    }
+    const emailTaken = await prisma.user.findUnique({ where: { email } });
+    if (emailTaken) {
+      throw new ServiceError(409, "That email is already in use.");
+    }
+  }
+
   const existing = await prisma.user.findMany({
     select: { username: true, profile: { select: { color: true } } },
   });
@@ -326,6 +339,7 @@ export async function createUser(
     data: {
       username,
       usernameNormalized: normalized,
+      email,
       passwordHash,
       role: "member",
       isSecretary: roleType === "secretary",
@@ -355,8 +369,32 @@ export async function createUser(
     action: "user_create",
     targetId: created.id,
     targetType: "user",
-    meta: { username: created.username },
+    meta: { username: created.username, email: email || undefined },
   });
+
+  // Prefer invite email when an address is on file (AUDIT_05 / Phase 4).
+  if (email) {
+    try {
+      const { createAuthToken } = await import("@/lib/auth/tokens");
+      const { rawToken } = await createAuthToken("invite", created.id);
+      const { sendInviteEmail } = await import(
+        "@/lib/services/email.service"
+      );
+      await sendInviteEmail(email, rawToken, {
+        username: created.username,
+        name,
+      });
+      await recordAuditEvent({
+        userId: session.authUserId,
+        action: "invite_create",
+        targetId: created.id,
+        targetType: "user",
+        meta: { email },
+      });
+    } catch {
+      // Invite email is best-effort; Head still receives starter password once.
+    }
+  }
 
   return {
     user: mapUser(created),
@@ -757,8 +795,10 @@ export async function ensureRsvpToken(
 export async function setLogRsvpToken(
   session: SessionUser,
   logId: string,
-  _token?: string,
+  // retained for call-site compatibility; value is intentionally ignored
+  token?: string,
 ): Promise<{ log: DailyLog; token: string }> {
+  void token;
   return ensureRsvpToken(session, logId);
 }
 
@@ -1308,6 +1348,9 @@ export async function recomputeAllStatuses(): Promise<void> {
 /**
  * Scoped bootstrap for the authenticated user.
  * Never returns other users' DMs, full notification sets, or hidden others' data.
+ *
+ * Status recompute runs on write paths (create/submit log) — do NOT recompute all
+ * activities here or first paint hangs on slow DBs / large datasets.
  */
 export async function getScopedBootstrap(session: SessionUser): Promise<{
   users: User[];
@@ -1323,7 +1366,6 @@ export async function getScopedBootstrap(session: SessionUser): Promise<{
   serverTime: string;
 }> {
   await requireActor(session);
-  await recomputeAllStatuses();
 
   const isHead = session.role === "head";
 
@@ -1332,15 +1374,17 @@ export async function getScopedBootstrap(session: SessionUser): Promise<{
     ...(isHead ? {} : { createdById: session.id, hidden: false }),
   };
 
+  // Parallel reads only — actor already validated; avoid nested requireActor
+  // round-trips that stack latency on remote Postgres.
   const [
     users,
     activities,
     responsibilities,
-    dms,
-    calls,
-    community,
-    broadcasts,
-    notifications,
+    dmRows,
+    callRows,
+    communityRows,
+    broadcastRows,
+    notifRows,
   ] = await Promise.all([
     listUsers(),
     prisma.activity.findMany({
@@ -1350,11 +1394,33 @@ export async function getScopedBootstrap(session: SessionUser): Promise<{
       take: 200,
     }),
     listResponsibilities(),
-    listDmsForUser(session, { limit: 200 }),
-    listCallsForUser(session),
-    listCommunity({ limit: 100 }),
-    listBroadcasts({ limit: 50 }),
-    myNotifications(session, { limit: 50 }),
+    prisma.directMessage.findMany({
+      where: {
+        OR: [{ participantA: session.id }, { participantB: session.id }],
+      },
+      orderBy: { createdAt: "asc" },
+      take: 200,
+    }),
+    prisma.callRecord.findMany({
+      where: {
+        OR: [{ participantA: session.id }, { participantB: session.id }],
+      },
+      orderBy: { createdAt: "desc" },
+      take: 100,
+    }),
+    prisma.communityMessage.findMany({
+      orderBy: { createdAt: "asc" },
+      take: 100,
+    }),
+    prisma.broadcast.findMany({
+      orderBy: { createdAt: "desc" },
+      take: 50,
+    }),
+    prisma.notification.findMany({
+      where: { userId: session.id },
+      orderBy: { createdAt: "desc" },
+      take: 50,
+    }),
   ]);
 
   const activityIds = activities.map((a) => a.id);
@@ -1379,11 +1445,11 @@ export async function getScopedBootstrap(session: SessionUser): Promise<{
     activities: activities.map(mapActivity),
     dailyLogs: dailyLogs.map(mapDailyLog),
     comments: comments.map(mapComment),
-    dms: dms.dms,
-    calls,
-    community: community.community,
-    broadcasts: broadcasts.broadcasts,
-    notifications,
+    dms: dmRows.map(mapDm),
+    calls: callRows.map(mapCall),
+    community: communityRows.map(mapCommunity),
+    broadcasts: broadcastRows.map(mapBroadcast),
+    notifications: notifRows.map(mapNotification),
     responsibilities,
     serverTime: new Date().toISOString(),
   };

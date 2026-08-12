@@ -12,7 +12,7 @@ import { useEffect, useState } from "react";
 
 export function MemberDashboard({ user }: { user: User }) {
   const router = useRouter();
-  const { now, bucket, activitiesFor, db } = useTrak();
+  const { now, bucket, activitiesFor } = useTrak();
   const b = bucket(user.id);
   const completedThisMonth = b.completed.filter(
     (a) => a.createdAt >= iso(addDays(now, -30)),

@@ -1,10 +1,25 @@
 /**
- * Phase 0 seed — users, profiles, preferences only.
- * Head always seeded. Demo members only when SEED_DEMO_USERS=true.
+ * Database seed — environment-aware.
+ *
+ * Development / non-production:
+ *   - Head account always upserted (local bootstrap)
+ *   - Demo members when SEED_DEMO_USERS=true
+ *   - Dev tester when ENABLE_DEV_LOGIN=true
+ *   - Sample activity when demo members are seeded
+ *
+ * Production (NODE_ENV=production):
+ *   - Catalog data only (responsibilities)
+ *   - NO users, demo members, shared passwords, or dev accounts
+ *   - Refuses to run user-seeding if ENABLE_DEV_LOGIN / SEED_DEMO_USERS /
+ *     DEV_SEED_PASSWORD are set (fail closed)
+ *
+ * Real production members are added via the app invite / admin workflow
+ * after deployment (production DB is provisioned empty of demo identities).
  *
  * Run: npx prisma db seed  (or npm run db:seed)
  */
 import "dotenv/config";
+import { randomBytes } from "node:crypto";
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import bcrypt from "bcryptjs";
@@ -18,6 +33,7 @@ const adapter = new PrismaPg({ connectionString: DATABASE_URL });
 const prisma = new PrismaClient({ adapter });
 
 const BCRYPT_COST = Number(process.env.BCRYPT_COST) || 12;
+const IS_PROD = process.env.NODE_ENV === "production";
 const SEED_DEMO =
   process.env.SEED_DEMO_USERS === "true" || process.env.SEED_DEMO_USERS === "1";
 const ENABLE_DEV =
@@ -40,6 +56,7 @@ type SeedUser = {
   corpsEnd?: string;
 };
 
+/** Local/dev Head bootstrap only — never seeded in production. */
 const HEAD: SeedUser = {
   username: "DLUARU",
   name: "Babajide Arulogun",
@@ -151,28 +168,64 @@ const DEMO_MEMBERS: SeedUser[] = [
     gradeLevel: "—",
     sex: "Male",
     stateOfOrigin: "Delta",
-    dateJoined: "2026-01-15",
+    dateJoined: "2026-03-01",
   },
 ];
 
-function resolveSeedPassword(): string {
-  if (process.env.NODE_ENV === "production" && !ENABLE_DEV) {
-    // Production seed: random password + mustChangePassword; print once
-    const { randomBytes } = require("node:crypto") as typeof import("node:crypto");
-    return randomBytes(18).toString("base64url");
-  }
+const DEV_TESTER: SeedUser = {
+  username: "dev",
+  name: "Dev Tester",
+  role: "member",
+  color: "#333333",
+  phone: "+1 234 567 8900",
+  designation: "Developer",
+  gradeLevel: "GL 08",
+  sex: "Any",
+  stateOfOrigin: "Any",
+  dateJoined: "2026-01-01",
+};
+
+/**
+ * Resolve seed password for non-production user seeding only.
+ * Never used when NODE_ENV=production (users are not seeded there).
+ */
+function resolveDevSeedPassword(): string {
   const fromEnv = process.env.DEV_SEED_PASSWORD?.trim();
   if (fromEnv && fromEnv.length >= 12) return fromEnv;
   if (ENABLE_DEV) return "TrakDevPass123!";
-  const { randomBytes } = require("node:crypto") as typeof import("node:crypto");
+  // No shared constant when dev login is off — one-time random, mustChangePassword
   return randomBytes(18).toString("base64url");
+}
+
+/** Refuse production seed if any demo/dev user flags are present. */
+function assertProductionSeedSafe() {
+  const blockers: string[] = [];
+  if (ENABLE_DEV) {
+    blockers.push(
+      "ENABLE_DEV_LOGIN must be false/unset in production (would create demo identities)",
+    );
+  }
+  if (SEED_DEMO) {
+    blockers.push(
+      "SEED_DEMO_USERS must be false/unset in production (would create demo members)",
+    );
+  }
+  if (process.env.DEV_SEED_PASSWORD) {
+    blockers.push(
+      "DEV_SEED_PASSWORD must not be set in production (shared seed credentials)",
+    );
+  }
+  if (blockers.length) {
+    throw new Error(
+      `[seed] Production seed refused — unsafe configuration:\n  - ${blockers.join("\n  - ")}\n` +
+        "Production must not seed demo/default users. Provision real members via the app after deploy.",
+    );
+  }
 }
 
 async function upsertUser(seed: SeedUser, passwordHash: string) {
   const usernameNormalized = seed.username.toLowerCase();
-  const dateJoined = seed.dateJoined
-    ? new Date(seed.dateJoined)
-    : null;
+  const dateJoined = seed.dateJoined ? new Date(seed.dateJoined) : null;
   const corpsEnd = seed.corpsEnd ? new Date(seed.corpsEnd) : null;
 
   const user = await prisma.user.upsert({
@@ -429,10 +482,28 @@ async function seedSampleActivity(
   console.info("[seed] sample activity created");
 }
 
-async function main() {
-  const password = resolveSeedPassword();
+/**
+ * Production path: catalog only. No users, passwords, or demo data.
+ */
+async function seedProductionCatalogOnly() {
+  assertProductionSeedSafe();
+  console.info(
+    "[seed] NODE_ENV=production — seeding catalog only (no users/demo members)",
+  );
+  await seedResponsibilities(null);
+  console.info(
+    "[seed] Production seed complete. Add real members via invite/admin workflow.",
+  );
+}
+
+/**
+ * Development / staging-local path: optional Head + demo roster behind flags.
+ */
+async function seedDevelopmentUsers() {
+  const password = resolveDevSeedPassword();
   const passwordHash = await bcrypt.hash(password, BCRYPT_COST);
 
+  // Head is always available for local bootstrap; demo members are opt-in.
   const roster: SeedUser[] = [HEAD, ...(SEED_DEMO ? DEMO_MEMBERS : [])];
 
   let headId: string | null = null;
@@ -443,6 +514,15 @@ async function main() {
     console.info(`[seed] user ${u.username} (${u.role}) id=${u.id}`);
     if (u.role === "head") headId = u.id;
     else if (!firstMemberId) firstMemberId = u.id;
+  }
+
+  if (ENABLE_DEV) {
+    const devPassHash = await bcrypt.hash("dev", BCRYPT_COST);
+    const u = await upsertUser(DEV_TESTER, devPassHash);
+    console.info(
+      `[seed] DEV ONLY: created testing user 'dev' with password 'dev'`,
+    );
+    if (!firstMemberId) firstMemberId = u.id;
   }
 
   await seedResponsibilities(headId);
@@ -456,8 +536,7 @@ async function main() {
     }
   }
 
-  // Dev-only: document password once (not a shared production constant)
-  if (ENABLE_DEV && process.env.NODE_ENV !== "production") {
+  if (ENABLE_DEV) {
     console.info(
       `[seed] ENABLE_DEV_LOGIN: seed password set for ${roster.length} user(s).`,
     );
@@ -472,6 +551,14 @@ async function main() {
       console.info(`[seed] one-time password: ${password}`);
     }
   }
+}
+
+async function main() {
+  if (IS_PROD) {
+    await seedProductionCatalogOnly();
+    return;
+  }
+  await seedDevelopmentUsers();
 }
 
 main()

@@ -7,6 +7,12 @@
     "build": "prisma generate && next build",
     "start": "NODE_ENV=production tsx server.ts",
     "lint": "eslint",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "typecheck": "tsc --noEmit",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:migrate:deploy": "prisma migrate deploy",
@@ -14,6 +20,10 @@
     "db:studio": "prisma studio",
     "db:backup": "npx tsx scripts/backup.ts",
     "db:restore": "npx tsx scripts/restore-drill.ts",
+    "admin:bootstrap": "NODE_ENV=production npx tsx scripts/bootstrap-admin.ts",
+    "smoke:auth": "node scripts/smoke-auth.mjs",
+    "smoke:launch": "node scripts/smoke-launch.mjs",
+    "check:prod-env": "node scripts/check-prod-env.mjs",
     "postinstall": "prisma generate"
   },
   "prisma": {

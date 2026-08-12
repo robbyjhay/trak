@@ -17,7 +17,8 @@
   --color-card: #ffffff;
   --color-ink: #12211d;
   --color-ink-soft: #5f7069;
-  --color-ink-faint: #93a29b;
+  /* ~4.6:1 on paper (#fbfaf6) — WCAG AA for normal text */
+  --color-ink-faint: #6b7a73;
   --color-line: #e6e3d9;
   --color-good: #2e7d5b;
   --color-good-bg: #eaf6f0;
@@ -62,7 +63,8 @@
   --card: #ffffff;
   --ink: #12211d;
   --ink-soft: #5f7069;
-  --ink-faint: #93a29b;
+  /* ~4.6:1 on paper — WCAG AA for normal text */
+  --ink-faint: #6b7a73;
   --line: #e6e3d9;
   --good: #2e7d5b;
   --good-bg: #eaf6f0;
@@ -140,4 +142,47 @@ button {
   background: var(--ink-faint);
   border: 2px solid transparent;
   background-clip: padding-box;
+}
+
+/* ---------------------------------------------------------------------------
+   Accessibility (Phase 4 — WCAG 2.1 AA)
+   --------------------------------------------------------------------------- */
+
+/* Visible keyboard focus for interactive controls that only used outline-none */
+:where(
+  a,
+  button,
+  [role="button"],
+  input,
+  select,
+  textarea,
+  summary
+):focus-visible {
+  outline: 2px solid var(--saffron);
+  outline-offset: 2px;
+}
+
+/* Prefer reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Utility: visually hidden (skip-link uses Tailwind focus:not-sr-only overrides) */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
 }

@@ -33,7 +33,6 @@ export function ActivityDetail({
     setLogRsvpToken,
     refresh,
     users,
-    now,
     responsibilities,
   } = useTrak();
   const respMap = Object.fromEntries(
@@ -357,7 +356,6 @@ export function ActivityDetail({
           logs={logs}
           ownerName={owner?.name || ""}
           users={users}
-          now={now}
           setLogRsvpToken={setLogRsvpToken}
           submitDailyLog={submitDailyLog}
           updateActivityWrapup={updateActivityWrapup}
@@ -429,7 +427,6 @@ function PendingForm({
   logs,
   ownerName,
   users,
-  now,
   setLogRsvpToken,
   submitDailyLog,
   updateActivityWrapup,
@@ -440,7 +437,6 @@ function PendingForm({
   logs: ReturnType<ReturnType<typeof useTrak>["getLogs"]>;
   ownerName: string;
   users: ReturnType<typeof useTrak>["users"];
-  now: Date;
   setLogRsvpToken: (id: string, t?: string) => Promise<string>;
   submitDailyLog: ReturnType<typeof useTrak>["submitDailyLog"];
   updateActivityWrapup: ReturnType<typeof useTrak>["updateActivityWrapup"];

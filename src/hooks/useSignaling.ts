@@ -9,6 +9,9 @@ let globalWs: WebSocket | null = null;
 const globalHandlers: Set<MessageHandler> = new Set();
 let globalOnlineUsers: Set<string> = new Set();
 let globalConnected = false;
+/** Stop reconnect loops after auth rejection (no valid session cookie). */
+let authRejected = false;
+let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 
 function getWsUrl(): string {
   if (typeof window === "undefined") return "";
@@ -16,14 +19,24 @@ function getWsUrl(): string {
   return `${proto}//${window.location.hostname}:${window.location.port}/ws`;
 }
 
+function clearReconnectTimer() {
+  if (reconnectTimer) {
+    clearTimeout(reconnectTimer);
+    reconnectTimer = null;
+  }
+}
+
 function ensureConnection(userId: string) {
+  if (authRejected) return;
   if (globalWs && globalWs.readyState === WebSocket.OPEN) return;
+  if (globalWs && globalWs.readyState === WebSocket.CONNECTING) return;
 
   const ws = new WebSocket(getWsUrl());
   globalWs = ws;
 
   ws.onopen = () => {
     globalConnected = true;
+    // Handshake only — server ignores userId and uses session cookie.
     ws.send(JSON.stringify({ type: "register", userId }));
   };
 
@@ -33,6 +46,16 @@ function ensureConnection(userId: string) {
       msg = JSON.parse(e.data);
     } catch {
       return;
+    }
+
+    if (msg.type === "error" && msg.code === "unauthorized") {
+      authRejected = true;
+      clearReconnectTimer();
+      try {
+        ws.close();
+      } catch {
+        /* ignore */
+      }
     }
 
     if (msg.type === "online_users") {
@@ -48,10 +71,16 @@ function ensureConnection(userId: string) {
     }
   };
 
-  ws.onclose = () => {
+  ws.onclose = (ev) => {
     globalConnected = false;
     globalWs = null;
-    setTimeout(() => ensureConnection(userId), 2000);
+    // 4401 = unauthorized (custom); do not spin reconnect without a session.
+    if (authRejected || ev.code === 4401) {
+      authRejected = true;
+      return;
+    }
+    clearReconnectTimer();
+    reconnectTimer = setTimeout(() => ensureConnection(userId), 2000);
   };
 
   ws.onerror = () => {
@@ -67,6 +96,10 @@ export function useSignaling(userId: string) {
   const handlerRef = useRef<MessageHandler | null>(null);
 
   useEffect(() => {
+    // New mount with a user id after login — allow reconnect attempts again.
+    if (userId) {
+      authRejected = false;
+    }
     ensureConnection(userId);
 
     const handler: MessageHandler = (msg) => {
