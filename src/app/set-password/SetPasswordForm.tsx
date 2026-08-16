@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { firstName } from "@/lib/utils";
 import { PATHS } from "@/components/icons";
+import { logoutAction } from "@/lib/auth/actions";
 
 /**
  * Set / skip initial password.
@@ -207,6 +208,16 @@ export function SetPasswordForm({
               {skipPending ? "Continuing…" : "Skip for now (dev only)"}
             </button>
           )}
+
+          <form action={logoutAction}>
+            <button
+              type="submit"
+              disabled={busy}
+              className="mt-3 w-full cursor-pointer rounded-xl border-[1.5px] border-line bg-white py-3 text-[13px] font-bold text-ink-soft transition-colors hover:border-critical/30 hover:text-critical disabled:opacity-60"
+            >
+              Log out
+            </button>
+          </form>
         </div>
       </div>
     </div>
