@@ -66,3 +66,7 @@ note.txt
 # Backups
 backups/
 
+
+# Playwright test artifacts
+test-results/
+playwright-report/

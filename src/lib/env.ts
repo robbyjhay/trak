@@ -105,6 +105,21 @@ export function getEnv(): AppEnv {
   return cached;
 }
 
+function isLocalhostAppUrl(appUrl?: string): boolean {
+  if (!appUrl) return true;
+
+  try {
+    const hostname = new URL(appUrl).hostname;
+    return (
+      hostname === "localhost" ||
+      hostname === "127.0.0.1" ||
+      hostname === "::1"
+    );
+  } catch {
+    return false;
+  }
+}
+
 /** Soft check used by edge middleware (no throw on optional missing APP_URL). */
 export function hasSessionSecret(): boolean {
   const s = process.env.TRAK_SESSION_SECRET;
@@ -115,5 +130,7 @@ export function hasSessionSecret(): boolean {
 export function isDevLoginEnabled(): boolean {
   if (process.env.NODE_ENV === "production") return false;
   const v = process.env.ENABLE_DEV_LOGIN;
-  return v === "true" || v === "1";
+  if (!(v === "true" || v === "1")) return false;
+
+  return isLocalhostAppUrl(process.env.APP_URL);
 }
