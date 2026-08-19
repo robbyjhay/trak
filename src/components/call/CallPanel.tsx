@@ -32,14 +32,14 @@ export function CallPanel({
   };
 
   return (
-    <div className="relative overflow-hidden border-b border-line bg-linear-to-r from-aztec to-aztec-2 px-[22px] py-3.5 text-white">
+    <div className="relative overflow-hidden border-b border-border bg-linear-to-r from-aztec to-aztec-2 px-[22px] py-3.5 text-white">
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_75%_0%,rgba(246,198,66,0.18),transparent_60%)]" />
       <div className="relative flex items-center gap-3">
         {onBack && (
           <button
             type="button"
             onClick={onBack}
-            className="flex h-[34px] w-[34px] shrink-0 cursor-pointer items-center justify-center rounded-[9px] border-[1.5px] border-white/15 bg-white/10 text-white md:hidden"
+            className="flex h-[34px] w-[34px] shrink-0 cursor-pointer items-center justify-center rounded-[9px] border-[1.5px] border-white/15 bg-white/10 text-white hover:bg-white/20 transition-colors md:hidden"
             aria-label="Back to conversations"
           >
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -50,9 +50,9 @@ export function CallPanel({
         <div className="relative flex h-10 w-10 shrink-0 items-center justify-center">
           {status === "ringing" && (
             <>
-              <span className="absolute inset-0 animate-ping rounded-full bg-saffron/40" />
+              <span className="absolute inset-0 animate-ping rounded-full bg-primary/40" />
               <span
-                className="absolute -inset-2 animate-ping rounded-full bg-saffron/25"
+                className="absolute -inset-2 animate-ping rounded-full bg-primary/25"
                 style={{ animationDelay: "0.3s" }}
               />
             </>
@@ -66,23 +66,23 @@ export function CallPanel({
         </div>
 
         <div className="min-w-0">
-          <div className="truncate text-[13.5px] font-bold">{partner.name}</div>
+          <div className="truncate text-[13.5px] font-bold text-white">{partner.name}</div>
           <div className="flex items-center gap-2">
             {status === "ringing" ? (
-              <span className="text-[11px] text-paper/65">
+              <span className="text-[11px] text-white/65">
                 {activeCall?.direction === "outgoing" ? "Calling" : "Ringing"}
                 <span className="animate-pulse">...</span>
               </span>
             ) : (
               <>
-                <span className="font-mono text-[11.5px] font-bold tracking-widest text-saffron">
+                <span className="font-mono text-[11.5px] font-bold tracking-widest text-primary">
                   {timer}
                 </span>
                 <span className="flex items-end gap-[3px]">
                   {[8, 14, 10, 16, 12].map((h, i) => (
                     <span
                       key={i}
-                      className="w-[3px] rounded-full bg-saffron/70"
+                      className="w-[3px] rounded-full bg-primary/70"
                       style={{
                         height: `${h}px`,
                         animation: `pulse 0.9s ease-in-out ${i * 0.12}s infinite`,
@@ -101,8 +101,8 @@ export function CallPanel({
             onClick={() => setMuted((v) => !v)}
             className={`flex h-10 w-10 cursor-pointer items-center justify-center rounded-full border-[1.5px] transition-colors ${
               muted
-                ? "border-transparent bg-white text-aztec"
-                : "border-white/15 bg-white/10 text-white"
+                ? "border-transparent bg-primary text-primary-foreground"
+                : "border-white/15 bg-white/10 text-white hover:bg-white/20"
             }`}
             aria-label={muted ? "Unmute" : "Mute"}
           >
@@ -116,8 +116,8 @@ export function CallPanel({
             onClick={() => setSpeaker((v) => !v)}
             className={`flex h-10 w-10 cursor-pointer items-center justify-center rounded-full border-[1.5px] transition-colors ${
               speaker
-                ? "border-transparent bg-white text-aztec"
-                : "border-white/15 bg-white/10 text-white"
+                ? "border-transparent bg-primary text-primary-foreground"
+                : "border-white/15 bg-white/10 text-white hover:bg-white/20"
             }`}
             aria-label={speaker ? "Speaker off" : "Speaker on"}
           >
@@ -130,7 +130,7 @@ export function CallPanel({
           <button
             type="button"
             onClick={handleEnd}
-            className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-full border-none bg-critical text-white shadow-[0_8px_18px_rgba(181,69,58,0.45)] transition-transform hover:scale-105 active:scale-95"
+            className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-full border-none bg-critical-semantic text-critical-foreground shadow-[0_8px_18px_rgba(181,69,58,0.45)] transition-transform hover:scale-105 active:scale-95"
             aria-label="End call"
           >
             <svg

@@ -31,13 +31,13 @@ export function NewConversation({
     <ModalBackdrop open={open} onClose={onClose}>
       <ModalPanel className="p-6">
         <div className="mb-4 flex items-center justify-between">
-          <h2 className="m-0 font-display text-[20px] font-semibold">
+          <h2 className="m-0 font-display text-[20px] font-semibold text-foreground">
             New conversation
           </h2>
           <button
             type="button"
             onClick={onClose}
-            className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-full border-none bg-transparent text-xl text-ink-soft hover:bg-neutral-bg"
+            className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-full border-none bg-transparent text-xl text-foreground-secondary hover:bg-surface-hover hover:text-foreground transition-colors"
             aria-label="Close"
           >
             ×
@@ -48,13 +48,13 @@ export function NewConversation({
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Search people…"
-          className="w-full rounded-[10px] border-[1.5px] border-line px-3.5 py-2.5 text-[13px]"
+          className="w-full rounded-[10px] border-[1.5px] border-input-border bg-input px-3.5 py-2.5 text-[13px] text-foreground placeholder-input-placeholder outline-none focus:border-border-strong"
           aria-label="Search people"
           autoFocus
         />
         <div className="mt-3 flex max-h-[360px] flex-col overflow-y-auto">
           {matches.length === 0 ? (
-            <div className="py-8 text-center text-[13px] text-ink-faint">
+            <div className="py-8 text-center text-[13px] text-foreground-faint">
               No one matches “{search}”.
             </div>
           ) : (
@@ -63,7 +63,7 @@ export function NewConversation({
                 key={p.id}
                 type="button"
                 onClick={() => onSelect(p.id)}
-                className="flex w-full cursor-pointer items-center gap-3 rounded-xl border-none p-2.5 text-left hover:bg-neutral-bg"
+                className="flex w-full cursor-pointer items-center gap-3 rounded-xl border-none bg-transparent p-2.5 text-left text-foreground hover:bg-surface-hover transition-colors"
               >
                 <div
                   className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full font-display text-[12px] font-bold text-white"
@@ -72,12 +72,12 @@ export function NewConversation({
                   {initials(p.name)}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <div className="truncate text-[13px] font-bold">{p.name}</div>
-                  <div className="truncate text-[11px] text-ink-faint">
+                  <div className="truncate text-[13px] font-bold text-foreground">{p.name}</div>
+                  <div className="truncate text-[11px] text-foreground-faint">
                     {roleLabel(p)} · {p.username}
                   </div>
                 </div>
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="shrink-0 text-ink-faint">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="shrink-0 text-foreground-faint">
                   <path d="M9 18l6-6-6-6" />
                 </svg>
               </button>

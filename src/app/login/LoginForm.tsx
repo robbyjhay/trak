@@ -49,20 +49,20 @@ export function LoginForm({
 
   return (
     <div className="flex min-h-screen w-full flex-col md:flex-row">
-      <section className="relative flex min-w-0 flex-col justify-between border-b border-paper/14 bg-linear-to-br from-aztec via-aztec-2 to-aztec-3 px-8 py-6 text-paper         md:flex-[1.05] md:border-r md:border-b-0 md:px-16 md:py-14">
+      <section className="relative flex min-w-0 flex-col justify-between border-b border-white/10 bg-linear-to-br from-aztec via-aztec-2 to-aztec-3 px-8 py-6 text-white md:flex-[1.05] md:border-r md:border-b-0 md:px-16 md:py-14">
         <div>
           <div className="flex items-center gap-3.5">
             <div className="flex h-[46px] w-[46px] items-center justify-center rounded-[11px] bg-linear-to-br from-saffron to-[#d9a72c] shadow-[0_6px_18px_rgba(0,0,0,0.35)]">
               <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-                <path d="M12 2L3 7v2h18V7L12 2z" fill="#0d1d1a" />
+                <path d="M12 2L3 7v2h18V7L12 2z" fill="currentColor" />
                 <path
                   d="M4 10v9h2v-9H4zm14 0v9h2v-9h-2zM9 10v9h2v-9H9zm4 0v9h2v-9h-2z"
-                  fill="#0d1d1a"
+                  fill="currentColor"
                 />
-                <path d="M2 21h20v1.6H2z" fill="#0d1d1a" />
+                <path d="M2 21h20v1.6H2z" fill="currentColor" />
               </svg>
             </div>
-            <div className="text-[12.5px] leading-snug tracking-[0.16em] text-paper/68 uppercase">
+            <div className="text-[12.5px] leading-snug tracking-[0.16em] text-white/70 uppercase">
               Lagos State Government · PSSDC
               <b className="block text-[12.5px] tracking-[0.14em] text-saffron">
                 Digital Learning Unit
@@ -74,23 +74,23 @@ export function LoginForm({
               Trak
               <em className="font-medium text-saffron not-italic italic">.</em>
             </h1>
-            <p className="max-w-[420px] text-base leading-relaxed text-paper/72">
+            <p className="max-w-[420px] text-base leading-relaxed text-white/70">
               The Digital Learning Unit&apos;s activity &amp; operations register
               — connected end to end.
             </p>
           </div>
         </div>
-        <div className="border-t border-paper/14 pt-5 text-xs text-paper/50">
+        <div className="border-t border-white/10 pt-5 text-xs text-white/50">
           Sign in with your DLU credentials to continue.
         </div>
       </section>
 
-      <section className="flex min-w-0 flex-1 items-center justify-center bg-paper p-8 md:min-w-[480px] md:p-12">
+      <section className="flex min-w-0 flex-1 items-center justify-center bg-background p-8 md:min-w-[480px] md:p-12">
         <div className="w-full max-w-[480px]">
-          <h2 className="m-0 mb-1.5 font-display text-[26px] font-semibold">
+          <h2 className="m-0 mb-1.5 font-display text-[26px] font-semibold text-foreground">
             Welcome back
           </h2>
-          <p className="mb-6 text-[14.5px] text-ink-soft">
+          <p className="mb-6 text-[14.5px] text-foreground-secondary">
             {showRoster
               ? "Select your profile to auto-fill your credentials, or enter your details manually."
               : "Enter your username and password to continue."}
@@ -98,7 +98,7 @@ export function LoginForm({
 
           {showRoster && roster.length > 0 && (
             <>
-              <div className="mb-2.5 text-[11.5px] font-bold tracking-widest text-ink-soft uppercase">
+              <div className="mb-2.5 text-[11.5px] font-bold tracking-widest text-foreground-secondary uppercase">
                 Quick select profile
               </div>
               <div className="mb-6 flex gap-2.5 overflow-x-auto pb-2 snap-x snap-mandatory sm:grid sm:grid-cols-3 sm:gap-2.5 sm:overflow-visible sm:pb-0">
@@ -110,9 +110,9 @@ export function LoginForm({
                     aria-label={`Select ${u.name} — ${roleLabel(u)}`}
                     aria-pressed={selectedId === u.id}
                     className={cn(
-                      "flex w-28 shrink-0 snap-start cursor-pointer flex-col items-center gap-2 rounded-xl border-[1.5px] border-line bg-white px-1.5 py-3 transition-colors hover:border-saffron-dim focus-visible:ring-2 focus-visible:ring-saffron focus-visible:outline-none sm:w-auto sm:shrink",
+                      "flex w-28 shrink-0 snap-start cursor-pointer flex-col items-center gap-2 rounded-xl border-[1.5px] border-border bg-surface px-1.5 py-3 text-foreground transition-colors hover:border-primary focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none sm:w-auto sm:shrink",
                       selectedId === u.id &&
-                        "border-saffron ring-2 ring-saffron/30",
+                        "border-primary ring-2 ring-primary/30",
                     )}
                   >
                     <div
@@ -124,7 +124,7 @@ export function LoginForm({
                     <div className="text-center text-xs font-semibold">
                       {firstName(u.name)}
                     </div>
-                    <div className="text-[9.5px] text-ink-faint uppercase">
+                    <div className="text-[9.5px] text-foreground-faint uppercase">
                       {roleLabel(u) === "Unit Head"
                         ? "Unit Head"
                         : u.isCorps
@@ -142,7 +142,7 @@ export function LoginForm({
           <form action={formAction}>
             {passwordResetNotice && (
               <div
-                className="mb-4 rounded-[12px] border border-good/30 bg-good-bg px-3.5 py-3 text-[13px] font-semibold text-good"
+                className="mb-4 rounded-[12px] border border-success/30 bg-success-surface px-3.5 py-3 text-[13px] font-semibold text-success"
                 role="status"
                 aria-live="polite"
               >
@@ -152,7 +152,7 @@ export function LoginForm({
             <div className="mb-4">
               <label
                 htmlFor="loginUser"
-                className="mb-2.5 block text-[11.5px] font-bold tracking-widest text-ink-soft uppercase"
+                className="mb-2.5 block text-[11.5px] font-bold tracking-widest text-foreground-secondary uppercase"
               >
                 Username
               </label>
@@ -164,14 +164,14 @@ export function LoginForm({
                 placeholder="Auto-filled from your profile"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
-                className="w-full rounded-xl border-[1.5px] border-line px-3.5 py-3.5 text-[14.5px] outline-none placeholder:text-ink-soft focus:border-aztec-3 focus:ring-2 focus:ring-saffron/60"
+                className="w-full rounded-xl border-[1.5px] border-input-border bg-input px-3.5 py-3.5 text-[14.5px] text-foreground outline-none placeholder:text-input-placeholder focus:border-primary focus:ring-2 focus:ring-primary/40"
                 required
               />
             </div>
             <div className="mb-2.5">
               <label
                 htmlFor="loginPass"
-                className="mb-2.5 block text-[11.5px] font-bold tracking-widest text-ink-soft uppercase"
+                className="mb-2.5 block text-[11.5px] font-bold tracking-widest text-foreground-secondary uppercase"
               >
                 Password
               </label>
@@ -183,7 +183,7 @@ export function LoginForm({
                 placeholder="•••••••••••••"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full rounded-xl border-[1.5px] border-line px-3.5 py-3.5 text-[14.5px] outline-none placeholder:text-ink-soft focus:border-aztec-3 focus:ring-2 focus:ring-saffron/60"
+                className="w-full rounded-xl border-[1.5px] border-input-border bg-input px-3.5 py-3.5 text-[14.5px] text-foreground outline-none placeholder:text-input-placeholder focus:border-primary focus:ring-2 focus:ring-primary/40"
                 required
               />
             </div>
@@ -195,7 +195,7 @@ export function LoginForm({
             <div className="mb-1 flex justify-end">
               <a
                 href="/forgot-password"
-                className="text-[12.5px] font-bold text-aztec-3 underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-saffron"
+                className="text-[12.5px] font-bold text-foreground underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
               >
                 Forgot password?
               </a>
@@ -203,7 +203,7 @@ export function LoginForm({
             <button
               type="submit"
               disabled={pending}
-              className="mt-3.5 flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl border-none bg-linear-to-br from-aztec-3 to-aztec py-3.5 text-[14.5px] font-bold text-paper focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-saffron disabled:opacity-60"
+              className="mt-3.5 flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl border-none bg-primary py-3.5 text-[14.5px] font-bold text-primary-foreground transition-colors hover:bg-primary-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:opacity-60"
             >
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
                 <path d={PATHS.login} />

@@ -42,13 +42,13 @@ export function PersonActivities({ userId }: { userId: string }) {
             {initials(person.name)}
           </div>
           <div>
-            <div className="mb-1 text-[11.5px] font-bold tracking-[0.12em] text-ink-soft uppercase">
+            <div className="mb-1 text-[11.5px] font-bold tracking-[0.12em] text-foreground-secondary uppercase">
               {isSelf ? "My Activities" : "Viewing as Unit Head — read only"}
             </div>
             <h1 className="m-0 mb-1 text-[30px] font-semibold">
               {isSelf ? `${greeting}, ${firstName(person.name)}` : `${person.name}'s activities`}
             </h1>
-            <p className="m-0 text-[13.5px] text-ink-soft">
+            <p className="m-0 text-[13.5px] text-foreground-secondary">
               {roleLabel(person)} · {person.username}
             </p>
           </div>
@@ -69,8 +69,8 @@ export function PersonActivities({ userId }: { userId: string }) {
         <Kpi kind="missed" value={b.missed.length} label="Missed Activities" path={PATHS.alert} />
       </div>
 
-      <div className="rounded-[18px] border border-line bg-card px-[26px] py-6">
-        <div className="mb-[18px] flex w-fit gap-1.5 rounded-[11px] bg-neutral-bg p-1">
+      <div className="rounded-[18px] border border-border bg-surface px-[26px] py-6">
+        <div className="mb-[18px] flex w-fit gap-1.5 rounded-[11px] bg-surface-muted p-1 border border-border-subtle">
           {(
             [
               ["pending", "Pending", b.pending.length],
@@ -82,10 +82,10 @@ export function PersonActivities({ userId }: { userId: string }) {
               key={key}
               type="button"
               onClick={() => setTab(key)}
-              className={`cursor-pointer rounded-lg border-none px-4 py-2 text-[12.5px] font-bold ${
+              className={`cursor-pointer rounded-lg border-none px-4 py-2 text-[12.5px] font-bold transition-colors ${
                 tab === key
-                  ? "bg-card text-ink shadow-sm ring-1 ring-line"
-                  : "bg-transparent text-ink-soft"
+                  ? "bg-surface text-foreground shadow-sm ring-1 ring-border"
+                  : "bg-transparent text-foreground-secondary hover:text-foreground"
               }`}
             >
               {label} <span className="ml-0.5 opacity-60">({cnt})</span>
@@ -95,7 +95,7 @@ export function PersonActivities({ userId }: { userId: string }) {
 
         <div className="flex flex-col gap-2.5">
           {!items.length ? (
-            <div className="py-8 text-center text-[13px] text-ink-faint">
+            <div className="py-8 text-center text-[13px] text-foreground-faint">
               {tab === "missed"
                 ? "Nothing missed — nice work."
                 : tab === "pending"
@@ -111,7 +111,7 @@ export function PersonActivities({ userId }: { userId: string }) {
                   <>
                     {selfCreated.length > 0 && (
                       <>
-                        <div className="mt-0.5 mb-2.5 text-[11px] font-bold tracking-wider text-ink-faint uppercase">
+                        <div className="mt-0.5 mb-2.5 text-[11px] font-bold tracking-wider text-foreground-faint uppercase">
                           Self Created Activities ({selfCreated.length})
                         </div>
                         {selfCreated.map((a, idx) => (
@@ -121,7 +121,7 @@ export function PersonActivities({ userId }: { userId: string }) {
                     )}
                     {delegated.length > 0 && (
                       <>
-                        <div className="mt-[18px] mb-2.5 text-[11px] font-bold tracking-wider text-ink-faint uppercase">
+                        <div className="mt-[18px] mb-2.5 text-[11px] font-bold tracking-wider text-foreground-faint uppercase">
                           Delegated Activities ({delegated.length})
                         </div>
                         {delegated.map((a, idx) => (

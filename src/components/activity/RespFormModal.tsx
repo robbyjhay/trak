@@ -6,7 +6,7 @@ import { ModalBackdrop, ModalPanel } from "@/components/ui/Modal";
 import type { Responsibility } from "@/lib/types";
 
 const FIELD_INPUT =
-  "w-full rounded-[10px] border-[1.5px] border-line bg-white px-3.5 py-2.5 text-[13px] outline-none focus:border-aztec-3";
+  "w-full rounded-[10px] border-[1.5px] border-input-border bg-input text-foreground placeholder:text-input-placeholder px-3.5 py-2.5 text-[13px] outline-none focus:border-primary";
 
 export function RespFormModal({
   open,
@@ -69,7 +69,7 @@ export function RespFormModal({
         <h3 className="m-0 mb-1.5 font-display text-xl">
           {existing ? "Edit responsibility" : "Add responsibility"}
         </h3>
-        <p className="mb-5 text-[12.5px] text-ink-soft">
+        <p className="mb-5 text-[12.5px] text-foreground-secondary">
           {existing
             ? "Changes apply to every activity form and generated report."
             : "Creates a new responsibility area that every activity can link to."}
@@ -108,13 +108,13 @@ export function RespFormModal({
             rows={4}
             className={`${FIELD_INPUT} resize-none`}
           />
-          <div className="mt-1 text-[11px] text-ink-soft">
+          <div className="mt-1 text-[11px] text-foreground-secondary">
             Shown in the responsibility list and the report&apos;s deliverables.
           </div>
         </Field>
 
         {error && (
-          <div className="mb-1 rounded-lg bg-critical-bg px-3 py-2 text-[12px] font-semibold text-critical">
+          <div className="mb-1 rounded-lg bg-critical-surface px-3 py-2 text-[12px] font-semibold text-critical-semantic">
             {error}
           </div>
         )}
@@ -122,7 +122,7 @@ export function RespFormModal({
         <div className="mt-[22px] flex gap-2.5">
           <button
             type="button"
-            className="flex-1 cursor-pointer rounded-[10px] border-[1.5px] border-line bg-transparent py-3 font-bold"
+            className="flex-1 cursor-pointer rounded-[10px] border-[1.5px] border-border bg-transparent text-foreground py-3 font-bold hover:bg-surface-hover transition-colors"
             onClick={onClose}
             disabled={saving}
           >
@@ -130,7 +130,7 @@ export function RespFormModal({
           </button>
           <button
             type="button"
-            className="flex-[1.3] cursor-pointer rounded-[10px] border-none bg-aztec py-3 font-bold text-white disabled:cursor-not-allowed disabled:opacity-50"
+            className="flex-[1.3] cursor-pointer rounded-[10px] border-none bg-primary py-3 font-bold text-primary-foreground hover:bg-primary-hover transition-colors disabled:cursor-not-allowed disabled:opacity-50"
             onClick={save}
             disabled={saving}
           >
@@ -151,7 +151,7 @@ function Field({
 }) {
   return (
     <div className="mb-4">
-      <label className="mb-1.5 block text-[11px] font-bold tracking-wider text-ink-soft uppercase">
+      <label className="mb-1.5 block text-[11px] font-bold tracking-wider text-foreground-secondary uppercase">
         {label}
       </label>
       {children}

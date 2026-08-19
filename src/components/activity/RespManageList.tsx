@@ -20,7 +20,7 @@ export function RespManageList() {
         return (
           <div
             key={r.id}
-            className="mb-2.5 rounded-[13px] border border-line transition-colors last:mb-0 hover:border-saffron-dim"
+            className="mb-2.5 rounded-[13px] border border-border transition-colors last:mb-0 hover:border-primary"
           >
             <div className="flex items-center justify-between gap-2.5 px-4 py-3.5">
               <button
@@ -62,8 +62,8 @@ export function RespManageList() {
                       }}
                       className={`cursor-pointer rounded-full border-[1.5px] px-2.5 py-0.5 text-[10.5px] font-bold transition-colors ${
                         r.isActive !== false
-                          ? "border-line bg-transparent text-ink-faint hover:border-saffron-dim"
-                          : "border-saffron bg-[#fff8e6] text-saffron-dim"
+                          ? "border-border bg-transparent text-foreground-faint hover:border-primary hover:text-foreground"
+                          : "border-warning-semantic bg-warning-surface text-warning-foreground"
                       }`}
                     >
                       {r.isActive !== false ? "Deactivate" : "Inactive"}
@@ -83,7 +83,7 @@ export function RespManageList() {
                     fill="none"
                     stroke="currentColor"
                     strokeWidth="2"
-                    className={`shrink-0 text-ink-faint transition-transform ${open ? "rotate-90" : ""}`}
+                    className={`shrink-0 text-foreground-faint transition-transform ${open ? "rotate-90" : ""}`}
                   >
                     <path d={PATHS.chevronRight} />
                   </svg>
@@ -91,13 +91,13 @@ export function RespManageList() {
               </div>
             </div>
             {open && (
-              <div className="mx-4 mb-3.5 border-t border-dashed border-line pt-3 text-xs leading-relaxed text-ink-soft">
+              <div className="mx-4 mb-3.5 border-t border-dashed border-border pt-3 text-xs leading-relaxed text-foreground-secondary">
                 {r.desc}
                 <div className="mt-2.5 flex flex-wrap gap-1.5">
                   {r.deliverables.map((d) => (
                     <span
                       key={d}
-                      className="rounded-full bg-neutral-bg px-2.5 py-0.5 text-[10px] text-ink-soft"
+                      className="rounded-full bg-surface-muted px-2.5 py-0.5 text-[10px] text-foreground-secondary"
                     >
                       {d}
                     </span>

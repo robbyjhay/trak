@@ -21,12 +21,12 @@ export const HEAD_USER_ID = "babajide";
 export const HEAD_USERNAME = "DLUARU";
 
 export const SEQ_RAMP = [
-  "#e3f3ea",
   "#bfe3cf",
   "#8fcdae",
-  "#4fa97d",
-  "#1f7a5c",
-  "#0d4a34",
+  "#5ebf93",
+  "#38ab77",
+  "#2e7d5b",
+  "#23684a",
 ];
 
 export function rampColor(v: number, max: number): string {

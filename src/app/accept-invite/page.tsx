@@ -15,7 +15,7 @@ export default async function AcceptInvitePage({
   const token = (params.token || "").trim();
 
   return (
-    <main id="main" className="flex min-h-screen items-center justify-center bg-paper p-6">
+    <main id="main" className="flex min-h-screen items-center justify-center bg-background p-6 text-foreground">
       <div className="w-full max-w-[440px]">
         <div className="mb-6 flex items-center gap-3.5">
           <div
@@ -23,24 +23,24 @@ export default async function AcceptInvitePage({
             aria-hidden
           >
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-              <path d="M12 2L3 7v2h18V7L12 2z" fill="#0d1d1a" />
+              <path d="M12 2L3 7v2h18V7L12 2z" fill="currentColor" />
               <path
                 d="M4 10v9h2v-9H4zm14 0v9h2v-9h-2zM9 10v9h2v-9H9zm4 0v9h2v-9h-2z"
-                fill="#0d1d1a"
+                fill="currentColor"
               />
-              <path d="M2 21h20v1.6H2z" fill="#0d1d1a" />
+              <path d="M2 21h20v1.6H2z" fill="currentColor" />
             </svg>
           </div>
-          <div className="text-[12.5px] leading-snug tracking-[0.16em] text-ink-soft uppercase">
+          <div className="text-[12.5px] leading-snug tracking-[0.16em] text-foreground-secondary uppercase">
             Trak — Digital Learning Unit
           </div>
         </div>
 
-        <div className="rounded-[20px] border border-line bg-card p-8 shadow-[0_20px_50px_rgba(13,29,26,0.08)]">
-          <h1 className="m-0 mb-1.5 font-display text-[24px] font-semibold">
+        <div className="rounded-[20px] border border-border bg-surface p-8 shadow-[0_20px_50px_rgba(13,29,26,0.08)]">
+          <h1 className="m-0 mb-1.5 font-display text-[24px] font-semibold text-foreground">
             Accept invite
           </h1>
-          <p className="mb-6 text-[13.5px] leading-relaxed text-ink-soft">
+          <p className="mb-6 text-[13.5px] leading-relaxed text-foreground-secondary">
             You&apos;ve been invited to Trak. Choose a personal password (at
             least 12 characters) to activate your account.
           </p>
@@ -54,11 +54,11 @@ export default async function AcceptInvitePage({
             </div>
           )}
 
-          <p className="mt-5 text-center text-[13px] text-ink-soft">
+          <p className="mt-5 text-center text-[13px] text-foreground-secondary">
             Already activated?{" "}
             <Link
               href="/login"
-              className="font-bold text-aztec underline-offset-2 hover:underline"
+              className="font-bold text-foreground underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
             >
               Sign in
             </Link>

@@ -102,19 +102,19 @@ export function Messaging({
   return (
     <div className="h-full">
       {view === "messages" ? (
-        <div className="flex h-full overflow-hidden rounded-[20px] border border-line bg-card">
+        <div className="flex h-full overflow-hidden rounded-[20px] border border-border bg-surface">
           {/* Conv list */}
           <div
             className={cn(
-              "relative w-full shrink-0 flex-col border-r border-line md:flex md:w-[300px]",
+              "relative w-full shrink-0 flex-col border-r border-border md:flex md:w-[300px]",
               mobilePane === "thread" ? "hidden" : "flex",
             )}
           >
-            <div className="border-b border-line p-4">
+            <div className="border-b border-border p-4">
               <input
                 type="search"
                 placeholder="Search conversations…"
-                className="w-full rounded-[10px] border-[1.5px] border-line px-3.5 py-2.5 text-[13px]"
+                className="w-full rounded-[10px] border-[1.5px] border-input-border bg-input px-3.5 py-2.5 text-[13px] text-foreground placeholder-input-placeholder outline-none focus:border-border-strong"
                 aria-label="Search conversations"
               />
             </div>
@@ -156,7 +156,7 @@ export function Messaging({
                   snippet="Send an announcement to all"
                 />
               )}
-              <div className="px-2.5 pt-3 pb-1.5 text-[10.5px] font-bold tracking-wider text-ink-faint uppercase">
+              <div className="px-2.5 pt-3 pb-1.5 text-[10.5px] font-bold tracking-wider text-foreground-faint uppercase">
                 Direct Messages
               </div>
               {dmPartners().map((pid) => {
@@ -218,7 +218,7 @@ export function Messaging({
           >
             {activeConv === "community" && (
               <>
-                <div className="flex items-center gap-3 border-b border-line px-[22px] py-3.5">
+                <div className="flex items-center gap-3 border-b border-border px-[22px] py-3.5">
                   <BackBtn onClick={() => setMobilePane("list")} />
                   <div className="flex h-[34px] w-[34px] items-center justify-center rounded-full bg-aztec-3">
                     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2">
@@ -226,15 +226,15 @@ export function Messaging({
                     </svg>
                   </div>
                   <div className="min-w-0">
-                    <div className="truncate text-[13.5px] font-bold">Community Chat</div>
-                    <div className="truncate text-[11px] text-ink-faint">
+                    <div className="truncate text-[13.5px] font-bold text-foreground">Community Chat</div>
+                    <div className="truncate text-[11px] text-foreground-faint">
                       Visible to all {users.length} unit members
                     </div>
                   </div>
                   {canWipe && (
                     <button
                       type="button"
-                      className="ml-auto flex h-[34px] w-[34px] cursor-pointer items-center justify-center rounded-[9px] border-[1.5px] border-[#f2cfcb] bg-white text-critical"
+                      className="ml-auto flex h-[34px] w-[34px] cursor-pointer items-center justify-center rounded-[9px] border-[1.5px] border-critical-semantic/30 bg-surface text-critical-semantic hover:bg-critical-surface transition-colors"
                       onClick={() => setWipeOpen((v) => !v)}
                       aria-label="Wipe community chat"
                     >
@@ -245,13 +245,13 @@ export function Messaging({
                   )}
                 </div>
                 {canWipe && wipeOpen && (
-                  <div className="flex items-center gap-3 border-b border-[#f2cfcb] bg-critical-bg px-[22px] py-3.5">
-                    <label className="text-[11px] font-bold text-critical uppercase">
+                  <div className="flex items-center gap-3 border-b border-critical-semantic/30 bg-critical-surface px-[22px] py-3.5">
+                    <label className="text-[11px] font-bold text-critical-semantic uppercase">
                       Wipe all community messages
                     </label>
                     <button
                       type="button"
-                      className="ml-auto cursor-pointer rounded-lg border-none bg-critical px-3.5 py-2 text-xs font-bold text-white"
+                      className="ml-auto cursor-pointer rounded-lg border-none bg-critical-semantic px-3.5 py-2 text-xs font-bold text-critical-foreground hover:opacity-90 transition-opacity"
                       onClick={() => {
                         void wipeCommunity()
                           .then(() => {
@@ -286,7 +286,7 @@ export function Messaging({
                         />
                       ))
                     : (
-                      <div className="py-8 text-center text-[13px] text-ink-faint">
+                      <div className="py-8 text-center text-[13px] text-foreground-faint">
                         No messages yet.
                       </div>
                     )}
@@ -309,9 +309,9 @@ export function Messaging({
 
             {activeConv === "broadcast" && (
               <div className="flex flex-1 flex-col">
-                <div className="flex items-center gap-3 border-b border-line px-[22px] py-3.5 md:hidden">
+                <div className="flex items-center gap-3 border-b border-border px-[22px] py-3.5 md:hidden">
                   <BackBtn onClick={() => setMobilePane("list")} />
-                  <div className="text-[13.5px] font-bold">Broadcast</div>
+                  <div className="text-[13.5px] font-bold text-foreground">Broadcast</div>
                 </div>
                 <div className="flex flex-1 flex-col items-center justify-center p-6 text-center sm:p-10">
                 <div className="mb-[18px] flex h-14 w-14 items-center justify-center rounded-2xl bg-linear-to-br from-saffron to-[#d9a72c] text-aztec">
@@ -319,10 +319,10 @@ export function Messaging({
                     <path d={PATHS.send} />
                   </svg>
                 </div>
-                <h3 className="m-0 mb-1.5 font-display text-xl">
+                <h3 className="m-0 mb-1.5 font-display text-xl text-foreground">
                   Broadcast to the unit
                 </h3>
-                <p className="mb-[22px] max-w-[380px] text-[13px] text-ink-soft">
+                <p className="mb-[22px] max-w-[380px] text-[13px] text-foreground-secondary">
                   Only the Unit Head and the Secretary can send this. It reaches all{" "}
                   {users.length} members at once.
                 </p>
@@ -330,7 +330,7 @@ export function Messaging({
                   value={bcText}
                   onChange={(e) => setBcText(e.target.value)}
                   placeholder="Write your announcement…"
-                  className="mb-3.5 min-h-[100px] w-full max-w-[440px] rounded-[14px] border-[1.5px] border-line px-4 py-3.5"
+                  className="mb-3.5 min-h-[100px] w-full max-w-[440px] rounded-[14px] border-[1.5px] border-input-border bg-input px-4 py-3.5 text-foreground placeholder-input-placeholder outline-none focus:border-border-strong"
                 />
                 <PrimaryBtn
                   onClick={() => {
@@ -377,7 +377,7 @@ export function Messaging({
                             onBack={() => setMobilePane("list")}
                           />
                         ) : (
-                          <div className="flex items-center gap-3 border-b border-line px-[22px] py-3.5">
+                          <div className="flex items-center gap-3 border-b border-border px-[22px] py-3.5">
                             <BackBtn onClick={() => setMobilePane("list")} />
                             <div
                               className="flex h-[34px] w-[34px] items-center justify-center rounded-full font-display text-xs font-bold text-white"
@@ -386,8 +386,8 @@ export function Messaging({
                               {initials(p.name)}
                             </div>
                             <div className="min-w-0">
-                              <div className="truncate text-[13.5px] font-bold">{p.name}</div>
-                              <div className="truncate text-[11px] text-ink-faint">
+                              <div className="truncate text-[13.5px] font-bold text-foreground">{p.name}</div>
+                              <div className="truncate text-[11px] text-foreground-faint">
                                 {roleLabel(p)} · {p.username}
                               </div>
                             </div>
@@ -397,7 +397,7 @@ export function Messaging({
                                 onClick={() => startCall(p.id)}
                                 title="Log a phone call"
                                 aria-label={`Log a phone call with ${p.name}`}
-                                className="flex h-[34px] w-[34px] cursor-pointer items-center justify-center rounded-[9px] border-[1.5px] border-line bg-white text-ink-soft transition-colors hover:border-saffron-dim hover:text-ink"
+                                className="flex h-[34px] w-[34px] cursor-pointer items-center justify-center rounded-[9px] border-[1.5px] border-border bg-surface text-foreground-secondary transition-colors hover:border-border-strong hover:text-foreground hover:bg-surface-hover"
                               >
                                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                                   <path d={PATHS.phone} />
@@ -408,7 +408,7 @@ export function Messaging({
                                 target="_blank"
                                 rel="noreferrer"
                                 title="WhatsApp"
-                                className="flex h-[34px] w-[34px] items-center justify-center rounded-[9px] border-[1.5px] border-line text-ink-soft"
+                                className="flex h-[34px] w-[34px] items-center justify-center rounded-[9px] border-[1.5px] border-border bg-surface text-foreground-secondary transition-colors hover:border-border-strong hover:text-foreground hover:bg-surface-hover"
                               >
                                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                                   <path d={PATHS.whatsapp} />
@@ -438,7 +438,7 @@ export function Messaging({
                                 ),
                               )
                             : (
-                              <div className="py-8 text-center text-[13px] text-ink-faint">
+                              <div className="py-8 text-center text-[13px] text-foreground-faint">
                                 No messages yet — say hello.
                               </div>
                             )}
@@ -473,10 +473,10 @@ export function Messaging({
               <input
                 type="search"
                 placeholder="Search the unit…"
-                className="w-full rounded-[10px] border-[1.5px] border-line px-3.5 py-2.5 text-[13px] sm:w-[280px]"
+                className="w-full rounded-[10px] border-[1.5px] border-input-border bg-input px-3.5 py-2.5 text-[13px] text-foreground placeholder-input-placeholder outline-none focus:border-border-strong sm:w-[280px]"
                 aria-label="Search the unit"
               />
-              <span className="text-[11.5px] font-semibold text-ink-faint">
+              <span className="text-[11.5px] font-semibold text-foreground-faint">
                 {users.length - 1} members
               </span>
             </div>
@@ -484,7 +484,7 @@ export function Messaging({
               <button
                 type="button"
                 onClick={() => setAddMemberOpen(true)}
-                className="inline-flex cursor-pointer items-center gap-1.5 rounded-[9px] border-none bg-aztec px-[15px] py-2 text-xs font-bold text-white transition-transform hover:-translate-y-px"
+                className="inline-flex cursor-pointer items-center gap-1.5 rounded-[9px] border-none bg-primary px-[15px] py-2 text-xs font-bold text-primary-foreground transition-transform hover:-translate-y-px hover:bg-primary-hover"
               >
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4">
                   <path d={PATHS.plus} />
@@ -500,7 +500,7 @@ export function Messaging({
                 .map((p) => (
                   <div
                     key={p.id}
-                    className="rounded-[18px] border border-line bg-card px-[26px] py-6"
+                    className="rounded-[18px] border border-border bg-surface px-[26px] py-6 shadow-card"
                   >
                     <div className="mb-3.5 flex items-center gap-3">
                       <div
@@ -510,13 +510,13 @@ export function Messaging({
                         {initials(p.name)}
                       </div>
                       <div>
-                        <div className="text-[13.5px] font-bold">{p.name}</div>
-                        <div className="text-[10.5px] font-bold text-ink-faint uppercase">
+                        <div className="text-[13.5px] font-bold text-foreground">{p.name}</div>
+                        <div className="text-[10.5px] font-bold text-foreground-faint uppercase">
                           {roleLabel(p)}
                         </div>
                       </div>
                     </div>
-                    <div className="mb-3.5 rounded-lg bg-neutral-bg px-2.5 py-1.5 font-mono text-[10.5px] text-ink-faint">
+                    <div className="mb-3.5 rounded-lg bg-surface-muted px-2.5 py-1.5 font-mono text-[10.5px] text-foreground-faint">
                       {p.username} · {p.phone}
                     </div>
                     <div className="flex gap-2">
@@ -524,7 +524,7 @@ export function Messaging({
                         href={`https://wa.me/${p.phone.replace("+", "").replace(/\s/g, "")}`}
                         target="_blank"
                         rel="noreferrer"
-                        className="flex flex-1 flex-col items-center gap-1 rounded-[11px] border-[1.5px] border-line px-1.5 py-2.5 text-[10px] font-bold text-ink-soft no-underline"
+                        className="flex flex-1 flex-col items-center gap-1 rounded-[11px] border-[1.5px] border-border bg-surface px-1.5 py-2.5 text-[10px] font-bold text-foreground-secondary no-underline hover:bg-surface-hover hover:text-foreground transition-colors"
                       >
                         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                           <path d={PATHS.whatsapp} />
@@ -533,7 +533,7 @@ export function Messaging({
                       </a>
                       <button
                         type="button"
-                        className="flex flex-1 cursor-pointer flex-col items-center gap-1 rounded-[11px] border-[1.5px] border-line bg-white px-1.5 py-2.5 text-[10px] font-bold text-ink-soft"
+                        className="flex flex-1 cursor-pointer flex-col items-center gap-1 rounded-[11px] border-[1.5px] border-border bg-surface px-1.5 py-2.5 text-[10px] font-bold text-foreground-secondary hover:bg-surface-hover hover:text-foreground transition-colors"
                         onClick={() => {
                           setView("messages");
                           openThread(p.id);
@@ -571,7 +571,7 @@ function BackBtn({ onClick }: { onClick: () => void }) {
     <button
       type="button"
       onClick={onClick}
-      className="flex h-[34px] w-[34px] shrink-0 cursor-pointer items-center justify-center rounded-[9px] border-[1.5px] border-line bg-white text-ink-soft md:hidden"
+      className="flex h-[34px] w-[34px] shrink-0 cursor-pointer items-center justify-center rounded-[9px] border-[1.5px] border-border bg-surface text-foreground-secondary hover:bg-surface-hover hover:text-foreground transition-colors md:hidden"
       aria-label="Back to conversations"
     >
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -598,19 +598,21 @@ function ConvItem({
     <button
       type="button"
       onClick={onClick}
-      className={`mb-0.5 flex w-full cursor-pointer items-center gap-2.5 rounded-xl border-none p-2.5 text-left ${
-        active ? "bg-aztec-2" : "bg-transparent hover:bg-neutral-bg"
+      className={`mb-0.5 flex w-full cursor-pointer items-center gap-2.5 rounded-xl border-none p-2.5 text-left transition-colors ${
+        active
+          ? "bg-surface-interactive text-foreground shadow-xs dark:bg-surface-active"
+          : "bg-transparent text-foreground hover:bg-surface-hover"
       }`}
     >
       {avatar}
       <div className="min-w-0 flex-1">
         <div
-          className={`truncate text-[12.5px] font-bold ${active ? "text-white" : ""}`}
+          className={`truncate text-[12.5px] font-bold ${active ? "text-foreground" : "text-foreground"}`}
         >
           {name}
         </div>
         <div
-          className={`truncate text-[11.5px] ${active ? "text-paper/60" : "text-ink-faint"}`}
+          className={`truncate text-[11.5px] ${active ? "text-foreground-secondary" : "text-foreground-faint"}`}
         >
           {snippet}
         </div>
@@ -628,12 +630,12 @@ function CallPill({
 }) {
   const outgoing = call.from === me;
   return (
-    <div className="mx-auto flex w-fit max-w-full items-center gap-2 rounded-full border border-line bg-card px-3.5 py-1.5 text-[11px] font-bold text-ink-soft">
+    <div className="mx-auto flex w-fit max-w-full items-center gap-2 rounded-full border border-border bg-surface px-3.5 py-1.5 text-[11px] font-bold text-foreground-secondary">
       <span
         className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full ${
           outgoing
-            ? "bg-saffron/20 text-saffron-dim"
-            : "bg-aztec-3 text-white"
+            ? "bg-primary/20 text-primary-foreground dark:text-primary"
+            : "bg-surface-muted text-foreground"
         }`}
       >
         <svg
@@ -649,10 +651,10 @@ function CallPill({
         </svg>
       </span>
       <span>{outgoing ? "You called" : "Incoming call"}</span>
-      <span className="font-mono text-ink-faint">
+      <span className="font-mono text-foreground-faint">
         {formatDuration(call.durationSec)}
       </span>
-      <span className="text-ink-faint/70">{call.at}</span>
+      <span className="text-foreground-faint/70">{call.at}</span>
     </div>
   );
 }
@@ -686,17 +688,17 @@ function Bubble({
         className={`rounded-[14px] px-3.5 py-2.5 ${
           isMe
             ? "rounded-br-sm bg-aztec-3 text-white"
-            : "rounded-bl-sm bg-neutral-bg text-ink"
+            : "rounded-bl-sm bg-surface-muted text-foreground"
         }`}
       >
         {!isMe && (
-          <div className="mb-0.5 text-[10.5px] font-bold text-ink-faint">
+          <div className="mb-0.5 text-[10.5px] font-bold text-foreground-faint">
             {firstName(p?.name || "")}
           </div>
         )}
         <div className="text-[13px] leading-snug">{text}</div>
         <div
-          className={`mt-1 text-right text-[9.5px] ${isMe ? "text-paper/50" : "text-ink-faint"}`}
+          className={`mt-1 text-right text-[9.5px] ${isMe ? "text-white/60" : "text-foreground-faint"}`}
         >
           {time}
         </div>
@@ -707,7 +709,7 @@ function Bubble({
 
 function ThreadScroll({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex flex-1 flex-col gap-3.5 overflow-y-auto bg-[#fdfcf9] px-[22px] py-5">
+    <div className="flex flex-1 flex-col gap-3.5 overflow-y-auto bg-background px-[22px] py-5">
       {children}
     </div>
   );
@@ -725,13 +727,13 @@ function Composer({
   onSend: () => void;
 }) {
   return (
-    <div className="flex items-center gap-2.5 border-t border-line px-[22px] pt-4 pb-[76px] md:pb-4">
+    <div className="flex items-center gap-2.5 border-t border-border bg-surface px-[22px] pt-4 pb-[76px] md:pb-4">
       <input
         type="text"
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        className="flex-1 rounded-full border-[1.5px] border-line px-4 py-3"
+        className="flex-1 rounded-full border-[1.5px] border-input-border bg-input px-4 py-3 text-[13.5px] text-foreground placeholder-input-placeholder outline-none focus:border-border-strong"
         onKeyDown={(e) => {
           if (e.key === "Enter") onSend();
         }}
@@ -739,10 +741,10 @@ function Composer({
       <button
         type="button"
         onClick={onSend}
-        className="flex h-[42px] w-[42px] shrink-0 cursor-pointer items-center justify-center rounded-full border-none bg-aztec-3 text-white"
+        className="flex h-[42px] w-[42px] shrink-0 cursor-pointer items-center justify-center rounded-full border-none bg-primary text-primary-foreground hover:bg-primary-hover transition-colors"
         aria-label="Send"
       >
-        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
           <path d={PATHS.send} />
         </svg>
       </button>

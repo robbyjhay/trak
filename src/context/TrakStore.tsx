@@ -98,6 +98,10 @@ interface TrakStoreValue {
     activityId: string,
     data: WrapupData,
   ) => Promise<void>;
+  updateActivityEndDate: (
+    activityId: string,
+    endDate: string,
+  ) => Promise<void>;
   pushNotification: (
     userId: string,
     type: NotifType,
@@ -461,6 +465,27 @@ export function TrakStoreProvider({
         (a) => a.id === activityId,
       );
       if (actIdx >= 0) stateRef.current.db.activities[actIdx] = res.activity;
+      bump();
+    },
+    updateActivityEndDate: async (activityId, endDate) => {
+      const res = await apiSend<{ activity: Activity }>(
+        `/api/activities/${activityId}`,
+        "PATCH",
+        { action: "updateDates", endDate },
+      );
+      const actIdx = stateRef.current.db.activities.findIndex(
+        (a) => a.id === activityId,
+      );
+      if (actIdx >= 0) stateRef.current.db.activities[actIdx] = res.activity;
+      // Also fetch updated logs since they might have changed
+      const logsRes = await apiGet<{ dailyLogs: DailyLog[] }>(
+        `/api/activities/${activityId}`
+      );
+      if (logsRes && logsRes.dailyLogs) {
+        stateRef.current.db.dailyLogs = stateRef.current.db.dailyLogs
+          .filter((l) => l.activityId !== activityId)
+          .concat(logsRes.dailyLogs);
+      }
       bump();
     },
     // Server owns notifications; client no-op kept for interface stability

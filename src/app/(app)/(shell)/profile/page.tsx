@@ -48,13 +48,13 @@ export default function ProfilePage() {
   return (
     <div>
       <div className="mb-[22px]">
-        <div className="mb-2 text-[11.5px] font-bold tracking-[0.12em] text-saffron-dim uppercase">
+        <div className="mb-2 text-[11.5px] font-bold tracking-[0.12em] text-foreground-secondary uppercase">
           Welcome
         </div>
         <h1 className="m-0 mb-1.5 font-display text-[30px] font-semibold">
           My Profile
         </h1>
-        <p className="m-0 text-[13.5px] text-ink-soft">
+        <p className="m-0 text-[13.5px] text-foreground-secondary">
           Everything Trak and the Digital Learning Unit has on file for you.
         </p>
       </div>
@@ -97,16 +97,16 @@ export default function ProfilePage() {
       )}
 
       {showNotifNudge && (
-        <div className="mb-[22px] flex flex-wrap items-center justify-between gap-4 rounded-[18px] border-[1.5px] border-[#f0dba9] bg-[#fffaf0] px-[26px] py-6">
+        <div className="mb-[22px] flex flex-wrap items-center justify-between gap-4 rounded-[18px] border-[1.5px] border-warning-semantic/40 bg-warning-surface px-[26px] py-6">
           <div className="flex items-center gap-3.5">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[11px] bg-aztec-2 text-saffron">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[11px] bg-primary/20 text-primary">
               <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d={PATHS.bell} />
               </svg>
             </div>
             <div>
               <div className="text-sm font-bold">Activate mobile notifications</div>
-              <div className="mt-0.5 text-[12.5px] text-ink-soft">
+              <div className="mt-0.5 text-[12.5px] text-foreground-secondary">
                 Get a real popup on this device the moment a comment, message, or
                 activity update lands.
               </div>
@@ -134,7 +134,7 @@ export default function ProfilePage() {
             </PrimaryBtn>
             <button
               type="button"
-              className="flex h-8 w-8 items-center justify-center rounded-full border-none bg-black/6 text-base text-ink-soft"
+              className="flex h-8 w-8 items-center justify-center rounded-full border-none bg-surface-muted text-base text-foreground-secondary hover:text-foreground"
               onClick={() => dismissNotifNudge(u.id)}
               aria-label="Dismiss"
             >
@@ -145,7 +145,7 @@ export default function ProfilePage() {
       )}
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1.5fr_1fr]">
-        <div className="rounded-[18px] border border-line bg-card px-[26px] py-6 text-center shadow-card">
+        <div className="rounded-[18px] border border-border bg-surface px-[26px] py-6 text-center shadow-card">
           <div
             className="mx-auto mb-5 flex h-[132px] w-[132px] items-center justify-center overflow-hidden rounded-full font-display text-[40px] font-bold text-white shadow-[0_14px_28px_-12px_rgba(13,29,26,0.45)]"
             style={{ background: u.color }}
@@ -158,7 +158,7 @@ export default function ProfilePage() {
             )}
           </div>
           <div className="font-display text-xl leading-tight font-semibold">{u.name}</div>
-          <div className="mt-1 text-[13px] text-ink-soft">
+          <div className="mt-1 text-[13px] text-foreground-secondary">
             {u.designation || roleLabel(u)}
           </div>
           <GhostBtn
@@ -172,12 +172,12 @@ export default function ProfilePage() {
           </GhostBtn>
         </div>
 
-        <div className="rounded-[18px] border border-line bg-card px-[26px] py-6 shadow-card">
-          <div className="mb-6 border-b border-line pb-4">
+        <div className="rounded-[18px] border border-border bg-surface px-[26px] py-6 shadow-card">
+          <div className="mb-6 border-b border-border pb-4">
             <h2 className="m-0 font-display text-[17px] font-semibold">
               Personnel record
             </h2>
-            <p className="mt-1 text-[12.5px] text-ink-soft">
+            <p className="mt-1 text-[12.5px] text-foreground-secondary">
               {u.role === "head"
                 ? "You manage this for the unit"
                 : "Managed by the Unit Head"}
@@ -199,28 +199,28 @@ export default function ProfilePage() {
             ).map(([k, v]) => (
               <div
                 key={k}
-                className="grid grid-cols-1 items-baseline gap-x-6 border-b border-line/60 py-2.5 first:pt-0 last:border-none last:pb-0 sm:grid-cols-[160px_1fr]"
+                className="grid grid-cols-1 items-baseline gap-x-6 border-b border-border/60 py-2.5 first:pt-0 last:border-none last:pb-0 sm:grid-cols-[160px_1fr]"
               >
-                <dt className="text-[12.5px] text-ink-soft">{k}</dt>
+                <dt className="text-[12.5px] text-foreground-secondary">{k}</dt>
                 <dd
-                  className={`text-[13px] font-bold text-ink ${k === "Username" ? "font-mono" : ""}`}
+                  className={`text-[13px] font-bold text-foreground ${k === "Username" ? "font-mono" : ""}`}
                 >
                   {v}
                 </dd>
               </div>
             ))}
           </dl>
-          <div className="mt-5 rounded-[10px] border border-line bg-neutral-bg p-3 text-[12px] leading-relaxed text-ink-soft">
+          <div className="mt-5 rounded-[10px] border border-border bg-surface-muted p-3 text-[12px] leading-relaxed text-foreground-secondary">
             {u.role !== "head" ? (
               <>
                 Spot something out of date? Message the Unit Head via{" "}
-                <b className="text-ink">Connect</b> — these details are kept up
+                <b className="text-foreground">Connect</b> — these details are kept up
                 to date from the Accounting Officer dashboard.
               </>
             ) : (
               <>
                 Edit anyone&apos;s record — including your own — from{" "}
-                <b className="text-ink">Team profiles</b> on your Accounting
+                <b className="text-foreground">Team profiles</b> on your Accounting
                 Officer dashboard.
               </>
             )}
@@ -231,7 +231,7 @@ export default function ProfilePage() {
       <ModalBackdrop open={selfieOpen} onClose={closeSelfie}>
         <ModalPanel className="w-[420px]">
           <h3 className="m-0 mb-1.5 font-display text-xl">Take a selfie</h3>
-          <p className="mb-5 text-[12.5px] text-ink-soft">
+          <p className="mb-5 text-[12.5px] text-foreground-secondary">
             Only a live photo from your camera is accepted — you can&apos;t
             upload one from your gallery.
           </p>
@@ -254,12 +254,12 @@ export default function ProfilePage() {
             <canvas ref={canvasRef} className="hidden" />
           </div>
           {selfieError && (
-            <div className="mt-3.5 text-[12.5px] leading-snug text-critical">
+            <div className="mt-3.5 text-[12.5px] leading-snug text-critical-semantic">
               {selfieError}
             </div>
           )}
           {selfieHint && (
-            <div className="mt-2 text-[11.5px] leading-snug text-ink-faint">
+            <div className="mt-2 text-[11.5px] leading-snug text-foreground-faint">
               {selfieHint}
             </div>
           )}
@@ -268,14 +268,14 @@ export default function ProfilePage() {
               <>
                 <button
                   type="button"
-                  className="flex-1 cursor-pointer rounded-[10px] border-[1.5px] border-line py-3 font-bold"
+                  className="flex-1 cursor-pointer rounded-[10px] border-[1.5px] border-border bg-surface text-foreground py-3 font-bold hover:bg-surface-hover transition-colors"
                   onClick={retake}
                 >
                   Retake
                 </button>
                 <button
                   type="button"
-                  className="flex-[1.3] cursor-pointer rounded-[10px] border-none bg-aztec py-3 font-bold text-white"
+                  className="flex-[1.3] cursor-pointer rounded-[10px] border-none bg-primary py-3 font-bold text-primary-foreground hover:bg-primary-hover transition-colors"
                   onClick={() => {
                     if (selfiePreview) {
                       void updateUserProfile(u.id, {
@@ -301,7 +301,7 @@ export default function ProfilePage() {
               <>
                 <button
                   type="button"
-                  className="flex-1 cursor-pointer rounded-[10px] border-[1.5px] border-line py-3 font-bold"
+                  className="flex-1 cursor-pointer rounded-[10px] border-[1.5px] border-border bg-surface text-foreground py-3 font-bold hover:bg-surface-hover transition-colors"
                   onClick={closeSelfie}
                 >
                   Cancel
@@ -309,7 +309,7 @@ export default function ProfilePage() {
                 {offerNewTab && (
                   <button
                     type="button"
-                    className="flex-1 cursor-pointer rounded-[10px] border-[1.5px] border-line py-3 font-bold"
+                    className="flex-1 cursor-pointer rounded-[10px] border-[1.5px] border-border bg-surface text-foreground py-3 font-bold hover:bg-surface-hover transition-colors"
                     onClick={() => window.open(window.location.href, "_blank")}
                   >
                     Open in new tab
@@ -317,7 +317,7 @@ export default function ProfilePage() {
                 )}
                 <button
                   type="button"
-                  className="flex-[1.3] cursor-pointer rounded-[10px] border-none bg-aztec py-3 font-bold text-white"
+                  className="flex-[1.3] cursor-pointer rounded-[10px] border-none bg-primary py-3 font-bold text-primary-foreground hover:bg-primary-hover transition-colors"
                   onClick={() => openCapture()}
                 >
                   Try again
@@ -327,14 +327,14 @@ export default function ProfilePage() {
               <>
                 <button
                   type="button"
-                  className="flex-1 cursor-pointer rounded-[10px] border-[1.5px] border-line py-3 font-bold"
+                  className="flex-1 cursor-pointer rounded-[10px] border-[1.5px] border-border bg-surface text-foreground py-3 font-bold hover:bg-surface-hover transition-colors"
                   onClick={closeSelfie}
                 >
                   Cancel
                 </button>
                 <button
                   type="button"
-                  className="flex-[1.3] cursor-pointer rounded-[10px] border-none bg-aztec py-3 font-bold text-white"
+                  className="flex-[1.3] cursor-pointer rounded-[10px] border-none bg-primary py-3 font-bold text-primary-foreground hover:bg-primary-hover transition-colors"
                   onClick={shoot}
                 >
                   Capture

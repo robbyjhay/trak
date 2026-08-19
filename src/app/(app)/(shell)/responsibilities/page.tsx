@@ -16,13 +16,13 @@ export default function ResponsibilitiesPage() {
     <div>
       <div className="mb-[22px] flex flex-wrap items-end justify-between gap-5">
         <div>
-          <div className="mb-2 text-[11.5px] font-bold tracking-[0.12em] text-saffron-dim uppercase">
+          <div className="mb-2 text-[11.5px] font-bold tracking-[0.12em] text-foreground-secondary uppercase">
             Digital Learning Unit
           </div>
           <h1 className="m-0 mb-1.5 font-display text-[30px] font-semibold">
             Responsibilities
           </h1>
-          <p className="m-0 text-[13.5px] text-ink-soft">
+          <p className="m-0 text-[13.5px] text-foreground-secondary">
             {isHead
               ? "Create and edit the unit's official responsibilities."
               : "The unit's official responsibilities — every activity links to at least one."}
@@ -37,7 +37,7 @@ export default function ResponsibilitiesPage() {
           </GhostBtn>
         )}
       </div>
-      <div className="rounded-[18px] border border-line bg-card px-[26px] py-6">
+      <div className="rounded-[18px] border border-border bg-surface px-[26px] py-6">
         <RespManageList />
       </div>
       {adding && (

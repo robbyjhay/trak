@@ -17,14 +17,21 @@ const NAV = [
 export function Rail() {
   const pathname = usePathname();
 
+  const isActive = (item: { href: string; also?: string[] }) => {
+    if (pathname === item.href) return true;
+    if (item.href === "/activities" && pathname.startsWith("/activity/")) return true;
+    if (item.also?.some((p) => pathname.startsWith(p))) return true;
+    return false;
+  };
+
   return (
     <nav
-      className="sticky top-0 z-50 flex h-screen w-rail shrink-0 flex-col items-center gap-1.5 bg-linear-to-b from-aztec to-aztec-2 py-[22px]"
+      className="sticky top-0 z-50 flex h-screen w-rail shrink-0 flex-col items-center gap-3 bg-surface py-6 shadow-[4px_0_24px_rgba(0,0,0,0.02)]"
       aria-label="Main"
     >
       <Link
         href="/dashboard"
-        className="mb-[26px] flex h-[38px] w-[38px] items-center justify-center rounded-[10px] bg-linear-to-br from-saffron to-[#d9a72c] font-display text-base font-bold text-aztec shadow-rail"
+        className="mb-6 flex h-10 w-10 items-center justify-center rounded-xl bg-primary font-display text-lg font-bold text-primary-foreground shadow-sm transition-transform hover:scale-105"
         aria-label="Trak home"
       >
         T
@@ -34,11 +41,7 @@ export function Rail() {
         <RailItem
           key={item.href}
           {...item}
-          active={
-            pathname === item.href ||
-            (item.also?.some((a) => pathname.startsWith(a)) ?? false) ||
-            (item.href === "/messages" && pathname.startsWith("/contacts"))
-          }
+          active={isActive(item)}
         />
       ))}
 
@@ -48,7 +51,7 @@ export function Rail() {
         <RailItem
           key={item.href}
           {...item}
-          active={pathname === item.href}
+          active={isActive(item)}
         />
       ))}
     </nav>
@@ -70,24 +73,29 @@ function RailItem({
     <Link
       href={href}
       className={cn(
-        "group relative flex h-12 w-12 items-center justify-center rounded-rail transition-colors focus-visible:ring-2 focus-visible:ring-saffron focus-visible:outline-none",
+        "group relative flex h-[42px] w-[42px] items-center justify-center rounded-2xl transition-all duration-200 focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none",
         active
-          ? "bg-saffron text-aztec"
-          : "text-white hover:bg-paper/8 hover:text-white",
+          ? "bg-primary/10 text-primary shadow-sm"
+          : "text-foreground-secondary hover:bg-surface-hover hover:text-foreground",
       )}
       aria-label={label}
       aria-current={active ? "page" : undefined}
     >
-      <span className="pointer-events-none absolute left-16 z-20 rounded-[7px] bg-aztec px-2.5 py-1.5 text-[11px] whitespace-nowrap text-white opacity-0 shadow-[0_6px_16px_rgba(0,0,0,0.3)] transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100 group-focus-within:opacity-100">
+      {active && (
+        <div className="absolute left-0 top-1/2 h-5 w-1 -translate-y-1/2 rounded-r-full bg-primary" />
+      )}
+      <span className="pointer-events-none absolute left-14 z-20 rounded-lg bg-foreground px-3 py-1.5 text-[12px] font-medium whitespace-nowrap text-background opacity-0 shadow-lg transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100 group-focus-within:opacity-100">
         {label}
       </span>
       <svg
-        width="19"
-        height="19"
+        width="20"
+        height="20"
         viewBox="0 0 24 24"
         fill="none"
-        stroke={active ? "#0d1d1a" : "#ffffff"}
-        strokeWidth="2"
+        stroke="currentColor"
+        strokeWidth="2.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
       >
         <path d={path} />
       </svg>

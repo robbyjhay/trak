@@ -11,6 +11,7 @@ import {
   getActivityLogs,
   softDeleteActivity,
   toggleActivityHidden,
+  updateActivityEndDate,
   updateActivityWrapup,
 } from "@/lib/db/service";
 import type { WrapupData } from "@/lib/types";
@@ -46,7 +47,7 @@ export async function PATCH(
     if (error) return error;
     const { id } = await ctx.params;
     const body = await parseJsonBody<
-      WrapupData & { action?: string }
+      WrapupData & { action?: string; endDate?: string }
     >(req);
 
     if (body.action === "toggleHidden") {
@@ -55,6 +56,11 @@ export async function PATCH(
     }
     if (body.action === "softDelete") {
       const activity = await softDeleteActivity(session, id);
+      return jsonOk({ activity });
+    }
+
+    if (body.action === "updateDates" && body.endDate) {
+      const activity = await updateActivityEndDate(session, id, body.endDate as string);
       return jsonOk({ activity });
     }
 

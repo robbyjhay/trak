@@ -41,7 +41,7 @@ export function ForgotPasswordForm() {
   if (done) {
     return (
       <div
-        className="rounded-[12px] border border-good/30 bg-good-bg px-4 py-3.5 text-[13.5px] leading-relaxed text-good"
+        className="rounded-[12px] border border-success/30 bg-success-surface px-4 py-3.5 text-[13.5px] leading-relaxed text-success"
         role="status"
         aria-live="polite"
       >
@@ -56,7 +56,7 @@ export function ForgotPasswordForm() {
       <div className="mb-4">
         <label
           htmlFor="forgotIdentifier"
-          className="mb-2.5 block text-[11.5px] font-bold tracking-widest text-ink-soft uppercase"
+          className="mb-2.5 block text-[11.5px] font-bold tracking-widest text-foreground-secondary uppercase"
         >
           Username or email
         </label>
@@ -69,7 +69,7 @@ export function ForgotPasswordForm() {
           onChange={(e) => setIdentifier(e.target.value)}
           placeholder="your.username or you@example.gov.ng"
           required
-          className="w-full rounded-xl border-[1.5px] border-line px-3.5 py-3.5 text-[14.5px] outline-none placeholder:text-ink-soft focus:border-aztec-3 focus:ring-2 focus:ring-saffron/60"
+          className="w-full rounded-xl border-[1.5px] border-input-border bg-input px-3.5 py-3.5 text-[14.5px] text-foreground outline-none placeholder:text-input-placeholder focus:border-primary focus:ring-2 focus:ring-primary/40"
         />
       </div>
 
@@ -85,7 +85,7 @@ export function ForgotPasswordForm() {
       <button
         type="submit"
         disabled={pending || !identifier.trim()}
-        className="mt-1 flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl border-none bg-linear-to-br from-aztec-3 to-aztec py-3.5 text-[14.5px] font-bold text-paper focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-saffron disabled:opacity-60"
+        className="mt-1 flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl border-none bg-primary py-3.5 text-[14.5px] font-bold text-primary-foreground transition-colors hover:bg-primary-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:opacity-60"
       >
         {pending ? "Sending…" : "Send reset link"}
       </button>

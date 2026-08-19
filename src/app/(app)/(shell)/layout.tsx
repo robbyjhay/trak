@@ -4,7 +4,7 @@ export default function ShellLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div id="main" className="content max-w-content flex-1 px-5 py-8 pb-24 sm:px-11 sm:py-8 md:pb-8">
+    <div id="main" className="mx-auto w-full max-w-[1440px] flex-1 px-4 py-6 pb-32 sm:px-8 sm:py-10 md:pb-12 lg:px-12">
       {children}
     </div>
   );

@@ -15,13 +15,13 @@ export function IncomingCallOverlay() {
   if (!caller) return null;
 
   return (
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm">
-      <div className="mx-4 w-full max-w-[340px] overflow-hidden rounded-[20px] border border-line bg-card shadow-[0_20px_60px_rgba(0,0,0,0.35)]">
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-overlay backdrop-blur-sm">
+      <div className="mx-4 w-full max-w-[340px] overflow-hidden rounded-[20px] border border-border bg-modal shadow-modal">
         <div className="flex flex-col items-center bg-linear-to-b from-aztec to-aztec-2 px-6 pt-8 pb-6 text-white">
           <div className="relative mb-4">
-            <span className="absolute inset-0 animate-ping rounded-full bg-saffron/30" />
+            <span className="absolute inset-0 animate-ping rounded-full bg-primary/30" />
             <span
-              className="absolute -inset-3 animate-ping rounded-full bg-saffron/20"
+              className="absolute -inset-3 animate-ping rounded-full bg-primary/20"
               style={{ animationDelay: "0.4s" }}
             />
             <div
@@ -31,16 +31,16 @@ export function IncomingCallOverlay() {
               {initials(caller.name)}
             </div>
           </div>
-          <div className="text-[18px] font-bold">{caller.name}</div>
+          <div className="text-[18px] font-bold text-white">{caller.name}</div>
           <div className="mt-1 text-[12px] text-white/65">Incoming voice call</div>
           <div className="mt-1 text-[11px] text-white/45">{caller.designation || caller.username}</div>
         </div>
 
-        <div className="flex items-center justify-center gap-8 px-6 py-7">
+        <div className="flex items-center justify-center gap-8 bg-surface px-6 py-7">
           <button
             type="button"
             onClick={rejectCall}
-            className="flex h-[56px] w-[56px] cursor-pointer items-center justify-center rounded-full border-none bg-critical text-white shadow-[0_6px_16px_rgba(181,69,58,0.4)] transition-transform hover:scale-105 active:scale-95"
+            className="flex h-[56px] w-[56px] cursor-pointer items-center justify-center rounded-full border-none bg-critical-semantic text-critical-foreground shadow-[0_6px_16px_rgba(181,69,58,0.4)] transition-transform hover:scale-105 active:scale-95"
             aria-label="Decline call"
           >
             <svg
@@ -58,7 +58,7 @@ export function IncomingCallOverlay() {
           <button
             type="button"
             onClick={acceptCall}
-            className="flex h-[56px] w-[56px] cursor-pointer items-center justify-center rounded-full border-none bg-[#34c759] text-white shadow-[0_6px_16px_rgba(52,199,89,0.4)] transition-transform hover:scale-105 active:scale-95"
+            className="flex h-[56px] w-[56px] cursor-pointer items-center justify-center rounded-full border-none bg-success text-success-foreground shadow-[0_6px_16px_rgba(46,125,91,0.4)] transition-transform hover:scale-105 active:scale-95"
             aria-label="Accept call"
           >
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">

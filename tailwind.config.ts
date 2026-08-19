@@ -25,7 +25,7 @@ const config = {
         ink: {
           DEFAULT: "#12211d",
           soft: "#5f7069",
-          faint: "#93a29b",
+          faint: "#6b7a73", // Fixed to match globals.css (WCAG AA on paper)
         },
         line: "#e6e3d9",
         good: {
@@ -46,12 +46,83 @@ const config = {
           bg: "#eef0ec",
         },
         cat: {
-          meeting: "#3b82f6",
-          project: "#8b5cf6",
-          program: "#0ea5e9",
-          task: "#6366f1",
+          meeting: "#12915f", // Fixed to match globals.css
+          project: "#c9821f", // Fixed to match globals.css
+          program: "#1f7fa8", // Fixed to match globals.css
+          task: "#c1613f", // Fixed to match globals.css
         },
         wa: "#25d366",
+        
+        // Semantic Theme Tokens
+        background: "var(--background)",
+        foreground: {
+          DEFAULT: "var(--foreground)",
+          secondary: "var(--foreground-secondary)",
+          muted: "var(--foreground-muted)",
+          faint: "var(--foreground-faint)",
+          inverse: "var(--foreground-inverse)",
+        },
+        surface: {
+          DEFAULT: "var(--surface)",
+          elevated: "var(--surface-elevated)",
+          muted: "var(--surface-muted)",
+          interactive: "var(--surface-interactive)",
+          hover: "var(--surface-hover)",
+          active: "var(--surface-active)",
+        },
+        border: {
+          DEFAULT: "var(--border)",
+          subtle: "var(--border-subtle)",
+          strong: "var(--border-strong)",
+        },
+        primary: {
+          DEFAULT: "var(--primary)",
+          hover: "var(--primary-hover)",
+          active: "var(--primary-active)",
+          foreground: "var(--primary-foreground)",
+        },
+        secondary: {
+          DEFAULT: "var(--secondary)",
+          hover: "var(--secondary-hover)",
+          foreground: "var(--secondary-foreground)",
+        },
+        navigation: {
+          DEFAULT: "var(--navigation)",
+          hover: "var(--navigation-hover)",
+          active: "var(--navigation-active)",
+          foreground: "var(--navigation-foreground)",
+          muted: "var(--navigation-muted)",
+        },
+        input: {
+          DEFAULT: "var(--input)",
+          border: "var(--input-border)",
+          placeholder: "var(--input-placeholder)",
+          focus: "var(--input-focus)",
+        },
+        success: {
+          DEFAULT: "var(--success)",
+          surface: "var(--success-surface)",
+          foreground: "var(--success-foreground)",
+        },
+        warningSemantic: {
+          DEFAULT: "var(--warning-semantic)",
+          surface: "var(--warning-surface)",
+          foreground: "var(--warning-foreground)",
+        },
+        criticalSemantic: {
+          DEFAULT: "var(--critical-semantic)",
+          surface: "var(--critical-surface)",
+          foreground: "var(--critical-foreground)",
+        },
+        info: {
+          DEFAULT: "var(--info)",
+          surface: "var(--info-surface)",
+          foreground: "var(--info-foreground)",
+        },
+        overlay: "var(--overlay)",
+        popover: "var(--popover)",
+        modal: "var(--modal)",
+        tooltip: "var(--tooltip)",
       },
       fontFamily: {
         // Fraunces — display / headings

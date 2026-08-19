@@ -49,7 +49,7 @@ export function ResetPasswordForm({ token }: { token: string }) {
       <div className="mb-4">
         <label
           htmlFor="rpPass"
-          className="mb-2.5 block text-[11.5px] font-bold tracking-widest text-ink-soft uppercase"
+          className="mb-2.5 block text-[11.5px] font-bold tracking-widest text-foreground-secondary uppercase"
         >
           New password
         </label>
@@ -64,13 +64,13 @@ export function ResetPasswordForm({ token }: { token: string }) {
           minLength={12}
           maxLength={128}
           required
-          className="w-full rounded-xl border-[1.5px] border-line px-3.5 py-3.5 text-[14.5px] outline-none placeholder:text-ink-soft focus:border-aztec-3 focus:ring-2 focus:ring-saffron/60"
+          className="w-full rounded-xl border-[1.5px] border-input-border bg-input px-3.5 py-3.5 text-[14.5px] text-foreground outline-none placeholder:text-input-placeholder focus:border-primary focus:ring-2 focus:ring-primary/40"
         />
       </div>
       <div className="mb-4">
         <label
           htmlFor="rpConfirm"
-          className="mb-2.5 block text-[11.5px] font-bold tracking-widest text-ink-soft uppercase"
+          className="mb-2.5 block text-[11.5px] font-bold tracking-widest text-foreground-secondary uppercase"
         >
           Confirm password
         </label>
@@ -85,7 +85,7 @@ export function ResetPasswordForm({ token }: { token: string }) {
           minLength={12}
           maxLength={128}
           required
-          className="w-full rounded-xl border-[1.5px] border-line px-3.5 py-3.5 text-[14.5px] outline-none placeholder:text-ink-soft focus:border-aztec-3 focus:ring-2 focus:ring-saffron/60"
+          className="w-full rounded-xl border-[1.5px] border-input-border bg-input px-3.5 py-3.5 text-[14.5px] text-foreground outline-none placeholder:text-input-placeholder focus:border-primary focus:ring-2 focus:ring-primary/40"
         />
       </div>
 
@@ -101,7 +101,7 @@ export function ResetPasswordForm({ token }: { token: string }) {
       <button
         type="submit"
         disabled={pending}
-        className="mt-1 flex w-full cursor-pointer items-center justify-center rounded-xl border-none bg-linear-to-br from-aztec-3 to-aztec py-3.5 text-[14.5px] font-bold text-paper focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-saffron disabled:opacity-60"
+        className="mt-1 flex w-full cursor-pointer items-center justify-center rounded-xl border-none bg-primary py-3.5 text-[14.5px] font-bold text-primary-foreground transition-colors hover:bg-primary-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:opacity-60"
       >
         {pending ? "Saving…" : "Save new password"}
       </button>

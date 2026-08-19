@@ -679,6 +679,95 @@ export async function submitDailyLog(
     activity: mapActivity(updatedAct),
   };
 }
+export async function updateActivityEndDate(
+  session: SessionUser,
+  activityId: string,
+  endDate: string,
+): Promise<Activity> {
+  const actor = await requireActor(session);
+  const act = await prisma.activity.findUnique({
+    where: { id: activityId },
+    include: { dailyLogs: true },
+  });
+  if (!act || act.softDeletedAt) throw new ServiceError(404, "Activity not found.");
+  if (act.createdById !== session.id && actor.role !== "head") {
+    throw new ServiceError(403, "Not allowed to update this activity.");
+  }
+  
+  const newEnd = dateFromIso(endDate);
+  if (newEnd < act.startDate) {
+    throw new ServiceError(400, "endDate must be on or after startDate.");
+  }
+
+  const nDays = daysBetween(iso(act.startDate), endDate) + 1;
+  if (nDays > 90) {
+    throw new ServiceError(400, "Activity span cannot exceed 90 days.");
+  }
+
+  const requiredDates = Array.from({ length: nDays }, (_, i) => iso(addDays(act.startDate, i)));
+  const submittedLogs = act.dailyLogs.filter((l) => l.status === "submitted");
+
+  // Check if there are submitted logs outside the new range
+  const submittedDates = submittedLogs.map((l) => iso(l.date));
+  for (const d of submittedDates) {
+    if (!requiredDates.includes(d)) {
+      throw new ServiceError(
+        400,
+        "Cannot move end date earlier than existing submitted daily logs.",
+      );
+    }
+  }
+
+  const existingDates = act.dailyLogs.map((l) => iso(l.date));
+  const missingDates = requiredDates.filter((d) => !existingDates.includes(d));
+  const datesToRemove = existingDates.filter((d) => !requiredDates.includes(d));
+
+  const updatedAct = await prisma.$transaction(async (tx) => {
+    // Delete pending logs outside range
+    if (datesToRemove.length > 0) {
+      await tx.dailyLog.deleteMany({
+        where: {
+          activityId,
+          date: { in: datesToRemove.map(dateFromIso) },
+          status: "pending",
+        },
+      });
+    }
+
+    // Create missing logs for newly added dates
+    if (missingDates.length > 0) {
+      await tx.dailyLog.createMany({
+        data: missingDates.map((d) => ({
+          activityId,
+          date: dateFromIso(d),
+        })),
+      });
+    }
+
+    // Update Activity endDate
+    return await tx.activity.update({
+      where: { id: activityId },
+      data: { endDate: newEnd },
+      include: activityInclude,
+    });
+  });
+
+  await recordAuditEvent({
+    userId: session.authUserId,
+    action: "activity_update",
+    targetId: activityId,
+    targetType: "activity",
+  });
+
+  await recomputeActivityStatus(activityId);
+
+  const refreshed = await prisma.activity.findUniqueOrThrow({
+    where: { id: activityId },
+    include: activityInclude,
+  });
+  return mapActivity(refreshed);
+}
+
 
 export async function updateActivityWrapup(
   session: SessionUser,

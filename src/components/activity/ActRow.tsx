@@ -32,7 +32,7 @@ export function ActRow({
       .sort((x, y) => x.date.localeCompare(y.date));
     const doneN = logs.filter((l) => l.status === "submitted").length;
     dayTag = (
-      <span className="rounded-full bg-neutral-bg px-2 py-0.5 text-[9.5px] font-bold tracking-wide text-neutral uppercase">
+      <span className="rounded-full bg-surface-muted px-2 py-0.5 text-[9.5px] font-bold tracking-wide text-foreground-secondary uppercase">
         Day {Math.min(doneN + 1, days)} of {days}
       </span>
     );
@@ -64,17 +64,17 @@ export function ActRow({
 
   const statusCls =
     a.status === "pending"
-      ? "bg-warning-bg text-warning-ink"
+      ? "bg-warning-surface text-warning-foreground"
       : a.status === "completed"
-        ? "bg-good-bg text-good"
-        : "bg-critical-bg text-critical";
+        ? "bg-success-surface text-success"
+        : "bg-critical-surface text-critical-semantic";
 
   return (
     <div
       role="button"
       tabIndex={0}
       style={{ animationDelay: `${index * 50}ms` }}
-      className="group flex cursor-pointer flex-wrap items-center gap-x-3.5 gap-y-2.5 rounded-[13px] border border-line px-4 py-3.5 transition-all hover:-translate-y-px hover:border-saffron-dim hover:shadow-[0_6px_16px_rgba(13,29,26,0.06)] animate-in fade-in slide-in-from-bottom-2 duration-300 fill-mode-backwards"
+      className="group flex cursor-pointer flex-wrap items-center gap-x-3.5 gap-y-2.5 rounded-[13px] border border-border bg-surface px-4 py-3.5 transition-all hover:-translate-y-px hover:border-primary hover:shadow-[0_6px_16px_rgba(13,29,26,0.06)] animate-in fade-in slide-in-from-bottom-2 duration-300 fill-mode-backwards"
       onClick={() => router.push(`/activity/${a.id}`)}
       onKeyDown={(e) => {
         if (e.key === "Enter" || e.key === " ") {
@@ -91,13 +91,13 @@ export function ActRow({
       </div>
       <div className="min-w-0 flex-1">
         <div className="mb-0.5 truncate text-[13.5px] font-bold">{a.title}</div>
-        <div className="flex flex-wrap items-center gap-2 text-[11.5px] text-ink-faint">
+        <div className="flex flex-wrap items-center gap-2 text-[11.5px] text-foreground-faint">
           <span>{a.type}</span>
-          <span className="h-[3px] w-[3px] rounded-full bg-ink-faint" />
+          <span className="h-[3px] w-[3px] rounded-full bg-foreground-faint" />
           <span>{metaLine}</span>
           {dayTag}
           {a.delegatedBy && (
-            <span className="rounded-full bg-warning-bg px-2 py-0.5 text-[9.5px] font-bold tracking-wide text-warning-ink uppercase">
+            <span className="rounded-full bg-warning-surface px-2 py-0.5 text-[9.5px] font-bold tracking-wide text-warning-foreground uppercase">
               Delegated by{" "}
               {a.delegatedBy === "babajide"
                 ? "Unit Head"
@@ -105,7 +105,7 @@ export function ActRow({
             </span>
           )}
           {a.hasBudget && (
-            <span className="rounded-full bg-[#fff8e6] px-2 py-0.5 text-[9.5px] font-bold tracking-wide text-[#9a7b4f] uppercase">
+            <span className="rounded-full bg-warning-surface px-2 py-0.5 text-[9.5px] font-bold tracking-wide text-warning-foreground uppercase">
               Budget
             </span>
           )}
@@ -123,7 +123,7 @@ export function ActRow({
           <button
             type="button"
             title="Preview & download report"
-            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[9px] border-[1.5px] border-line bg-white text-ink-soft hover:border-saffron-dim hover:bg-[#fffaf0] hover:text-saffron-dim opacity-0 group-hover:opacity-100 transition-opacity focus-within:opacity-100"
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[9px] border-[1.5px] border-border bg-surface text-foreground-secondary hover:border-primary hover:bg-surface-hover hover:text-primary opacity-0 group-hover:opacity-100 transition-all focus-within:opacity-100"
             onClick={(e) => {
               e.stopPropagation();
               onReport(a.id);
@@ -134,7 +134,7 @@ export function ActRow({
             </svg>
           </button>
         )}
-        <div className="shrink-0 text-ink-faint">
+        <div className="shrink-0 text-foreground-faint">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <path d={PATHS.chevronRight} />
           </svg>

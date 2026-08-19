@@ -13,7 +13,7 @@ export function ConnectTabs({ className }: { className?: string }) {
   return (
     <div
       className={cn(
-        "flex w-fit gap-1.5 rounded-[11px] bg-neutral-bg p-1",
+        "flex w-fit gap-1.5 rounded-[11px] bg-surface-muted p-1",
         className,
       )}
     >
@@ -22,10 +22,10 @@ export function ConnectTabs({ className }: { className?: string }) {
           key={key}
           type="button"
           onClick={() => setView(key)}
-          className={`cursor-pointer rounded-lg border-none px-4 py-2 text-[12.5px] font-bold ${
+          className={`cursor-pointer rounded-lg border-none px-4 py-2 text-[12.5px] font-bold transition-colors ${
             view === key
-              ? "bg-card text-ink shadow-[0_2px_6px_rgba(0,0,0,0.06)]"
-              : "bg-transparent text-ink-soft"
+              ? "bg-surface text-foreground shadow-[0_2px_6px_rgba(0,0,0,0.06)]"
+              : "bg-transparent text-foreground-secondary hover:text-foreground hover:bg-surface-hover"
           }`}
         >
           {label}

@@ -48,15 +48,15 @@ export function ReportPreviewProvider({ children }: { children: React.ReactNode 
       {children}
       {open && act && (
         <div
-          className="fixed inset-0 z-[100] flex items-center justify-center bg-[rgba(13,29,26,0.55)] backdrop-blur-[2px]"
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-overlay backdrop-blur-[2px]"
           onClick={(e) => {
             if (e.target === e.currentTarget) setOpen(false);
           }}
         >
-          <div className="flex max-h-[92vh] w-[900px] max-w-[95vw] flex-col overflow-hidden rounded-[18px] bg-[#e5e3db] shadow-[0_30px_70px_rgba(0,0,0,0.4)]">
-            <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-line bg-white px-4 py-3.5 sm:px-6 sm:py-4">
+          <div className="flex max-h-[92vh] w-[900px] max-w-[95vw] flex-col overflow-hidden rounded-[18px] bg-surface-muted shadow-[0_30px_70px_rgba(0,0,0,0.4)]">
+            <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-border bg-modal px-4 py-3.5 sm:px-6 sm:py-4">
               <div>
-                <div className="text-[10.5px] font-bold tracking-widest text-ink-faint uppercase">
+                <div className="text-[10.5px] font-bold tracking-widest text-foreground-faint uppercase">
                   Report preview — A4
                 </div>
                 <div className="mt-0.5 max-w-[520px] truncate font-display text-[16.5px] font-semibold">
@@ -80,7 +80,7 @@ export function ReportPreviewProvider({ children }: { children: React.ReactNode 
                 </PrimaryMini>
                 <button
                   type="button"
-                  className="flex h-8 w-8 items-center justify-center rounded-full border-none bg-neutral-bg text-lg text-ink-soft"
+                  className="flex h-8 w-8 items-center justify-center rounded-full border-none bg-surface-muted text-lg text-foreground-secondary hover:text-foreground"
                   onClick={() => setOpen(false)}
                   aria-label="Close"
                 >
@@ -88,7 +88,7 @@ export function ReportPreviewProvider({ children }: { children: React.ReactNode 
                 </button>
               </div>
             </div>
-            <div className="flex flex-1 justify-center overflow-y-auto bg-[#e5e3db] p-4 sm:p-8">
+            <div className="flex flex-1 justify-center overflow-y-auto bg-surface-muted p-4 sm:p-8">
               <iframe
                 title="Activity report preview"
                 className="min-h-[297mm] w-[210mm] max-w-full border-none bg-white shadow-[0_6px_28px_rgba(0,0,0,0.22)]"
