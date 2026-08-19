@@ -683,6 +683,23 @@ function AccountingOfficer() {
             <button
               type="button"
               className="flex-[1.3] cursor-pointer rounded-[10px] border-none bg-aztec py-3 font-bold text-white"
+              onClick={async () => {
+                const { resetMemberPasswordAction } = await import("@/lib/auth/actions");
+                if (confirm(`Are you sure you want to reset ${userMap[editUserId]?.name}'s password to the default?`)) {
+                  const res = await resetMemberPasswordAction(editUserId);
+                  if (res.ok) {
+                    showToast("Password Reset", `${userMap[editUserId]?.name}'s password has been reset to the default member password.`);
+                  } else {
+                    showToast("Reset failed", res.error || "An error occurred.");
+                  }
+                }
+              }}
+            >
+              Reset Password
+            </button>
+            <button
+              type="button"
+              className="flex-[1.3] cursor-pointer rounded-[10px] border-none bg-aztec py-3 font-bold text-white"
               onClick={() => {
                 void updateUserProfile(editUserId, pe)
                   .then(() => {

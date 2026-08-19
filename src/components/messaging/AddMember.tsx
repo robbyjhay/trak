@@ -25,6 +25,7 @@ export function AddMember({ onClose }: { onClose: () => void }) {
   const [usernameTouched, setUsernameTouched] = useState(false);
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
+  const [successCredentials, setSuccessCredentials] = useState<{ username: string; starterPassword: string } | null>(null);
 
   function set<K extends keyof typeof form>(key: K, value: string) {
     setForm((f) => ({ ...f, [key]: value }));
@@ -54,13 +55,7 @@ export function AddMember({ onClose }: { onClose: () => void }) {
         roleType: form.roleType as "member" | "secretary" | "corps",
       });
       setSaving(false);
-      onClose();
-      showToast(
-        `${firstName(name)} added to the unit`,
-        email
-          ? `Username ${username} · invite email sent to ${email}. Starter password ${starterPassword} (share if email delivery fails).`
-          : `Username ${username} · starter password ${starterPassword} — share this with them; they'll be prompted to change it at first sign-in.`,
-      );
+      setSuccessCredentials({ username, starterPassword });
     } catch (err) {
       setSaving(false);
       setError(err instanceof Error ? err.message : "Could not add member.");
@@ -70,14 +65,55 @@ export function AddMember({ onClose }: { onClose: () => void }) {
   return (
     <ModalBackdrop open onClose={onClose} labelledBy="add-member-title">
       <ModalPanel>
-        <h3 id="add-member-title" className="m-0 mb-1.5 font-display text-xl">
-          Add member
-        </h3>
-        <p className="mb-5 text-[12.5px] text-ink-soft">
-          Creates their Trak login — you&apos;ll get their username &amp; a
-          starter password to share, and they&apos;re prompted to set their own
-          at first sign-in. With an email on file, an invite link is also sent.
-        </p>
+        {successCredentials ? (
+          <div className="text-center">
+            <h3 id="add-member-title" className="m-0 mb-4 font-display text-xl text-primary">
+              Member created successfully
+            </h3>
+            <div className="mb-6 rounded-xl bg-neutral-bg p-5 text-left font-mono text-[13px] leading-relaxed text-ink shadow-sm border border-line">
+              <div className="mb-2">
+                <span className="font-bold text-ink-soft uppercase tracking-wider text-[11px]">Username</span>
+                <div className="mt-1 text-[15px] font-bold text-ink">{successCredentials.username}</div>
+              </div>
+              <div>
+                <span className="font-bold text-ink-soft uppercase tracking-wider text-[11px]">Initial password</span>
+                <div className="mt-1 text-[15px] font-bold text-ink">{successCredentials.starterPassword}</div>
+              </div>
+            </div>
+            <div className="flex flex-col gap-3">
+              <button
+                type="button"
+                className="w-full cursor-pointer rounded-[10px] border-none bg-aztec py-3.5 font-bold text-white transition-colors hover:bg-aztec-3"
+                onClick={async () => {
+                  try {
+                    await navigator.clipboard.writeText(successCredentials.starterPassword);
+                    showToast("Password copied", "You can now paste it securely.");
+                  } catch {
+                    showToast("Copy failed", "Please copy manually.");
+                  }
+                }}
+              >
+                Copy Password
+              </button>
+              <button
+                type="button"
+                className="w-full cursor-pointer rounded-[10px] border-[1.5px] border-line bg-transparent py-3.5 font-bold transition-colors hover:bg-neutral-bg"
+                onClick={onClose}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        ) : (
+          <>
+            <h3 id="add-member-title" className="m-0 mb-1.5 font-display text-xl">
+              Add member
+            </h3>
+            <p className="mb-5 text-[12.5px] text-ink-soft">
+              Creates their Trak login — you&apos;ll get their username &amp; a
+              starter password to share, and they&apos;re prompted to set their own
+              at first sign-in. With an email on file, an invite link is also sent.
+            </p>
 
         <Field label="Full name *">
           <input
@@ -215,6 +251,8 @@ export function AddMember({ onClose }: { onClose: () => void }) {
             {saving ? "Adding…" : "Add member"}
           </button>
         </div>
+        </>
+        )}
       </ModalPanel>
     </ModalBackdrop>
   );

@@ -58,6 +58,11 @@ export function ModalBackdrop({
     }
   }, []);
 
+  const onCloseRef = useRef(onClose);
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
+
   useEffect(() => {
     if (!open) return;
 
@@ -76,7 +81,7 @@ export function ModalBackdrop({
     function onKey(e: KeyboardEvent) {
       if (e.key === "Escape") {
         e.preventDefault();
-        onClose?.();
+        onCloseRef.current?.();
         return;
       }
       trapFocus(e);
@@ -92,7 +97,7 @@ export function ModalBackdrop({
       document.body.style.overflow = prevOverflow;
       previousFocus.current?.focus?.();
     };
-  }, [open, onClose, trapFocus]);
+  }, [open, trapFocus]);
 
   if (!open) return null;
 

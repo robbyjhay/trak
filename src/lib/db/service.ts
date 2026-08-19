@@ -34,6 +34,7 @@ import {
   mapUser,
   type UserWithProfile,
 } from "@/lib/db/mappers";
+import { getDefaultMemberPassword } from "@/lib/services/settings.service";
 import type {
   Activity,
   Attendee,
@@ -331,7 +332,12 @@ export async function createUser(
   }
 
   const roleType = input.roleType || "member";
-  const starterPassword = generateTemporaryPassword();
+  
+  let starterPassword = await getDefaultMemberPassword();
+  if (!starterPassword) {
+    starterPassword = "TrakWelcome123!";
+  }
+  
   const passwordHash = await hashPassword(starterPassword);
   const colors = existing.map((u) => u.profile?.color || "#0e6b47");
 

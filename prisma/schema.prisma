@@ -462,3 +462,15 @@ model AuditEvent {
   @@index([createdAt])
   @@map("audit_events")
 }
+
+// ---------------------------------------------------------------------------
+// Unit Settings (Global)
+// ---------------------------------------------------------------------------
+
+model UnitSettings {
+  id                    String   @id @default(uuid()) @db.Uuid
+  defaultMemberPassword String?  @map("default_member_password") @db.VarChar(255)
+  updatedAt             DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@map("unit_settings")
+}
