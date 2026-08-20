@@ -176,7 +176,6 @@ function publicStorageUrl(key: string | null | undefined): string | null {
 
 export async function listUsers(): Promise<User[]> {
   const rows = await prisma.user.findMany({
-    where: { isActive: true },
     include: { profile: true },
     orderBy: { createdAt: "asc" },
   });
@@ -208,6 +207,12 @@ export type ProfilePatch = Partial<
     | "stateOfOrigin"
     | "dateJoined"
     | "photoUrl"
+    | "role"
+    | "isSecretary"
+    | "isCorps"
+    | "isIntern"
+    | "corpsEnd"
+    | "isActive"
   >
 >;
 
@@ -240,25 +245,51 @@ export async function updateUserProfile(
   }
   if (patch.photoUrl !== undefined) data.photoKey = patch.photoUrl;
 
-  const updated = await prisma.user.update({
-    where: { id: userId },
-    data: {
-      profile: {
-        upsert: {
-          create: {
-            name: existing.profile?.name ?? existing.username,
-            designation: patch.designation ?? "",
-            gradeLevel: patch.gradeLevel ?? "",
-            sex: patch.sex ?? "",
-            phone: patch.phone ?? "",
-            stateOfOrigin: patch.stateOfOrigin ?? "",
-            dateJoined: patch.dateJoined ? dateFromIso(patch.dateJoined) : null,
-            photoKey: patch.photoUrl ?? null,
-          },
-          update: data,
+  const updateData: Prisma.UserUpdateInput = {
+    profile: {
+      upsert: {
+        create: {
+          name: existing.profile?.name ?? existing.username,
+          designation: patch.designation ?? "",
+          gradeLevel: patch.gradeLevel ?? "",
+          sex: patch.sex ?? "",
+          phone: patch.phone ?? "",
+          stateOfOrigin: patch.stateOfOrigin ?? "",
+          dateJoined: patch.dateJoined ? dateFromIso(patch.dateJoined) : null,
+          photoKey: patch.photoUrl ?? null,
+          corpsEnd: patch.corpsEnd ? dateFromIso(patch.corpsEnd) : null,
+        },
+        update: {
+          ...data,
+          ...(patch.corpsEnd !== undefined ? { corpsEnd: patch.corpsEnd ? dateFromIso(patch.corpsEnd) : null } : {}),
         },
       },
     },
+  };
+
+  if (canManageTeamProfiles(mapUser(actor))) {
+    if (patch.role !== undefined) updateData.role = patch.role;
+    if (patch.isSecretary !== undefined) updateData.isSecretary = patch.isSecretary;
+    if (patch.isCorps !== undefined) updateData.isCorps = patch.isCorps;
+    if (patch.isIntern !== undefined) updateData.isIntern = patch.isIntern;
+    if (patch.isActive !== undefined) {
+      if (!patch.isActive && userId === session.authUserId) {
+        throw new ServiceError(400, "You cannot deactivate your own account.");
+      }
+      updateData.isActive = patch.isActive;
+      if (!patch.isActive) {
+        // Revoke sessions
+        await prisma.session.updateMany({
+          where: { userId, revokedAt: null },
+          data: { revokedAt: new Date() },
+        });
+      }
+    }
+  }
+
+  const updated = await prisma.user.update({
+    where: { id: userId },
+    data: updateData,
     include: { profile: true },
   });
 
@@ -284,7 +315,7 @@ export type NewUserInput = {
   phone?: string;
   stateOfOrigin?: string;
   dateJoined?: string;
-  roleType?: "member" | "secretary" | "corps";
+  roleType?: "member" | "secretary" | "corps" | "intern";
 };
 
 export interface CreatedUserCredentials {
@@ -335,7 +366,7 @@ export async function createUser(
   
   let starterPassword = await getDefaultMemberPassword();
   if (!starterPassword) {
-    starterPassword = "TrakWelcome123!";
+    throw new ServiceError(400, "Cannot create member: No default password is configured.");
   }
   
   const passwordHash = await hashPassword(starterPassword);
@@ -350,6 +381,7 @@ export async function createUser(
       role: "member",
       isSecretary: roleType === "secretary",
       isCorps: roleType === "corps",
+      isIntern: roleType === "intern",
       mustChangePassword: true,
       isActive: true,
       profile: {

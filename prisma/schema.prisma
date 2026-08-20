@@ -101,6 +101,7 @@ model User {
   role               UserRole
   isSecretary        Boolean   @default(false) @map("is_secretary")
   isCorps            Boolean   @default(false) @map("is_corps")
+  isIntern           Boolean   @default(false) @map("is_intern")
   mustChangePassword Boolean   @default(true) @map("must_change_password")
   emailVerifiedAt    DateTime? @map("email_verified_at") @db.Timestamptz(3)
   isActive           Boolean   @default(true) @map("is_active")

@@ -19,6 +19,8 @@ function makeUser(role: UserRole, overrides: Partial<User> = {}): User {
     role,
     isSecretary: false,
     isCorps: false,
+    isIntern: false,
+    isActive: true,
     color: "#000000",
     phone: "+1234567890",
     designation: "Test",

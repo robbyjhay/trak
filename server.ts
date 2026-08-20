@@ -153,7 +153,18 @@ app.prepare().then(() => {
     }
   });
 
-  const wss = new WebSocketServer({ server: httpServer, path: "/ws" });
+  const wss = new WebSocketServer({ noServer: true });
+
+  httpServer.on("upgrade", (req, socket, head) => {
+    const { pathname } = parse(req.url!, true);
+    if (pathname === "/ws") {
+      wss.handleUpgrade(req, socket, head, (ws) => {
+        wss.emit("connection", ws, req);
+      });
+    } else {
+      app.getUpgradeHandler()(req, socket, head);
+    }
+  });
 
   wss.on("connection", (ws: WebSocket, req: IncomingMessage) => {
     let userId: string | null = null;

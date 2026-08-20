@@ -77,6 +77,8 @@ export function mapUser(row: UserWithProfile): User {
     role: row.role === "head" ? "head" : "member",
     isSecretary: row.isSecretary,
     isCorps: row.isCorps,
+    isIntern: (row as any).isIntern ?? false,
+    isActive: row.isActive,
     corpsEnd: p?.corpsEnd ? dateOnly(p.corpsEnd) : undefined,
     color: p?.color ?? "#0e6b47",
     phone: p?.phone ?? "",

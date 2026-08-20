@@ -57,6 +57,7 @@ export function toSessionUser(user: AuthUserRow): SessionUser {
     role: mapRole(user.role),
     isSecretary: user.isSecretary,
     isCorps: user.isCorps,
+    isIntern: (user as any).isIntern ?? false,
     mustChangePassword: user.mustChangePassword,
   };
 }
@@ -591,9 +592,9 @@ export async function resetMemberPassword(targetUserId: string, headId: string) 
     where: { id: targetUserId },
     data: { 
       passwordHash,
-      mustChangePassword: true,
-      failedLogins: 0,
-      lockedUntil: null
+      mustChangePassword: true
     }
   });
+
+  return defaultPass;
 }

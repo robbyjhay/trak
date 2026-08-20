@@ -68,6 +68,7 @@ export function HeadDashboard() {
 
 function AccountingOfficer() {
   const router = useRouter();
+  const [resetCredentials, setResetCredentials] = useState<{username: string; starterPassword: string} | null>(null);
   const {
     db,
     users,
@@ -111,6 +112,7 @@ function AccountingOfficer() {
     phone: "",
     stateOfOrigin: "",
     dateJoined: "",
+    roleType: "",
   });
   const [taskTitle, setTaskTitle] = useState("");
   const [assignTo, setAssignTo] = useState(
@@ -123,7 +125,8 @@ function AccountingOfficer() {
   const [feedFilter, setFeedFilter] = useState<"all" | "week" | "month" | "quarter">("all");
   const [showHidden, setShowHidden] = useState(false);
 
-  const teamCounts = users
+  const activeUsers = users.filter((u) => u.isActive);
+  const teamCounts = activeUsers
     .map((u) => ({
       u,
       count: activitiesFor(u.id).filter(
@@ -170,7 +173,7 @@ function AccountingOfficer() {
         <Kpi kind="neutral" value={thisMonth.length} label="Unit Activities This Month" path={PATHS.chart} />
         <Kpi kind="completed" value={`${completionRate}%`} label="Unit Completion Rate" path={PATHS.check} />
         <Kpi kind="missed" value={missedAll} label="Missed, Unit-Wide" path={PATHS.alert} />
-        <Kpi kind="neutral" value={`${users.length}/${users.length}`} label="Personnel Active" path={PATHS.users} />
+        <Kpi kind="neutral" value={`${activeUsers.length}/${users.length}`} label="Personnel Active" path={PATHS.users} />
       </div>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1.5fr_1fr]">
@@ -449,7 +452,7 @@ function AccountingOfficer() {
             }
           >
             {users.map((u) => (
-              <div key={u.id} className="mb-3 flex items-center gap-3 last:mb-0">
+              <div key={u.id} className={`mb-3 flex items-center gap-3 last:mb-0 ${!u.isActive ? "opacity-50 grayscale" : ""}`}>
                 <div
                   className="flex h-[30px] w-[30px] shrink-0 items-center justify-center overflow-hidden rounded-full font-display text-xs font-bold text-white"
                   style={{ background: u.color }}
@@ -462,7 +465,10 @@ function AccountingOfficer() {
                   )}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <div className="text-[12.5px] font-bold">{u.name}</div>
+                  <div className="text-[12.5px] font-bold">
+                    {u.name}
+                    {!u.isActive && <span className="ml-2 rounded bg-critical-bg px-1.5 py-0.5 text-[10px] text-critical">Deactivated</span>}
+                  </div>
                   <div className="text-[11px] font-medium text-ink-faint">
                     {u.designation || "No designation set"}
                     {u.gradeLevel ? ` · ${u.gradeLevel}` : ""}
@@ -479,6 +485,7 @@ function AccountingOfficer() {
                       phone: u.phone || "",
                       stateOfOrigin: u.stateOfOrigin || "",
                       dateJoined: u.dateJoined || "",
+                      roleType: u.isSecretary ? "secretary" : u.isCorps ? "corps" : u.isIntern ? "intern" : "member",
                     });
                     setProfileOpen(true);
                   }}
@@ -504,7 +511,7 @@ function AccountingOfficer() {
               onChange={(e) => setAssignTo(e.target.value)}
               className="field-input"
             >
-              {users
+              {activeUsers
                 .filter((u) => u.id !== head.id)
                 .map((u) => (
                   <option key={u.id} value={u.id}>
@@ -672,6 +679,18 @@ function AccountingOfficer() {
               )}
             </Field>
           ))}
+          <Field label="Role type">
+            <select
+              value={pe.roleType}
+              onChange={(e) => setPe((p) => ({ ...p, roleType: e.target.value }))}
+              className="field-input"
+            >
+              <option value="member">Member</option>
+              <option value="secretary">Secretary</option>
+              <option value="corps">NYSC Corps</option>
+              <option value="intern">Intern</option>
+            </select>
+          </Field>
           <div className="mt-[22px] flex gap-2.5">
             <button
               type="button"
@@ -687,8 +706,9 @@ function AccountingOfficer() {
                 const { resetMemberPasswordAction } = await import("@/lib/auth/actions");
                 if (confirm(`Are you sure you want to reset ${userMap[editUserId]?.name}'s password to the default?`)) {
                   const res = await resetMemberPasswordAction(editUserId);
-                  if (res.ok) {
-                    showToast("Password Reset", `${userMap[editUserId]?.name}'s password has been reset to the default member password.`);
+                  if (res.ok && res.password) {
+                    setProfileOpen(false); // Close profile modal
+                    setResetCredentials({ username: userMap[editUserId]?.username || "", starterPassword: res.password });
                   } else {
                     showToast("Reset failed", res.error || "An error occurred.");
                   }
@@ -701,7 +721,13 @@ function AccountingOfficer() {
               type="button"
               className="flex-[1.3] cursor-pointer rounded-[10px] border-none bg-aztec py-3 font-bold text-white"
               onClick={() => {
-                void updateUserProfile(editUserId, pe)
+                const patch = {
+                  ...pe,
+                  isSecretary: pe.roleType === "secretary",
+                  isCorps: pe.roleType === "corps",
+                  isIntern: pe.roleType === "intern",
+                };
+                void updateUserProfile(editUserId, patch)
                   .then(() => {
                     setProfileOpen(false);
                     showToast(
@@ -717,8 +743,100 @@ function AccountingOfficer() {
               Save
             </button>
           </div>
+          {editUserId !== head.id && (
+            <div className="mt-4 border-t border-line pt-4">
+              {userMap[editUserId]?.isActive !== false ? (
+                <button
+                  type="button"
+                  className="w-full cursor-pointer rounded-[10px] border border-critical bg-critical-bg py-3 font-bold text-critical"
+                  onClick={() => {
+                    if (confirm(`Are you sure you want to deactivate ${userMap[editUserId]?.name}? They will no longer be able to log in.`)) {
+                      void updateUserProfile(editUserId, { isActive: false })
+                        .then(() => {
+                          setProfileOpen(false);
+                          showToast(
+                            "Account deactivated",
+                            `${userMap[editUserId]?.name}'s account has been deactivated.`,
+                          );
+                        })
+                        .catch((err) =>
+                          showToast("Could not deactivate", err.message || "Please try again."),
+                        );
+                    }
+                  }}
+                >
+                  Deactivate Account
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="w-full cursor-pointer rounded-[10px] border border-good bg-good-bg py-3 font-bold text-good"
+                  onClick={() => {
+                    void updateUserProfile(editUserId, { isActive: true })
+                      .then(() => {
+                        setProfileOpen(false);
+                        showToast(
+                          "Account reactivated",
+                          `${userMap[editUserId]?.name}'s account is active again.`,
+                        );
+                      })
+                      .catch((err) =>
+                        showToast("Could not reactivate", err.message || "Please try again."),
+                      );
+                  }}
+                >
+                  Reactivate Account
+                </button>
+              )}
+            </div>
+          )}
         </ModalPanel>
       </ModalBackdrop>
+
+      {resetCredentials && (
+        <ModalBackdrop open onClose={() => setResetCredentials(null)} labelledBy="reset-member-title">
+          <ModalPanel>
+            <div className="text-center">
+              <h3 id="reset-member-title" className="m-0 mb-4 font-display text-xl text-primary">
+                Password Reset Successfully
+              </h3>
+              <div className="mb-6 rounded-xl bg-neutral-bg p-5 text-left font-mono text-[13px] leading-relaxed text-ink shadow-sm border border-line">
+                <div className="mb-2">
+                  <span className="font-bold text-ink-soft uppercase tracking-wider text-[11px]">Username</span>
+                  <div className="mt-1 text-[15px] font-bold text-ink">{resetCredentials.username}</div>
+                </div>
+                <div>
+                  <span className="font-bold text-ink-soft uppercase tracking-wider text-[11px]">New temporary password</span>
+                  <div className="mt-1 text-[15px] font-bold text-ink">{resetCredentials.starterPassword}</div>
+                </div>
+              </div>
+              <div className="flex flex-col gap-3">
+                <button
+                  type="button"
+                  className="w-full cursor-pointer rounded-[10px] border-none bg-aztec py-3.5 font-bold text-white transition-colors hover:bg-aztec-3"
+                  onClick={async () => {
+                    try {
+                      await navigator.clipboard.writeText(resetCredentials.starterPassword);
+                      showToast("Password copied", "You can now paste it securely.");
+                    } catch {
+                      showToast("Copy failed", "Please copy manually.");
+                    }
+                  }}
+                >
+                  Copy Password
+                </button>
+                <button
+                  type="button"
+                  className="w-full cursor-pointer rounded-[10px] border-[1.5px] border-line bg-transparent py-3.5 font-bold transition-colors hover:bg-neutral-bg"
+                  onClick={() => setResetCredentials(null)}
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </ModalPanel>
+        </ModalBackdrop>
+      )}
 
       {addMemberOpen && <AddMember onClose={() => setAddMemberOpen(false)} />}
 

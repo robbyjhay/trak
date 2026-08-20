@@ -19,6 +19,7 @@ export interface User {
   role: UserRole;
   isSecretary: boolean;
   isCorps: boolean;
+  isIntern: boolean;
   corpsEnd?: string;
   color: string;
   phone: string;
@@ -28,6 +29,7 @@ export interface User {
   stateOfOrigin: string;
   dateJoined: string;
   photoUrl: string | null;
+  isActive: boolean;
 }
 
 /** Server-only credential row — never sent to the client. */
@@ -185,6 +187,7 @@ export interface SessionUser {
   role: UserRole;
   isSecretary: boolean;
   isCorps: boolean;
+  isIntern: boolean;
   mustChangePassword: boolean;
 }
 

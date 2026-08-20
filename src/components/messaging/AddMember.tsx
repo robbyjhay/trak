@@ -52,7 +52,7 @@ export function AddMember({ onClose }: { onClose: () => void }) {
         phone,
         stateOfOrigin: form.stateOfOrigin.trim(),
         dateJoined: form.dateJoined,
-        roleType: form.roleType as "member" | "secretary" | "corps",
+        roleType: form.roleType as "member" | "secretary" | "corps" | "intern",
       });
       setSaving(false);
       setSuccessCredentials({ username, starterPassword });
@@ -128,7 +128,7 @@ export function AddMember({ onClose }: { onClose: () => void }) {
                 );
               }
             }}
-            placeholder="e.g. Adaeze Nwosu"
+            placeholder="Full name"
             className={FIELD_INPUT}
             autoComplete="name"
           />
@@ -198,6 +198,7 @@ export function AddMember({ onClose }: { onClose: () => void }) {
             <option value="member">Member</option>
             <option value="secretary">Secretary</option>
             <option value="corps">NYSC Corps</option>
+            <option value="intern">Intern</option>
           </select>
         </Field>
         <Field label="Phone *">
@@ -209,11 +210,16 @@ export function AddMember({ onClose }: { onClose: () => void }) {
           />
         </Field>
         <Field label="State of origin">
-          <input
+          <select
             value={form.stateOfOrigin}
             onChange={(e) => set("stateOfOrigin", e.target.value)}
             className={FIELD_INPUT}
-          />
+          >
+            <option value="">Select state…</option>
+            {["Abia", "Adamawa", "Akwa Ibom", "Anambra", "Bauchi", "Bayelsa", "Benue", "Borno", "Cross River", "Delta", "Ebonyi", "Edo", "Ekiti", "Enugu", "FCT", "Gombe", "Imo", "Jigawa", "Kaduna", "Kano", "Katsina", "Kebbi", "Kogi", "Kwara", "Lagos", "Nasarawa", "Niger", "Ogun", "Ondo", "Osun", "Oyo", "Plateau", "Rivers", "Sokoto", "Taraba", "Yobe", "Zamfara"].map(state => (
+              <option key={state} value={state}>{state}</option>
+            ))}
+          </select>
         </Field>
         <Field label="Date joined PSSDC">
           <input

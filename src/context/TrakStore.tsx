@@ -111,21 +111,7 @@ interface TrakStoreValue {
   ) => Promise<void>;
   markNotifRead: (id: string) => Promise<void>;
   markAllNotifsRead: () => Promise<void>;
-  updateUserProfile: (
-    userId: string,
-    patch: Partial<
-      Pick<
-        User,
-        | "designation"
-        | "gradeLevel"
-        | "sex"
-        | "phone"
-        | "stateOfOrigin"
-        | "dateJoined"
-        | "photoUrl"
-      >
-    >,
-  ) => Promise<void>;
+  updateUserProfile: (userId: string, patch: Partial<User>) => Promise<void>;
   addUser: (u: {
     name: string;
     username?: string;
@@ -136,7 +122,7 @@ interface TrakStoreValue {
     phone?: string;
     stateOfOrigin?: string;
     dateJoined?: string;
-    roleType?: "member" | "secretary" | "corps";
+    roleType?: "member" | "secretary" | "corps" | "intern";
   }) => Promise<{ username: string; starterPassword: string }>;
   createResponsibility: (input: {
     code: string;

@@ -130,17 +130,20 @@ export async function skipPasswordChangeAction(): Promise<void> {
 
 export async function logoutAction() {
   await destroyCurrentSession();
+  revalidatePath("/", "layout");
   redirect("/login");
 }
 
 export async function switchUserAction() {
   await destroyCurrentSession();
+  revalidatePath("/", "layout");
   redirect("/login");
 }
 
 /** Clear cookie without DB (edge cases). Prefer logoutAction. */
 export async function forceClearSessionAction() {
   await clearSessionCookie();
+  revalidatePath("/", "layout");
   redirect("/login");
 }
 
@@ -172,15 +175,15 @@ export async function updateDefaultPasswordAction(_prev: any, formData: FormData
 
 import { resetMemberPassword } from "@/lib/services/auth.service";
 
-export async function resetMemberPasswordAction(userId: string): Promise<{ ok: boolean; error?: string }> {
+export async function resetMemberPasswordAction(userId: string): Promise<{ ok: boolean; password?: string; error?: string }> {
   const session = await readSession();
   if (!session || session.role !== "head") {
     return { ok: false, error: "Unauthorized" };
   }
   
   try {
-    await resetMemberPassword(userId, session.id);
-    return { ok: true };
+    const defaultPass = await resetMemberPassword(userId, session.id);
+    return { ok: true, password: defaultPass };
   } catch (err) {
     if (err instanceof Error) {
       return { ok: false, error: err.message };
