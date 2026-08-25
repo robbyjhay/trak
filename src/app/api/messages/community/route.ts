@@ -15,12 +15,12 @@ import { checkRateLimit } from "@/lib/auth/rate-limit";
 
 export async function GET(req: Request) {
   try {
-    const { error } = await requireSession();
+    const { session, error } = await requireSession();
     if (error) return error;
 
     const url = new URL(req.url);
     const { page, limit } = parsePagination(url.searchParams);
-    const { community, total } = await listCommunity({ page, limit });
+    const { community, total } = await listCommunity({ page, limit, userId: session.id });
 
     return jsonOk({ community, meta: pageMeta(total, page, limit) });
   } catch (err) {
@@ -38,11 +38,11 @@ export async function POST(req: Request) {
       throw new ServiceError(429, "Message rate limit exceeded.");
     }
 
-    const body = await parseJsonBody<{ text?: string; replyToId?: string }>(
+    const body = await parseJsonBody<{ text?: string; replyToId?: string; attachments?: any[] }>(
       req,
     );
-    await sendCommunity(session, body.text || "", body.replyToId);
-    const { community } = await listCommunity({ limit: 100 });
+    await sendCommunity(session, body.text || "", body.replyToId, body.attachments);
+    const { community } = await listCommunity({ limit: 100, userId: session.id });
     return jsonOk({ community });
   } catch (err) {
     return handleServiceError(err);
@@ -54,7 +54,7 @@ export async function DELETE() {
     const { session, error } = await requireSession();
     if (error) return error;
     await wipeCommunity(session);
-    return jsonOk({ community: [] });
+    return jsonOk({ community: [] as any[] });
   } catch (err) {
     return handleServiceError(err);
   }

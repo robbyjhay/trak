@@ -27,6 +27,7 @@ import type {
   TrakDb,
   User,
   WrapupData,
+  SendMessageAttachmentInput,
 } from "@/lib/types";
 import {
   activitiesFor as activitiesForMut,
@@ -98,6 +99,10 @@ interface TrakStoreValue {
     activityId: string,
     data: WrapupData,
   ) => Promise<void>;
+  updateActivityEndDate: (
+    activityId: string,
+    endDate: string,
+  ) => Promise<void>;
   pushNotification: (
     userId: string,
     type: NotifType,
@@ -139,9 +144,11 @@ interface TrakStoreValue {
       deliverables: string[];
     },
   ) => Promise<Responsibility>;
-  sendDm: (toId: string, text: string) => Promise<void>;
-  sendCommunity: (text: string) => Promise<void>;
+  sendDm: (toId: string, text: string, attachments?: SendMessageAttachmentInput[]) => Promise<void>;
+  sendCommunity: (text: string, attachments?: SendMessageAttachmentInput[]) => Promise<void>;
   wipeCommunity: () => Promise<void>;
+  deleteDmMessage: (messageId: string, forEveryone: boolean) => Promise<void>;
+  deleteCommunityMessage: (messageId: string, forEveryone: boolean) => Promise<void>;
   sendBroadcast: (text: string) => Promise<void>;
   recordCall: (partnerId: string, durationSec: number) => Promise<void>;
   addRsvpAttendee: (logId: string, attendee: Attendee) => Promise<void>;
@@ -449,6 +456,27 @@ export function TrakStoreProvider({
       if (actIdx >= 0) stateRef.current.db.activities[actIdx] = res.activity;
       bump();
     },
+    updateActivityEndDate: async (activityId, endDate) => {
+      const res = await apiSend<{ activity: Activity }>(
+        `/api/activities/${activityId}`,
+        "PATCH",
+        { action: "updateDates", endDate },
+      );
+      const actIdx = stateRef.current.db.activities.findIndex(
+        (a) => a.id === activityId,
+      );
+      if (actIdx >= 0) stateRef.current.db.activities[actIdx] = res.activity;
+      // Also fetch updated logs since they might have changed
+      const logsRes = await apiGet<{ dailyLogs: DailyLog[] }>(
+        `/api/activities/${activityId}`
+      );
+      if (logsRes && logsRes.dailyLogs) {
+        stateRef.current.db.dailyLogs = stateRef.current.db.dailyLogs
+          .filter((l) => l.activityId !== activityId)
+          .concat(logsRes.dailyLogs);
+      }
+      bump();
+    },
     // Server owns notifications; client no-op kept for interface stability
     pushNotification: () => {
       /* notifications are created server-side */
@@ -546,20 +574,20 @@ export function TrakStoreProvider({
       bump();
       return res.responsibility;
     },
-    sendDm: async (toId, text) => {
+    sendDm: async (toId, text, attachments) => {
       const res = await apiSend<{
         dms: typeof db.dms;
         notifications: Notification[];
-      }>("/api/messages/dms", "POST", { toId, text });
+      }>("/api/messages/dms", "POST", { toId, text, attachments });
       stateRef.current.db.dms = res.dms;
       mergeNotifications(res.notifications);
       bump();
     },
-    sendCommunity: async (text) => {
+    sendCommunity: async (text, attachments) => {
       const res = await apiSend<{ community: typeof db.community }>(
         "/api/messages/community",
         "POST",
-        { text },
+        { text, attachments },
       );
       stateRef.current.db.community = res.community;
       bump();
@@ -577,6 +605,24 @@ export function TrakStoreProvider({
       const res = await apiSend<{ community: typeof db.community }>(
         "/api/messages/community",
         "DELETE",
+      );
+      stateRef.current.db.community = res.community;
+      bump();
+    },
+    deleteDmMessage: async (messageId, forEveryone) => {
+      const res = await apiSend<{
+        dms: typeof db.dms;
+        notifications: Notification[];
+      }>(`/api/messages/dms/${messageId}`, "DELETE", { forEveryone });
+      stateRef.current.db.dms = res.dms;
+      mergeNotifications(res.notifications);
+      bump();
+    },
+    deleteCommunityMessage: async (messageId, forEveryone) => {
+      const res = await apiSend<{ community: typeof db.community }>(
+        `/api/messages/community/${messageId}`,
+        "DELETE",
+        { forEveryone },
       );
       stateRef.current.db.community = res.community;
       bump();

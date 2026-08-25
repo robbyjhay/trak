@@ -40,3 +40,11 @@ export function canManageResponsibilities(user: Pick<User, "role">): boolean {
 export function isHead(user: Pick<User, "role">): boolean {
   return user.role === "head";
 }
+
+export function canDeleteOwnMessage(user: Pick<User, "role">): boolean {
+  return true;
+}
+
+export function canDeleteAnyCommunityMessage(user: Pick<User, "role">): boolean {
+  return user.role === "head";
+}

@@ -6,7 +6,7 @@ import { firstName, suggestUsername } from "@/lib/utils";
 import { ModalBackdrop, ModalPanel } from "@/components/ui/Modal";
 
 const FIELD_INPUT =
-  "w-full rounded-[10px] border-[1.5px] border-line bg-surface px-3.5 py-2.5 text-[13px] outline-none focus:border-aztec-3";
+  "w-full rounded-[10px] border-[1.5px] border-input-border bg-input px-3.5 py-2.5 text-[13px] text-foreground placeholder-input-placeholder outline-none focus:border-border-strong";
 
 export function AddMember({ onClose }: { onClose: () => void }) {
   const { users, addUser, showToast } = useTrak();
@@ -70,20 +70,20 @@ export function AddMember({ onClose }: { onClose: () => void }) {
             <h3 id="add-member-title" className="m-0 mb-4 font-display text-xl text-primary">
               Member created successfully
             </h3>
-            <div className="mb-6 rounded-xl bg-neutral-bg p-5 text-left font-mono text-[13px] leading-relaxed text-ink shadow-sm border border-line">
+            <div className="mb-6 rounded-xl bg-surface p-5 text-left font-mono text-[13px] leading-relaxed text-foreground shadow-sm border border-border">
               <div className="mb-2">
-                <span className="font-bold text-ink-soft uppercase tracking-wider text-[11px]">Username</span>
-                <div className="mt-1 text-[15px] font-bold text-ink">{successCredentials.username}</div>
+                <span className="font-bold text-foreground-secondary uppercase tracking-wider text-[11px]">Username</span>
+                <div className="mt-1 text-[15px] font-bold text-foreground">{successCredentials.username}</div>
               </div>
               <div>
-                <span className="font-bold text-ink-soft uppercase tracking-wider text-[11px]">Initial password</span>
-                <div className="mt-1 text-[15px] font-bold text-ink">{successCredentials.starterPassword}</div>
+                <span className="font-bold text-foreground-secondary uppercase tracking-wider text-[11px]">Initial password</span>
+                <div className="mt-1 text-[15px] font-bold text-foreground">{successCredentials.starterPassword}</div>
               </div>
             </div>
             <div className="flex flex-col gap-3">
               <button
                 type="button"
-                className="w-full cursor-pointer rounded-[10px] border-none bg-aztec py-3.5 font-bold text-white transition-colors hover:bg-aztec-3"
+                className="w-full cursor-pointer rounded-[10px] border-none bg-primary py-3.5 font-bold text-primary-foreground transition-colors hover:bg-primary-hover"
                 onClick={async () => {
                   try {
                     await navigator.clipboard.writeText(successCredentials.starterPassword);
@@ -97,7 +97,7 @@ export function AddMember({ onClose }: { onClose: () => void }) {
               </button>
               <button
                 type="button"
-                className="w-full cursor-pointer rounded-[10px] border-[1.5px] border-line bg-transparent py-3.5 font-bold transition-colors hover:bg-neutral-bg"
+                className="w-full cursor-pointer rounded-[10px] border-[1.5px] border-border bg-surface-interactive py-3.5 font-bold transition-colors hover:border-primary hover:text-foreground"
                 onClick={onClose}
               >
                 Close
@@ -106,10 +106,10 @@ export function AddMember({ onClose }: { onClose: () => void }) {
           </div>
         ) : (
           <>
-            <h3 id="add-member-title" className="m-0 mb-1.5 font-display text-xl">
+            <h3 id="add-member-title" className="m-0 mb-1.5 font-display text-xl text-foreground">
               Add member
             </h3>
-            <p className="mb-5 text-[12.5px] text-ink-soft">
+            <p className="mb-5 text-[12.5px] text-foreground-secondary">
               Creates their Trak login — you&apos;ll get their username &amp; a
               starter password to share, and they&apos;re prompted to set their own
               at first sign-in. With an email on file, an invite link is also sent.
@@ -144,7 +144,7 @@ export function AddMember({ onClose }: { onClose: () => void }) {
             className={FIELD_INPUT}
             autoComplete="username"
           />
-          <div className="mt-1 text-[11px] text-ink-soft">
+          <div className="mt-1 text-[11px] text-foreground-faint">
             Leave blank to auto-generate (DLU + surname) — you can override.
           </div>
         </Field>
@@ -157,7 +157,7 @@ export function AddMember({ onClose }: { onClose: () => void }) {
             className={FIELD_INPUT}
             autoComplete="email"
           />
-          <div className="mt-1 text-[11px] text-ink-soft">
+          <div className="mt-1 text-[11px] text-foreground-faint">
             When set, an invite link is emailed so they can set their own
             password.
           </div>
@@ -232,7 +232,7 @@ export function AddMember({ onClose }: { onClose: () => void }) {
 
         {error && (
           <div
-            className="mb-1 rounded-lg bg-critical-bg px-3 py-2 text-[12px] font-semibold text-critical"
+            className="mb-1 rounded-lg bg-critical-surface px-3 py-2 text-[12px] font-semibold text-critical-semantic"
             role="alert"
           >
             {error}
@@ -242,7 +242,7 @@ export function AddMember({ onClose }: { onClose: () => void }) {
         <div className="mt-[22px] flex gap-2.5">
           <button
             type="button"
-            className="flex-1 cursor-pointer rounded-[10px] border-[1.5px] border-line bg-transparent py-3 font-bold"
+            className="flex-1 cursor-pointer rounded-[10px] border-[1.5px] border-border bg-surface py-3 font-bold text-foreground hover:bg-surface-hover transition-colors"
             onClick={onClose}
             disabled={saving}
           >
@@ -250,7 +250,7 @@ export function AddMember({ onClose }: { onClose: () => void }) {
           </button>
           <button
             type="button"
-            className="flex-[1.3] cursor-pointer rounded-[10px] border-none bg-aztec py-3 font-bold text-white disabled:cursor-not-allowed disabled:opacity-50"
+            className="flex-[1.3] cursor-pointer rounded-[10px] border-none bg-primary py-3 font-bold text-primary-foreground hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50 transition-colors"
             onClick={save}
             disabled={saving}
           >
@@ -273,7 +273,7 @@ function Field({
 }) {
   return (
     <div className="mb-4">
-      <label className="mb-1.5 block text-[11px] font-bold tracking-wider text-ink-soft uppercase">
+      <label className="mb-1.5 block text-[11px] font-bold tracking-wider text-foreground-secondary uppercase">
         {label}
       </label>
       {children}

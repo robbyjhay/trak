@@ -20,6 +20,7 @@ export function ModalBackdrop({
   className,
   labelledBy,
   describedBy,
+  bottomSheetOnMobile,
 }: {
   open: boolean;
   onClose?: () => void;
@@ -29,6 +30,7 @@ export function ModalBackdrop({
   labelledBy?: string;
   /** id of supporting description text */
   describedBy?: string;
+  bottomSheetOnMobile?: boolean;
 }) {
   const panelRef = useRef<HTMLDivElement>(null);
   const previousFocus = useRef<HTMLElement | null>(null);
@@ -111,7 +113,8 @@ export function ModalBackdrop({
   return (
     <div
       className={cn(
-        "fixed inset-0 z-[100] flex items-center justify-center bg-[rgba(13,29,26,0.55)] backdrop-blur-[2px]",
+        "fixed inset-0 z-[100] flex bg-overlay backdrop-blur-[2px]",
+        bottomSheetOnMobile ? "items-end sm:items-center justify-center" : "items-center justify-center",
         className,
       )}
       onClick={(e) => {
@@ -127,7 +130,7 @@ export function ModalBackdrop({
         aria-labelledby={labelledBy || autoTitleId}
         aria-describedby={describedBy}
         tabIndex={-1}
-        className="outline-none"
+        className={cn("outline-none", bottomSheetOnMobile && "w-full sm:w-auto")}
       >
         {/* Fallback title for screen readers when caller omits labelledBy */}
         {!labelledBy && (
@@ -145,16 +148,21 @@ export function ModalPanel({
   children,
   className,
   wide,
+  bottomSheetOnMobile,
 }: {
   children: ReactNode;
   className?: string;
   wide?: boolean;
+  bottomSheetOnMobile?: boolean;
 }) {
   return (
     <div
       className={cn(
-        "max-h-[88vh] overflow-y-auto rounded-[20px] bg-modal p-7 shadow-modal",
+        "overflow-y-auto bg-modal text-foreground p-7 shadow-modal border border-border",
         wide ? "w-[900px] max-w-[95vw] p-0" : "w-[460px] max-w-[92vw]",
+        bottomSheetOnMobile 
+          ? "max-h-[92vh] rounded-t-[24px] rounded-b-none sm:rounded-[20px] pb-[max(env(safe-area-inset-bottom),28px)] sm:pb-7 max-w-full w-full"
+          : "max-h-[88vh] rounded-[20px]",
         className,
       )}
     >
