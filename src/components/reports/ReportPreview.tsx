@@ -54,7 +54,7 @@ export function ReportPreviewProvider({ children }: { children: React.ReactNode 
           }}
         >
           <div className="flex max-h-[92vh] w-[900px] max-w-[95vw] flex-col overflow-hidden rounded-[18px] bg-[#e5e3db] shadow-[0_30px_70px_rgba(0,0,0,0.4)]">
-            <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-line bg-white px-4 py-3.5 sm:px-6 sm:py-4">
+            <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-line bg-surface px-4 py-3.5 sm:px-6 sm:py-4">
               <div>
                 <div className="text-[10.5px] font-bold tracking-widest text-ink-faint uppercase">
                   Report preview — A4

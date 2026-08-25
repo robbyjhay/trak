@@ -39,7 +39,7 @@ export default function RsvpPage({
   function shell(inner: React.ReactNode) {
     return (
       <div className="flex min-h-screen w-full items-center justify-center bg-neutral-bg p-8">
-        <div className="w-full max-w-[480px] rounded-[18px] border-[1.5px] border-line bg-white px-9 py-[38px] shadow-[0_10px_40px_rgba(13,29,26,0.08)]">
+        <div className="w-full max-w-[480px] rounded-[18px] border-[1.5px] border-line bg-surface px-9 py-[38px] shadow-[0_10px_40px_rgba(13,29,26,0.08)]">
           <div className="mb-[26px] flex items-center gap-2.5">
             <div className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-[9px] bg-linear-to-br from-saffron to-[#d9a72c]">
               <svg width="17" height="17" viewBox="0 0 24 24" fill="none">

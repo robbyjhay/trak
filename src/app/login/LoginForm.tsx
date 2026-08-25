@@ -110,7 +110,7 @@ export function LoginForm({
                     aria-label={`Select ${u.name} — ${roleLabel(u)}`}
                     aria-pressed={selectedId === u.id}
                     className={cn(
-                      "flex w-28 shrink-0 snap-start cursor-pointer flex-col items-center gap-2 rounded-xl border-[1.5px] border-line bg-white px-1.5 py-3 transition-colors hover:border-saffron-dim focus-visible:ring-2 focus-visible:ring-saffron focus-visible:outline-none sm:w-auto sm:shrink",
+                      "flex w-28 shrink-0 snap-start cursor-pointer flex-col items-center gap-2 rounded-xl border-[1.5px] border-line bg-surface px-1.5 py-3 transition-colors hover:border-saffron-dim focus-visible:ring-2 focus-visible:ring-saffron focus-visible:outline-none sm:w-auto sm:shrink",
                       selectedId === u.id &&
                         "border-saffron ring-2 ring-saffron/30",
                     )}

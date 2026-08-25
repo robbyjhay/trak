@@ -234,7 +234,7 @@ export function Messaging({
                   {canWipe && (
                     <button
                       type="button"
-                      className="ml-auto flex h-[34px] w-[34px] cursor-pointer items-center justify-center rounded-[9px] border-[1.5px] border-[#f2cfcb] bg-white text-critical"
+                      className="ml-auto flex h-[34px] w-[34px] cursor-pointer items-center justify-center rounded-[9px] border-[1.5px] border-[#f2cfcb] bg-surface text-critical"
                       onClick={() => setWipeOpen((v) => !v)}
                       aria-label="Wipe community chat"
                     >
@@ -397,7 +397,7 @@ export function Messaging({
                                 onClick={() => startCall(p.id)}
                                 title="Log a phone call"
                                 aria-label={`Log a phone call with ${p.name}`}
-                                className="flex h-[34px] w-[34px] cursor-pointer items-center justify-center rounded-[9px] border-[1.5px] border-line bg-white text-ink-soft transition-colors hover:border-saffron-dim hover:text-ink"
+                                className="flex h-[34px] w-[34px] cursor-pointer items-center justify-center rounded-[9px] border-[1.5px] border-line bg-surface text-ink-soft transition-colors hover:border-saffron-dim hover:text-ink"
                               >
                                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                                   <path d={PATHS.phone} />
@@ -533,7 +533,7 @@ export function Messaging({
                       </a>
                       <button
                         type="button"
-                        className="flex flex-1 cursor-pointer flex-col items-center gap-1 rounded-[11px] border-[1.5px] border-line bg-white px-1.5 py-2.5 text-[10px] font-bold text-ink-soft"
+                        className="flex flex-1 cursor-pointer flex-col items-center gap-1 rounded-[11px] border-[1.5px] border-line bg-surface px-1.5 py-2.5 text-[10px] font-bold text-ink-soft"
                         onClick={() => {
                           setView("messages");
                           openThread(p.id);
@@ -571,7 +571,7 @@ function BackBtn({ onClick }: { onClick: () => void }) {
     <button
       type="button"
       onClick={onClick}
-      className="flex h-[34px] w-[34px] shrink-0 cursor-pointer items-center justify-center rounded-[9px] border-[1.5px] border-line bg-white text-ink-soft md:hidden"
+      className="flex h-[34px] w-[34px] shrink-0 cursor-pointer items-center justify-center rounded-[9px] border-[1.5px] border-line bg-surface text-ink-soft md:hidden"
       aria-label="Back to conversations"
     >
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">

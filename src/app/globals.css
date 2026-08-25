@@ -1,6 +1,9 @@
 @import "tailwindcss";
 @config "../../tailwind.config.ts";
 
+/* Class-based dark mode: ThemeContext toggles `.dark` on <html> (see layout.tsx) */
+@custom-variant dark (&:where(.dark, .dark *));
+
 /*
   Design tokens → Tailwind theme utilities.
   Prefer utilities (bg-aztec, text-ink-soft, font-display) over ad-hoc CSS vars
@@ -25,8 +28,14 @@
   --color-warning: #c99f2f;
   --color-warning-bg: #fdf3d8;
   --color-warning-ink: #8a6a1f;
+  --color-warning-semantic: var(--warning-semantic);
+  --color-warning-surface: var(--warning-surface);
+  --color-warning-foreground: var(--warning-foreground);
   --color-critical: #b5453a;
   --color-critical-bg: #fbeceb;
+  --color-critical-semantic: var(--critical-semantic);
+  --color-critical-surface: var(--critical-surface);
+  --color-critical-foreground: var(--critical-foreground);
   --color-neutral: #3a4a44;
   --color-neutral-bg: #eef0ec;
   --color-cat-meeting: #12915f;
@@ -80,6 +89,144 @@
   --cat-program: #1f7fa8;
   --cat-task: #c1613f;
   --wa: #25d366;
+
+  /* Semantic Theme Tokens - Light (default) */
+  --background: var(--paper);
+  --foreground: var(--ink);
+  --foreground-secondary: var(--ink-soft);
+  --foreground-muted: var(--ink-soft);
+  --foreground-faint: var(--ink-faint);
+  --foreground-inverse: #ffffff;
+  
+  --surface: var(--card);
+  --surface-elevated: var(--card);
+  --surface-muted: var(--neutral-bg);
+  --surface-interactive: #ffffff;
+  --surface-hover: #f9f9f9;
+  --surface-active: #f0f0f0;
+
+  --border: var(--line);
+  --border-subtle: #f0eee5;
+  --border-strong: var(--ink-faint);
+
+  --primary: var(--saffron);
+  --primary-hover: #f4b822;
+  --primary-active: #e2a510;
+  --primary-foreground: var(--aztec);
+
+  --secondary: var(--ink-soft);
+  --secondary-hover: var(--ink);
+  --secondary-foreground: #ffffff;
+
+  --muted: var(--ink-faint);
+  --muted-foreground: var(--ink-soft);
+
+  --navigation: var(--aztec);
+  --navigation-hover: var(--aztec-2);
+  --navigation-active: var(--aztec-3);
+  --navigation-foreground: #ffffff;
+  --navigation-muted: #5f7069;
+
+  --input: var(--card);
+  --input-border: var(--line);
+  --input-placeholder: var(--ink-faint);
+  --input-focus: var(--border-strong);
+
+  --success: var(--good);
+  --success-surface: var(--good-bg);
+  --success-foreground: #ffffff;
+
+  --warning-semantic: var(--warning);
+  --warning-surface: var(--warning-bg);
+  --warning-foreground: var(--warning-ink);
+
+  --critical-semantic: var(--critical);
+  --critical-surface: var(--critical-bg);
+  --critical-foreground: #ffffff;
+
+  --info: #1f7fa8;
+  --info-surface: #e6f3f8;
+  --info-foreground: #ffffff;
+
+  --overlay: rgba(13, 29, 26, 0.4);
+  --popover: var(--card);
+  --modal: var(--card);
+  --tooltip: var(--aztec);
+}
+
+.dark {
+  /* Semantic Theme Tokens - Dark */
+  --background: #0b1413; /* deep neutral charcoal, slight green tint */
+  --foreground: #f6f5f1; /* warm near-white */
+  --foreground-secondary: #98a49e; /* soft gray-green for secondary text */
+  --foreground-muted: #98a49e;
+  --foreground-faint: #6b7a73;
+  --foreground-inverse: var(--aztec);
+
+  --surface: #0f1b1a; /* main card surface, lighter than page background */
+  --surface-elevated: #162523; /* elevated surface for depth */
+  --surface-muted: #0d1b19;
+  --surface-interactive: #122822; /* interactive controls */
+  --surface-hover: #16312b; /* hover state */
+  --surface-active: #183532;
+
+  --border: rgba(255,255,255,0.06); /* subtle light border */
+  --border-subtle: rgba(255,255,255,0.04);
+  --border-strong: #6b7a73;
+
+  --primary: var(--saffron);
+  --primary-hover: #fcd96a;
+  --primary-active: #f6c642;
+  --primary-foreground: var(--aztec);
+
+  --secondary: #93a29b;
+  --secondary-hover: #ffffff;
+  --secondary-foreground: var(--aztec);
+
+  --muted: #93a29b;
+  --muted-foreground: #93a29b;
+
+  --navigation: var(--aztec);
+  --navigation-hover: var(--aztec-2);
+  --navigation-active: var(--aztec-3);
+  --navigation-foreground: #ffffff;
+  --navigation-muted: #5f7069;
+
+  --input: var(--aztec-2);
+  --input-border: #224239;
+  --input-placeholder: #5f7069;
+  --input-focus: var(--border-strong);
+
+  --success: var(--good);
+  --success-surface: rgba(46,125,91,0.12);
+  --success-foreground: #ffffff;
+
+  --warning-semantic: var(--warning);
+  --warning-surface: rgba(201,159,47,0.12);
+  --warning-foreground: var(--saffron);
+
+  --critical-semantic: var(--critical);
+  --critical-surface: rgba(181,69,58,0.12);
+  --critical-foreground: #ffffff;
+
+  --info: #3b82f6;
+  --info-surface: rgba(59,130,246,0.08);
+  --info-foreground: #ffffff;
+
+  --overlay: rgba(0, 0, 0, 0.6);
+  --popover: #0f1b1a;
+  --modal: #0f1b1a;
+  --tooltip: #162523;
+
+  /* Prototype alias overrides (enables partial automatic dark mode) */
+  --paper: var(--aztec);
+  --ink: #fbfaf6;
+  --card: #0f1b1a;
+  --line: rgba(255,255,255,0.06);
+  --neutral-bg: #0d1b19;
+  --good-bg: rgba(46,125,91,0.08);
+  --warning-bg: rgba(201,159,47,0.08);
+  --critical-bg: rgba(181,69,58,0.08);
 }
 
 /* Global resets only — component styles live in Tailwind / scoped modules */
@@ -98,8 +245,8 @@ body {
   margin: 0;
   min-height: 100vh;
   font-family: var(--font-archivo), ui-sans-serif, system-ui, sans-serif;
-  background: var(--paper);
-  color: var(--ink);
+  background: var(--background);
+  color: var(--foreground);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -158,7 +305,7 @@ button {
   textarea,
   summary
 ):focus-visible {
-  outline: 2px solid var(--saffron);
+  outline: 2px solid var(--border-strong);
   outline-offset: 2px;
 }
 

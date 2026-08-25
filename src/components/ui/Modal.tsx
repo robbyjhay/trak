@@ -153,7 +153,7 @@ export function ModalPanel({
   return (
     <div
       className={cn(
-        "max-h-[88vh] overflow-y-auto rounded-[20px] bg-white p-7 shadow-modal",
+        "max-h-[88vh] overflow-y-auto rounded-[20px] bg-modal p-7 shadow-modal",
         wide ? "w-[900px] max-w-[95vw] p-0" : "w-[460px] max-w-[92vw]",
         className,
       )}

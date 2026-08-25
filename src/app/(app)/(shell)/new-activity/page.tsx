@@ -122,8 +122,8 @@ export default function NewActivityPage() {
                     onClick={() => setActivityType(t)}
                     className={`flex cursor-pointer flex-col items-center gap-2.5 rounded-[14px] border-[1.5px] px-3 py-4 text-center ${
                       sel
-                        ? "border-saffron bg-linear-to-b from-[#fffaf0] to-white shadow-[0_0_0_3px_rgba(246,198,66,0.22)]"
-                        : "border-line bg-white"
+                        ? "border-saffron bg-saffron/10 shadow-[0_0_0_3px_rgba(246,198,66,0.22)]"
+                        : "border-line bg-surface"
                     }`}
                   >
                     <div
@@ -226,7 +226,7 @@ export default function NewActivityPage() {
                 }`}
               >
                 <span
-                  className={`pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow-sm ring-0 transition-transform ${
+                  className={`pointer-events-none inline-block h-5 w-5 rounded-full bg-surface shadow-sm ring-0 transition-transform ${
                     hasBudget ? "translate-x-5" : "translate-x-0"
                   }`}
                 />
@@ -264,7 +264,7 @@ export default function NewActivityPage() {
                     className={`cursor-pointer rounded-full border-[1.5px] px-4 py-2 text-[12.5px] font-semibold ${
                       on
                         ? "border-aztec-3 bg-aztec-3 text-white"
-                        : "border-line bg-white text-ink-soft"
+                        : "border-line bg-surface text-ink-soft"
                     }`}
                   >
                     <b className="mr-1 opacity-60">{r.code}</b>

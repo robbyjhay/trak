@@ -122,7 +122,7 @@ export function SetPasswordForm({
             <form action={skipPasswordChangeAction} className="mt-3">
               <button
                 type="submit"
-                className="w-full cursor-pointer rounded-xl border-[1.5px] border-line bg-white py-3 text-[13px] font-bold text-ink-soft transition-colors hover:border-saffron-dim hover:text-ink"
+                className="w-full cursor-pointer rounded-xl border-[1.5px] border-line bg-surface py-3 text-[13px] font-bold text-ink-soft transition-colors hover:border-saffron-dim hover:text-ink"
               >
                 Skip for now (dev only)
               </button>
@@ -132,7 +132,7 @@ export function SetPasswordForm({
           <form action={logoutAction} className="mt-3">
             <button
               type="submit"
-              className="w-full cursor-pointer rounded-xl border-[1.5px] border-line bg-white py-3 text-[13px] font-bold text-ink-soft transition-colors hover:border-critical/30 hover:text-critical"
+              className="w-full cursor-pointer rounded-xl border-[1.5px] border-line bg-surface py-3 text-[13px] font-bold text-ink-soft transition-colors hover:border-critical/30 hover:text-critical"
             >
               Log out
             </button>

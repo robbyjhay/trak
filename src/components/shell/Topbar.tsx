@@ -97,7 +97,7 @@ export function Topbar() {
           </button>
 
           {notifOpen && (
-            <div className="absolute top-[38px] right-[-6px] z-70 flex max-h-[420px] w-[340px] max-w-[calc(100vw-24px)] flex-col overflow-hidden rounded-[14px] border border-line bg-white shadow-[0_20px_40px_rgba(0,0,0,0.16)]">
+            <div className="absolute top-[38px] right-[-6px] z-70 flex max-h-[420px] w-[340px] max-w-[calc(100vw-24px)] flex-col overflow-hidden rounded-[14px] border border-line bg-popover shadow-[0_20px_40px_rgba(0,0,0,0.16)]">
               <div className="flex items-center justify-between border-b border-line px-4 py-3.5 text-[12.5px] font-extrabold">
                 <span>Notifications</span>
                 {unread > 0 && (
@@ -195,7 +195,7 @@ export function Topbar() {
 
           {menuOpen && (
             <div
-              className="absolute top-12 right-0 z-60 w-[170px] rounded-xl border border-line bg-white p-1.5 shadow-md"
+              className="absolute top-12 right-0 z-60 w-[170px] rounded-xl border border-line bg-popover p-1.5 shadow-md"
               role="menu"
             >
               <MenuBtn

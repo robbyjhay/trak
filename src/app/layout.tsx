@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { headers } from "next/headers";
 import { Archivo, Fraunces, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
+import { ThemeProvider } from "@/context/ThemeContext";
 
 /**
  * Fraunces — display / heading serif.
@@ -64,16 +65,33 @@ export default async function RootLayout({
     <html
       lang="en"
       nonce={nonce}
+      suppressHydrationWarning
       className={`${fraunces.variable} ${archivo.variable} ${jetbrainsMono.variable} h-full`}
     >
-      <body className="min-h-full font-sans antialiased">
+      <head>
+        <script
+          nonce={nonce}
+          dangerouslySetInnerHTML={{
+            __html: `
+              try {
+                let theme = localStorage.getItem('trak-theme');
+                let isDark = theme === 'dark' || (!theme && window.matchMedia('(prefers-color-scheme: dark)').matches) || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+                if (isDark) document.documentElement.classList.add('dark');
+              } catch (e) {}
+            `,
+          }}
+        />
+      </head>
+      <body className="min-h-full font-sans antialiased text-foreground bg-background">
         <a
           href="#main"
-          className="sr-only focus:not-sr-only focus:absolute focus:top-3 focus:left-3 focus:z-[100] focus:rounded-lg focus:bg-aztec focus:px-4 focus:py-2.5 focus:text-sm focus:font-bold focus:text-saffron"
+          className="sr-only focus:not-sr-only focus:absolute focus:top-3 focus:left-3 focus:z-[100] focus:rounded-lg focus:bg-primary focus:px-4 focus:py-2.5 focus:text-sm focus:font-bold focus:text-primary-foreground"
         >
           Skip to content
         </a>
-        {children}
+        <ThemeProvider>
+          {children}
+        </ThemeProvider>
       </body>
     </html>
   );

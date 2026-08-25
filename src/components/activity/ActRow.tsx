@@ -123,7 +123,7 @@ export function ActRow({
           <button
             type="button"
             title="Preview & download report"
-            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[9px] border-[1.5px] border-line bg-white text-ink-soft hover:border-saffron-dim hover:bg-[#fffaf0] hover:text-saffron-dim opacity-0 group-hover:opacity-100 transition-opacity focus-within:opacity-100"
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[9px] border-[1.5px] border-line bg-surface text-ink-soft hover:border-saffron-dim hover:bg-[#fffaf0] hover:text-saffron-dim opacity-0 group-hover:opacity-100 transition-opacity focus-within:opacity-100"
             onClick={(e) => {
               e.stopPropagation();
               onReport(a.id);

@@ -29,7 +29,7 @@ export function DefaultPasswordForm() {
           minLength={12}
           maxLength={128}
           required
-          className="w-full rounded-[10px] border-[1.5px] border-line bg-white px-3.5 py-2.5 text-[13px] outline-none focus:border-aztec-3"
+          className="w-full rounded-[10px] border-[1.5px] border-line bg-surface px-3.5 py-2.5 text-[13px] outline-none focus:border-aztec-3"
         />
       </div>
       <div>
@@ -43,7 +43,7 @@ export function DefaultPasswordForm() {
           minLength={12}
           maxLength={128}
           required
-          className="w-full rounded-[10px] border-[1.5px] border-line bg-white px-3.5 py-2.5 text-[13px] outline-none focus:border-aztec-3"
+          className="w-full rounded-[10px] border-[1.5px] border-line bg-surface px-3.5 py-2.5 text-[13px] outline-none focus:border-aztec-3"
         />
       </div>
       

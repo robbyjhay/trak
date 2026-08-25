@@ -76,7 +76,7 @@ export function ActivityDetail({
         <button
           type="button"
           onClick={() => router.back()}
-          className="mb-4 inline-flex items-center gap-1.5 rounded-full border border-line bg-white px-3 py-1.5 text-[11.5px] font-bold text-ink-soft transition-colors hover:border-saffron-dim hover:text-ink cursor-pointer"
+          className="mb-4 inline-flex items-center gap-1.5 rounded-full border border-line bg-surface px-3 py-1.5 text-[11.5px] font-bold text-ink-soft transition-colors hover:border-saffron-dim hover:text-ink cursor-pointer"
         >
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <path d="M15 18l-6-6 6-6" />
@@ -501,8 +501,8 @@ function PendingForm({
                   state === "done"
                     ? "border-[#bfe3cf] bg-good-bg"
                     : state === "active"
-                      ? "border-saffron bg-linear-to-b from-[#fffaf0] to-white"
-                      : "border-line bg-white opacity-50"
+                      ? "border-saffron bg-saffron/10"
+                      : "border-line bg-surface opacity-50"
                 }`}
               >
                 <div className="mb-1 flex items-center justify-between">
@@ -652,7 +652,7 @@ function PendingForm({
                     {attachedFiles.map((f, i) => (
                       <span
                         key={i}
-                        className="inline-flex items-center gap-1.5 rounded-full border-[1.5px] border-line bg-white py-1.5 pr-2 pl-3 text-xs font-semibold"
+                        className="inline-flex items-center gap-1.5 rounded-full border-[1.5px] border-line bg-surface py-1.5 pr-2 pl-3 text-xs font-semibold"
                       >
                         {f.name}
                         <button
@@ -696,7 +696,7 @@ function PendingForm({
                         className={`inline-flex cursor-pointer items-center gap-1.5 rounded-full border-[1.5px] py-2 pr-3.5 pl-2 text-[12.5px] font-semibold ${
                           on
                             ? "border-aztec-2 bg-aztec-2 text-paper"
-                            : "border-line bg-white text-ink"
+                            : "border-line bg-surface text-ink"
                         }`}
                       >
                         <span
@@ -759,7 +759,7 @@ function PendingForm({
                     {manualAttendees.map((a, i) => (
                       <span
                         key={i}
-                        className="inline-flex items-center gap-1.5 rounded-full border-[1.5px] border-line bg-white py-1.5 pr-2 pl-3 text-xs font-semibold"
+                        className="inline-flex items-center gap-1.5 rounded-full border-[1.5px] border-line bg-surface py-1.5 pr-2 pl-3 text-xs font-semibold"
                       >
                         {a.name}
                         <button
@@ -819,7 +819,7 @@ function PendingForm({
                   </GhostBtn>
                 </div>
                 {showRsvp && (
-                  <div className="mt-3.5 rounded-[11px] border-[1.5px] border-line bg-white px-4 py-3.5">
+                  <div className="mt-3.5 rounded-[11px] border-[1.5px] border-line bg-surface px-4 py-3.5">
                     <div className="mb-2 text-[11px] font-bold text-ink-faint uppercase">
                       Shareable link
                     </div>
@@ -932,7 +932,7 @@ function PendingForm({
                       {spendingItems.map((item, i) => (
                         <span
                           key={i}
-                          className="inline-flex items-center gap-1.5 rounded-full border-[1.5px] border-line bg-white py-1.5 pr-2 pl-3 text-xs font-semibold"
+                          className="inline-flex items-center gap-1.5 rounded-full border-[1.5px] border-line bg-surface py-1.5 pr-2 pl-3 text-xs font-semibold"
                         >
                           {item.description} — ₦{Number(item.amount).toLocaleString()}
                           <button

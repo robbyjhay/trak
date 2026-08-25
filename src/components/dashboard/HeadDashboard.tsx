@@ -889,7 +889,7 @@ function UaBtn({
       type="button"
       disabled={disabled}
       onClick={onClick}
-      className={`flex flex-1 items-center justify-center gap-1.5 rounded-[9px] border-[1.5px] border-line bg-white px-2.5 py-2 text-[11.5px] font-bold text-ink-soft transition-all hover:border-saffron-dim hover:bg-[#fffaf0] hover:text-ink disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-line disabled:hover:bg-white disabled:hover:text-ink-soft`}
+      className={`flex flex-1 items-center justify-center gap-1.5 rounded-[9px] border-[1.5px] border-line bg-surface px-2.5 py-2 text-[11.5px] font-bold text-ink-soft transition-all hover:border-saffron-dim hover:bg-[#fffaf0] hover:text-ink disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-line disabled:hover:bg-surface disabled:hover:text-ink-soft`}
     >
       {children}
     </button>

@@ -6,7 +6,7 @@ import { firstName, suggestUsername } from "@/lib/utils";
 import { ModalBackdrop, ModalPanel } from "@/components/ui/Modal";
 
 const FIELD_INPUT =
-  "w-full rounded-[10px] border-[1.5px] border-line bg-white px-3.5 py-2.5 text-[13px] outline-none focus:border-aztec-3";
+  "w-full rounded-[10px] border-[1.5px] border-line bg-surface px-3.5 py-2.5 text-[13px] outline-none focus:border-aztec-3";
 
 export function AddMember({ onClose }: { onClose: () => void }) {
   const { users, addUser, showToast } = useTrak();
