@@ -2,11 +2,13 @@
 
 import React, { useState, useRef, useEffect } from "react";
 import { initials, firstName, cn } from "@/lib/utils";
-import { formatRelativeDate } from "@/lib/dates";
 import type { MessageAttachment } from "@/lib/types";
 
 function formatMessageTime(isoString: string): string {
-  return formatRelativeDate(isoString);
+  if (!isoString) return "";
+  const d = new Date(isoString);
+  if (isNaN(d.getTime())) return "";
+  return d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
 }
 
 export function Bubble({
@@ -136,8 +138,8 @@ export function Bubble({
                 const isImg = att.contentType.startsWith("image/");
                 if (isImg) {
                   return (
-                    <a key={att.id} href={`/api/uploads/file?key=${encodeURIComponent(att.storageKey)}`} target="_blank" rel="noreferrer" className="block relative overflow-hidden rounded-[12px] bg-black/10 cursor-pointer">
-                      <img src={`/api/uploads/file?key=${encodeURIComponent(att.storageKey)}`} alt={att.name} className="max-h-[250px] w-auto max-w-full object-contain hover:opacity-90 transition-opacity" />
+                    <a key={att.id} href={`/api/uploads/file?key=${encodeURIComponent(att.storageKey)}`} target="_blank" rel="noreferrer" className="inline-block relative overflow-hidden rounded-[12px] border border-black/5 dark:border-white/5 cursor-pointer bg-surface-muted/50">
+                      <img src={`/api/uploads/file?key=${encodeURIComponent(att.storageKey)}`} alt={att.name} className="max-h-[250px] w-auto max-w-full block hover:opacity-90 transition-opacity" />
                     </a>
                   );
                 } else {
@@ -175,7 +177,7 @@ export function Bubble({
               isMe ? "text-primary-foreground/70" : "text-foreground-faint"
             )}
           >
-            <span className="text-[10px] font-medium tracking-tight">
+            <span suppressHydrationWarning className="text-[10px] font-medium tracking-tight">
               {formatMessageTime(time)}
             </span>
           </div>

@@ -2,7 +2,6 @@ import React, { useMemo, useState } from "react";
 import { useTrak } from "@/context/TrakStore";
 import { useCall } from "@/context/CallContext";
 import { cn, formatDuration, initials } from "@/lib/utils";
-import { formatRelativeDate } from "@/lib/dates";
 import { PATHS } from "@/components/icons";
 import { TrakDb, CallRecord, Dm } from "@/lib/types";
 
@@ -10,9 +9,21 @@ type ThreadItem =
   | { kind: "dm"; id: string; dm: Dm }
   | { kind: "call"; id: string; call: CallRecord };
 
-function sortByUid(id: string): number {
-  const m = id.match(/_(\d+)$/);
-  return m ? Number(m[1]) : 0;
+function getCreatedAt(item: ThreadItem): number {
+  if (item.kind === "dm") return new Date(item.dm.at).getTime();
+  if (item.kind === "call") return new Date(item.call.at).getTime();
+  return 0;
+}
+
+function getMessageSnippet(text: string, attachments?: { contentType?: string }[]): string {
+  if (text.trim()) return text;
+  if (attachments && attachments.length > 0) {
+    const type = attachments[0].contentType || "";
+    if (type.startsWith("image/")) return "Photo";
+    if (type === "application/pdf") return "PDF document";
+    return "Attachment";
+  }
+  return "";
 }
 
 function threadItems(db: TrakDb, me: string, other: string): ThreadItem[] {
@@ -29,11 +40,14 @@ function threadItems(db: TrakDb, me: string, other: string): ThreadItem[] {
           (c.a === me && c.b === other) || (c.a === other && c.b === me),
       )
       .map((call) => ({ kind: "call" as const, id: call.id, call })),
-  ].sort((x, y) => sortByUid(x.id) - sortByUid(y.id));
+  ].sort((x, y) => getCreatedAt(x) - getCreatedAt(y));
 }
 
 function formatListTime(isoString: string): string {
-  return formatRelativeDate(isoString);
+  if (!isoString) return "";
+  const d = new Date(isoString);
+  if (isNaN(d.getTime())) return "";
+  return d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
 }
 
 export function ConversationList({
@@ -164,7 +178,7 @@ export function ConversationList({
                 </div>
               }
               name="Community Chat"
-              snippet={db.community[db.community.length - 1]?.text || "No messages yet"}
+              snippet={db.community[db.community.length - 1] ? getMessageSnippet(db.community[db.community.length - 1].text, db.community[db.community.length - 1].attachments) : "No messages yet"}
               time={db.community[db.community.length - 1] ? formatListTime(db.community[db.community.length - 1].at) : undefined}
             />
             {canBc && (
@@ -206,7 +220,7 @@ export function ConversationList({
             : last
               ? last.kind === "call"
                 ? `${last.call.from === me ? "You called" : "Missed call"} · ${formatDuration(last.call.durationSec)}`
-                : last.dm.text
+                : getMessageSnippet(last.dm.text, last.dm.attachments)
               : "Say hello 👋";
           
           let lastTime: string | undefined;
