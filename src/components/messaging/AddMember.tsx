@@ -25,6 +25,7 @@ export function AddMember({ onClose }: { onClose: () => void }) {
   const [usernameTouched, setUsernameTouched] = useState(false);
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
+  const [successCredentials, setSuccessCredentials] = useState<{ username: string; starterPassword: string } | null>(null);
 
   function set<K extends keyof typeof form>(key: K, value: string) {
     setForm((f) => ({ ...f, [key]: value }));
@@ -51,16 +52,10 @@ export function AddMember({ onClose }: { onClose: () => void }) {
         phone,
         stateOfOrigin: form.stateOfOrigin.trim(),
         dateJoined: form.dateJoined,
-        roleType: form.roleType as "member" | "secretary" | "corps",
+        roleType: form.roleType as "member" | "secretary" | "corps" | "intern",
       });
       setSaving(false);
-      onClose();
-      showToast(
-        `${firstName(name)} added to the unit`,
-        email
-          ? `Username ${username} · invite email sent to ${email}. Starter password ${starterPassword} (share if email delivery fails).`
-          : `Username ${username} · starter password ${starterPassword} — share this with them; they'll be prompted to change it at first sign-in.`,
-      );
+      setSuccessCredentials({ username, starterPassword });
     } catch (err) {
       setSaving(false);
       setError(err instanceof Error ? err.message : "Could not add member.");
@@ -70,14 +65,55 @@ export function AddMember({ onClose }: { onClose: () => void }) {
   return (
     <ModalBackdrop open onClose={onClose} labelledBy="add-member-title">
       <ModalPanel>
-        <h3 id="add-member-title" className="m-0 mb-1.5 font-display text-xl text-foreground">
-          Add member
-        </h3>
-        <p className="mb-5 text-[12.5px] text-foreground-secondary">
-          Creates their Trak login — you&apos;ll get their username &amp; a
-          starter password to share, and they&apos;re prompted to set their own
-          at first sign-in. With an email on file, an invite link is also sent.
-        </p>
+        {successCredentials ? (
+          <div className="text-center">
+            <h3 id="add-member-title" className="m-0 mb-4 font-display text-xl text-primary">
+              Member created successfully
+            </h3>
+            <div className="mb-6 rounded-xl bg-surface p-5 text-left font-mono text-[13px] leading-relaxed text-foreground shadow-sm border border-border">
+              <div className="mb-2">
+                <span className="font-bold text-foreground-secondary uppercase tracking-wider text-[11px]">Username</span>
+                <div className="mt-1 text-[15px] font-bold text-foreground">{successCredentials.username}</div>
+              </div>
+              <div>
+                <span className="font-bold text-foreground-secondary uppercase tracking-wider text-[11px]">Initial password</span>
+                <div className="mt-1 text-[15px] font-bold text-foreground">{successCredentials.starterPassword}</div>
+              </div>
+            </div>
+            <div className="flex flex-col gap-3">
+              <button
+                type="button"
+                className="w-full cursor-pointer rounded-[10px] border-none bg-primary py-3.5 font-bold text-primary-foreground transition-colors hover:bg-primary-hover"
+                onClick={async () => {
+                  try {
+                    await navigator.clipboard.writeText(successCredentials.starterPassword);
+                    showToast("Password copied", "You can now paste it securely.");
+                  } catch {
+                    showToast("Copy failed", "Please copy manually.");
+                  }
+                }}
+              >
+                Copy Password
+              </button>
+              <button
+                type="button"
+                className="w-full cursor-pointer rounded-[10px] border-[1.5px] border-border bg-surface-interactive py-3.5 font-bold transition-colors hover:border-primary hover:text-foreground"
+                onClick={onClose}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        ) : (
+          <>
+            <h3 id="add-member-title" className="m-0 mb-1.5 font-display text-xl text-foreground">
+              Add member
+            </h3>
+            <p className="mb-5 text-[12.5px] text-foreground-secondary">
+              Creates their Trak login — you&apos;ll get their username &amp; a
+              starter password to share, and they&apos;re prompted to set their own
+              at first sign-in. With an email on file, an invite link is also sent.
+            </p>
 
         <Field label="Full name *">
           <input
@@ -92,7 +128,7 @@ export function AddMember({ onClose }: { onClose: () => void }) {
                 );
               }
             }}
-            placeholder="e.g. Adaeze Nwosu"
+            placeholder="Full name"
             className={FIELD_INPUT}
             autoComplete="name"
           />
@@ -162,6 +198,7 @@ export function AddMember({ onClose }: { onClose: () => void }) {
             <option value="member">Member</option>
             <option value="secretary">Secretary</option>
             <option value="corps">NYSC Corps</option>
+            <option value="intern">Intern</option>
           </select>
         </Field>
         <Field label="Phone *">
@@ -173,11 +210,16 @@ export function AddMember({ onClose }: { onClose: () => void }) {
           />
         </Field>
         <Field label="State of origin">
-          <input
+          <select
             value={form.stateOfOrigin}
             onChange={(e) => set("stateOfOrigin", e.target.value)}
             className={FIELD_INPUT}
-          />
+          >
+            <option value="">Select state…</option>
+            {["Abia", "Adamawa", "Akwa Ibom", "Anambra", "Bauchi", "Bayelsa", "Benue", "Borno", "Cross River", "Delta", "Ebonyi", "Edo", "Ekiti", "Enugu", "FCT", "Gombe", "Imo", "Jigawa", "Kaduna", "Kano", "Katsina", "Kebbi", "Kogi", "Kwara", "Lagos", "Nasarawa", "Niger", "Ogun", "Ondo", "Osun", "Oyo", "Plateau", "Rivers", "Sokoto", "Taraba", "Yobe", "Zamfara"].map(state => (
+              <option key={state} value={state}>{state}</option>
+            ))}
+          </select>
         </Field>
         <Field label="Date joined PSSDC">
           <input
@@ -215,6 +257,8 @@ export function AddMember({ onClose }: { onClose: () => void }) {
             {saving ? "Adding…" : "Add member"}
           </button>
         </div>
+        </>
+        )}
       </ModalPanel>
     </ModalBackdrop>
   );

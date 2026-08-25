@@ -25,6 +25,7 @@ export async function POST(req: Request) {
     const body = await parseJsonBody<{
       purpose?: UploadPurpose;
       contentType?: string;
+      filename?: string;
       size?: number;
     }>(req);
 
@@ -38,6 +39,7 @@ export async function POST(req: Request) {
     const signed = await createSignedUpload({
       purpose: body.purpose,
       contentType: body.contentType,
+      filename: body.filename,
       size: body.size,
       userId: session.id,
     });

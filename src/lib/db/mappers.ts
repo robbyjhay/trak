@@ -13,6 +13,7 @@ import type {
   CommunityMessage as DbCommunity,
   DailyLog as DbDailyLog,
   DirectMessage as DbDm,
+  MessageAttachment as DbMessageAttachment,
   Notification as DbNotification,
   Responsibility as DbResponsibility,
   User as DbUser,
@@ -28,6 +29,7 @@ import type {
   CommunityMessage,
   DailyLog,
   Dm,
+  MessageAttachment,
   Notification,
   NotifType,
   Responsibility,
@@ -77,6 +79,8 @@ export function mapUser(row: UserWithProfile): User {
     role: row.role === "head" ? "head" : "member",
     isSecretary: row.isSecretary,
     isCorps: row.isCorps,
+    isIntern: (row as any).isIntern ?? false,
+    isActive: row.isActive,
     corpsEnd: p?.corpsEnd ? dateOnly(p.corpsEnd) : undefined,
     color: p?.color ?? "#0e6b47",
     phone: p?.phone ?? "",
@@ -190,24 +194,48 @@ export function mapComment(row: DbComment): Comment {
   };
 }
 
-export function mapDm(row: DbDm): Dm {
+export function mapMessageAttachment(row: DbMessageAttachment): MessageAttachment {
+  return {
+    id: row.id,
+    name: row.name,
+    size: row.size,
+    contentType: row.contentType,
+    storageKey: row.storageKey,
+    width: row.width,
+    height: row.height,
+  };
+}
+
+export function mapDm(
+  row: DbDm & { attachments?: DbMessageAttachment[] },
+  deletedForMeIds?: Set<string>,
+): Dm {
+  const isDeleted = Boolean(row.deletedAt) || Boolean(deletedForMeIds?.has(row.id));
   return {
     id: row.id,
     a: row.participantA,
     b: row.participantB,
     from: row.fromUserId,
-    text: row.text,
+    text: isDeleted ? "This message was deleted." : row.text,
     at: row.createdAt.toISOString(),
+    attachments: isDeleted ? undefined : row.attachments?.map(mapMessageAttachment),
+    isDeleted,
   };
 }
 
-export function mapCommunity(row: DbCommunity): CommunityMessage {
+export function mapCommunity(
+  row: DbCommunity & { attachments?: DbMessageAttachment[] },
+  deletedForMeIds?: Set<string>,
+): CommunityMessage {
+  const isDeleted = Boolean(row.deletedAt) || Boolean(deletedForMeIds?.has(row.id));
   return {
     id: row.id,
     from: row.fromUserId,
-    text: row.text,
+    text: isDeleted ? "This message was deleted." : row.text,
     at: row.createdAt.toISOString(),
     replyToId: row.replyToId,
+    attachments: isDeleted ? undefined : row.attachments?.map(mapMessageAttachment),
+    isDeleted,
   };
 }
 

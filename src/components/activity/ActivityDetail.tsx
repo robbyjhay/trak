@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTrak } from "@/context/TrakStore";
 import { canComment } from "@/lib/permissions";
-import { fmtDate, fmtTime } from "@/lib/dates";
+import { fmtDate, fmtTime, formatRelativeDate } from "@/lib/dates";
 import { firstName, initials, toBase64Url } from "@/lib/utils";
 import { PATHS } from "@/components/icons";
 import { PrimaryBtn, GhostBtn } from "@/components/ui/Buttons";
@@ -75,16 +75,18 @@ export function ActivityDetail({
   return (
     <div>
       <div className="mb-[22px]">
-        <button
-          type="button"
-          onClick={() => router.back()}
-          className="mb-4 inline-flex items-center gap-1.5 rounded-full border border-border bg-surface px-3 py-1.5 text-[11.5px] font-bold text-foreground-secondary transition-colors hover:border-primary hover:text-foreground cursor-pointer"
-        >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M15 18l-6-6 6-6" />
-          </svg>
-          Back
-        </button>
+        <div className="sticky top-0 z-40 -mx-4 -mt-6 mb-4 bg-background/95 backdrop-blur px-4 py-4 sm:-mx-8 sm:-mt-10 sm:px-8 sm:py-6 md:static md:bg-transparent md:backdrop-blur-none md:p-0 md:m-0 md:mb-4 border-b border-border md:border-none">
+          <button
+            type="button"
+            onClick={() => router.back()}
+            className="inline-flex items-center gap-1.5 rounded-full border border-border bg-surface px-3 py-1.5 text-[11.5px] font-bold text-foreground-secondary transition-colors hover:border-primary hover:text-foreground shadow-sm cursor-pointer"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M15 18l-6-6 6-6" />
+            </svg>
+            Back
+          </button>
+        </div>
         <div className="mb-2 text-[11.5px] font-bold tracking-[0.12em] text-foreground-secondary uppercase">
           {act.type} ·{" "}
           {act.status === "completed"
@@ -94,8 +96,16 @@ export function ActivityDetail({
               : "Pending"}
           {owner && owner.id !== sessionUser.id ? ` · ${owner.name}` : ""}
         </div>
-        <h1 className="m-0 max-w-[640px] text-[30px] font-semibold">
+        <h1 className="m-0 max-w-[640px] text-[30px] font-semibold flex items-center flex-wrap gap-3">
           {act.title}
+          {act.hidden && (
+            <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-surface-muted px-2.5 py-1 text-[13px] font-bold text-foreground-secondary border border-border" title="Hidden from unit feed">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d={PATHS.eyeOff} />
+              </svg>
+              Hidden
+            </span>
+          )}
         </h1>
         <div className="mt-1.5 flex flex-wrap gap-2">
           <span className="rounded-full bg-aztec-2 px-2.5 py-1 text-[11px] font-bold text-saffron">
@@ -179,7 +189,7 @@ export function ActivityDetail({
                     {logs.length > 1 ? fmtDate(l.date) : "Activity log"}
                   </h2>
                   <span className="text-[11.5px] text-foreground-faint">
-                    Submitted {l.submittedAt ? fmtDate(l.submittedAt) : ""}
+                    Submitted {l.submittedAt ? formatRelativeDate(l.submittedAt) : ""}
                   </span>
                 </div>
                 <FieldBlock label="Objectives">{l.objectives || "—"}</FieldBlock>
@@ -308,7 +318,7 @@ export function ActivityDetail({
                   >
                     <b>{firstName(userMap[c.authorId]?.name || "")}:</b> {c.text}
                     <div className="mt-1 text-[10.5px] text-foreground-faint">
-                      {fmtDate(c.createdAt)}
+                      {formatRelativeDate(c.createdAt)}
                     </div>
                   </div>
                 ))
@@ -403,7 +413,7 @@ function CommentInput({ onSend }: { onSend: (t: string) => void }) {
         value={text}
         onChange={(e) => setText(e.target.value)}
         placeholder="Add a remark — it folds into the report…"
-        className="flex-1 rounded-[9px] border-[1.5px] border-input-border bg-input text-foreground placeholder:text-input-placeholder px-3 py-2 text-[12.5px] outline-none focus:border-primary"
+        className="flex-1 rounded-[9px] border-[1.5px] border-input-border bg-input text-foreground placeholder:text-input-placeholder px-3 py-2 text-[12.5px] outline-none focus:border-border-strong"
         onKeyDown={(e) => {
           if (e.key === "Enter" && text.trim()) {
             onSend(text.trim());
@@ -570,7 +580,7 @@ function PendingForm({
                 value={objectives}
                 onChange={(e) => setObjectives(e.target.value)}
                 placeholder="What are you covering / aiming to achieve today?"
-                className="min-h-[90px] w-full rounded-[11px] border-[1.5px] border-input-border bg-input text-foreground placeholder:text-input-placeholder px-[15px] py-3.5 text-sm outline-none focus:border-primary"
+                className="min-h-[90px] w-full rounded-[11px] border-[1.5px] border-input-border bg-input text-foreground placeholder:text-input-placeholder px-[15px] py-3.5 text-sm outline-none focus:border-border-strong"
               />
             </Section>
             <Section label="Description of activity done" required hint="— explain what was done">
@@ -578,7 +588,7 @@ function PendingForm({
                 value={activityDescription}
                 onChange={(e) => setActivityDescription(e.target.value)}
                 placeholder="Explain what was actually done during this session — this is what shows up in the report's Scope of Work."
-                className="min-h-[100px] w-full rounded-[11px] border-[1.5px] border-input-border bg-input text-foreground placeholder:text-input-placeholder px-[15px] py-3.5 text-sm outline-none focus:border-primary"
+                className="min-h-[100px] w-full rounded-[11px] border-[1.5px] border-input-border bg-input text-foreground placeholder:text-input-placeholder px-[15px] py-3.5 text-sm outline-none focus:border-border-strong"
               />
             </Section>
             <Section label="Record objectives / summary" optional>
@@ -612,7 +622,7 @@ function PendingForm({
                       <textarea
                         value={speech.transcript}
                         onChange={(e) => speech.setTranscript(e.target.value)}
-                        className="min-h-[90px] w-full rounded-[11px] border-[1.5px] border-input-border bg-input text-foreground placeholder:text-input-placeholder px-[15px] py-3.5 text-sm outline-none focus:border-primary"
+                        className="min-h-[90px] w-full rounded-[11px] border-[1.5px] border-input-border bg-input text-foreground placeholder:text-input-placeholder px-[15px] py-3.5 text-sm outline-none focus:border-border-strong"
                       />
                       <div className="mt-2.5 text-[11.5px] text-foreground-faint">
                         Audio is never stored — only this transcript is kept.
@@ -731,20 +741,20 @@ function PendingForm({
                     value={manName}
                     onChange={(e) => setManName(e.target.value)}
                     placeholder="Name"
-                    className="rounded-[10px] border-[1.5px] border-input-border bg-input text-foreground placeholder:text-input-placeholder px-3 py-2.5 text-[13px] outline-none focus:border-primary"
+                    className="rounded-[10px] border-[1.5px] border-input-border bg-input text-foreground placeholder:text-input-placeholder px-3 py-2.5 text-[13px] outline-none focus:border-border-strong"
                   />
                   <input
                     value={manPhone}
                     onChange={(e) => setManPhone(e.target.value)}
                     placeholder="Phone"
-                    className="rounded-[10px] border-[1.5px] border-input-border bg-input text-foreground placeholder:text-input-placeholder px-3 py-2.5 text-[13px] outline-none focus:border-primary"
+                    className="rounded-[10px] border-[1.5px] border-input-border bg-input text-foreground placeholder:text-input-placeholder px-3 py-2.5 text-[13px] outline-none focus:border-border-strong"
                   />
                   <input
                     type="email"
                     value={manEmail}
                     onChange={(e) => setManEmail(e.target.value)}
                     placeholder="Email"
-                    className="rounded-[10px] border-[1.5px] border-input-border bg-input text-foreground placeholder:text-input-placeholder px-3 py-2.5 text-[13px] outline-none focus:border-primary"
+                    className="rounded-[10px] border-[1.5px] border-input-border bg-input text-foreground placeholder:text-input-placeholder px-3 py-2.5 text-[13px] outline-none focus:border-border-strong"
                   />
                   <GhostBtn
                     onClick={() => {
@@ -890,7 +900,7 @@ function PendingForm({
                         value={amountReleased}
                         onChange={(e) => setAmountReleased(e.target.value)}
                         placeholder="0"
-                        className="w-full rounded-[10px] border-[1.5px] border-input-border bg-input text-foreground placeholder:text-input-placeholder px-3 py-2.5 text-[13px] outline-none focus:border-primary"
+                        className="w-full rounded-[10px] border-[1.5px] border-input-border bg-input text-foreground placeholder:text-input-placeholder px-3 py-2.5 text-[13px] outline-none focus:border-border-strong"
                       />
                     </div>
                     <div>
@@ -903,7 +913,7 @@ function PendingForm({
                         value={amountSpent}
                         onChange={(e) => setAmountSpent(e.target.value)}
                         placeholder="0"
-                        className="w-full rounded-[10px] border-[1.5px] border-input-border bg-input text-foreground placeholder:text-input-placeholder px-3 py-2.5 text-[13px] outline-none focus:border-primary"
+                        className="w-full rounded-[10px] border-[1.5px] border-input-border bg-input text-foreground placeholder:text-input-placeholder px-3 py-2.5 text-[13px] outline-none focus:border-border-strong"
                       />
                     </div>
                   </div>
@@ -915,7 +925,7 @@ function PendingForm({
                       value={spendDesc}
                       onChange={(e) => setSpendDesc(e.target.value)}
                       placeholder="Description"
-                      className="rounded-[10px] border-[1.5px] border-input-border bg-input text-foreground placeholder:text-input-placeholder px-3 py-2.5 text-[13px] outline-none focus:border-primary"
+                      className="rounded-[10px] border-[1.5px] border-input-border bg-input text-foreground placeholder:text-input-placeholder px-3 py-2.5 text-[13px] outline-none focus:border-border-strong"
                     />
                     <input
                       type="number"
@@ -923,7 +933,7 @@ function PendingForm({
                       value={spendAmt}
                       onChange={(e) => setSpendAmt(e.target.value)}
                       placeholder="Amount"
-                      className="rounded-[10px] border-[1.5px] border-input-border bg-input text-foreground placeholder:text-input-placeholder px-3 py-2.5 text-[13px] outline-none focus:border-primary"
+                      className="rounded-[10px] border-[1.5px] border-input-border bg-input text-foreground placeholder:text-input-placeholder px-3 py-2.5 text-[13px] outline-none focus:border-border-strong"
                     />
                     <GhostBtn
                       onClick={() => {
@@ -1057,7 +1067,7 @@ function PendingForm({
                             setNewEndDate(new Date(e.target.value).toISOString());
                           }
                         }}
-                        className="rounded-[6px] border border-input-border bg-input text-foreground px-2 py-1 text-[12.5px] font-bold outline-none focus:border-primary disabled:opacity-60"
+                        className="rounded-[6px] border border-input-border bg-input text-foreground px-2 py-1 text-[12.5px] font-bold outline-none focus:border-border-strong disabled:opacity-60"
                         disabled={isSavingDate}
                       />
                     </div>
@@ -1150,7 +1160,7 @@ function PendingForm({
                   <textarea
                     value={val}
                     onChange={(e) => set(e.target.value)}
-                    className="min-h-[70px] w-full rounded-[11px] border-[1.5px] border-input-border bg-input text-foreground placeholder:text-input-placeholder px-[15px] py-3.5 text-sm outline-none focus:border-primary"
+                    className="min-h-[70px] w-full rounded-[11px] border-[1.5px] border-input-border bg-input text-foreground placeholder:text-input-placeholder px-[15px] py-3.5 text-sm outline-none focus:border-border-strong"
                   />
                 </Section>
               ))}

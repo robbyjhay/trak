@@ -4,12 +4,13 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTrak } from "@/context/TrakStore";
 import { MemberDashboard, Card, RespBars, QuickActionTile } from "./MemberDashboard";
-import { addDays, fmtDate, iso, longDateLabel } from "@/lib/dates";
+import { addDays, fmtDate, iso, longDateLabel, formatRelativeDate } from "@/lib/dates";
 import { firstName, initials } from "@/lib/utils";
 import { roleLabel } from "@/lib/permissions";
 import { TYPE_COLOR } from "@/lib/constants";
 import { TypeIcon, PATHS } from "@/components/icons";
 import { GhostBtn } from "@/components/ui/Buttons";
+import { Switch } from "@/components/ui/Switch";
 import { ModalBackdrop, ModalPanel } from "@/components/ui/Modal";
 import { AddMember } from "@/components/messaging/AddMember";
 import { useReportPreview } from "@/components/reports/ReportPreview";
@@ -35,7 +36,7 @@ export function HeadDashboard() {
         {(
           [
             ["mine", "My Activities"],
-            ["ao", "Unit Overview"],
+            ["ao", "Accounting Officer"],
           ] as const
         ).map(([key, label]) => (
           <button
@@ -64,6 +65,7 @@ export function HeadDashboard() {
 
 function AccountingOfficer() {
   const router = useRouter();
+  const [resetCredentials, setResetCredentials] = useState<{username: string; starterPassword: string} | null>(null);
   const {
     db,
     users,
@@ -107,6 +109,7 @@ function AccountingOfficer() {
     phone: "",
     stateOfOrigin: "",
     dateJoined: "",
+    roleType: "",
   });
   const [taskTitle, setTaskTitle] = useState("");
   const [assignTo, setAssignTo] = useState(
@@ -119,7 +122,8 @@ function AccountingOfficer() {
   const [feedFilter, setFeedFilter] = useState<"all" | "week" | "month" | "quarter">("all");
   const [showHidden, setShowHidden] = useState(false);
 
-  const teamCounts = users
+  const activeUsers = users.filter((u) => u.isActive);
+  const teamCounts = activeUsers
     .map((u) => ({
       u,
       count: activitiesFor(u.id).filter(
@@ -171,20 +175,18 @@ function AccountingOfficer() {
               Monitoring {users.length} active personnel. This month, the unit has logged <span className="font-semibold text-foreground">{thisMonth.length}</span> activities with a completion rate of <span className="font-semibold text-foreground">{completionRate}%</span>.
             </p>
           </div>
-          <div className="flex flex-col sm:flex-row gap-4 items-start lg:items-center">
-            <div className="rounded-2xl bg-surface-muted p-6 min-w-[160px] flex flex-col justify-center border border-border shadow-sm">
+          <div className="grid w-full shrink-0 grid-cols-2 gap-3 lg:w-auto lg:min-w-[420px]">
+            <div className="row-span-2 flex flex-col justify-center rounded-2xl bg-surface-muted p-6 border border-border shadow-sm">
               <div className="text-[36px] leading-none font-extrabold text-foreground mb-2">{completionRate}%</div>
               <div className="text-[14px] font-semibold text-foreground-secondary">Completion Rate</div>
             </div>
-            <div className="flex flex-col gap-3 justify-center w-full sm:w-auto">
-              <div className="rounded-2xl bg-surface-muted px-5 py-3.5 border border-border flex items-center justify-between min-w-[180px]">
-                <span className="text-[14px] font-semibold text-foreground-secondary">Monthly Activities</span>
-                <span className="text-[22px] font-bold text-foreground">{thisMonth.length}</span>
-              </div>
-              <div className="rounded-2xl bg-critical-surface/40 px-5 py-3.5 border border-critical-surface flex items-center justify-between min-w-[180px]">
-                <span className="text-[14px] font-semibold text-critical">Missed (All Time)</span>
-                <span className="text-[22px] font-bold text-critical">{missedAll}</span>
-              </div>
+            <div className="flex flex-col justify-center items-start rounded-2xl bg-surface-muted px-5 py-3 border border-border min-w-0">
+              <span className="text-2xl font-bold text-foreground">{thisMonth.length}</span>
+              <span className="text-xs text-foreground-secondary">Monthly Activities</span>
+            </div>
+            <div className="flex flex-col justify-center items-start rounded-2xl bg-critical-surface/40 px-5 py-3 border border-critical-surface min-w-0">
+              <span className="text-2xl font-bold text-critical">{missedAll}</span>
+              <span className="text-xs text-critical">Missed (All Time)</span>
             </div>
           </div>
         </div>
@@ -286,17 +288,24 @@ function AccountingOfficer() {
                     </button>
                   ))}
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setShowHidden(!showHidden)}
-                  className={`cursor-pointer rounded-md border-[1.5px] px-2.5 py-1 text-[10.5px] font-bold transition-colors ${
-                    showHidden
-                      ? "border-primary bg-warning-surface text-warning-foreground"
-                      : "border-border bg-transparent text-foreground-faint hover:border-primary hover:text-foreground"
-                  }`}
-                >
-                  {showHidden ? "Showing hidden" : "Show hidden"}
-                </button>
+                <div className="flex items-center gap-1.5">
+                  <Switch
+                    id="show-hidden-feed"
+                    checked={showHidden}
+                    onChange={setShowHidden}
+                    aria-label="Show hidden activities"
+                  />
+                  <label
+                    htmlFor="show-hidden-feed"
+                    className={`cursor-pointer text-[10.5px] font-bold whitespace-nowrap transition-colors ${
+                      showHidden
+                        ? "text-warning-ink"
+                        : "text-foreground-faint hover:text-foreground"
+                    }`}
+                  >
+                    {showHidden ? "Showing hidden" : "Show hidden"}
+                  </label>
+                </div>
               </div>
             }
           >
@@ -317,7 +326,8 @@ function AccountingOfficer() {
                 return (
                   <div
                     key={a.id}
-                    className="mb-3.5 rounded-[14px] border border-border bg-surface px-[18px] py-4 last:mb-0"
+                    onClick={() => router.push(`/activity/${a.id}`)}
+                    className="mb-3.5 rounded-[14px] border border-border bg-surface px-[18px] py-4 last:mb-0 cursor-pointer hover:border-primary hover:shadow-sm transition-all"
                   >
                     <div className="mb-2.5 flex items-center gap-2.5">
                       <div
@@ -327,9 +337,19 @@ function AccountingOfficer() {
                         {initials(owner?.name || "?")}
                       </div>
                       <div className="min-w-0 flex-1">
-                        <div className="text-[13px] font-bold text-foreground">{a.title}</div>
+                        <div className="text-[13px] font-bold text-foreground flex items-center flex-wrap gap-2">
+                          {a.title}
+                          {a.hidden && (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-surface-muted px-2 py-0.5 text-[9.5px] font-bold text-foreground-secondary border border-border" title="Hidden from unit feed">
+                              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                <path d={PATHS.eyeOff} />
+                              </svg>
+                              Hidden
+                            </span>
+                          )}
+                        </div>
                         <div className="text-[11px] text-foreground-faint">
-                          {owner?.name} · {fmtDate(a.createdAt)} ·{" "}
+                          {owner?.name} · {formatRelativeDate(a.createdAt)} ·{" "}
                           <span
                             className={`rounded-full px-2 py-0.5 text-[9.5px] font-bold ${
                               a.status === "pending"
@@ -350,38 +370,35 @@ function AccountingOfficer() {
                         <TypeIcon type={a.type} size={14} />
                       </div>
                     </div>
-                    <div className="mt-1 flex gap-2">
-                      <UaBtn onClick={() => router.push(`/activity/${a.id}`)}>
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                          <path d={PATHS.eye} />
-                        </svg>
-                        View
-                      </UaBtn>
+                    <div className="mt-1 flex gap-4" onClick={(e) => e.stopPropagation()}>
                       <UaBtn
+                        title="Download Report"
                         disabled={!isDone}
-                        onClick={() => isDone && openReport(a.id)}
+                        onClick={(e) => { e.stopPropagation(); if (isDone) openReport(a.id); }}
                       >
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                           <path d={PATHS.download} />
                         </svg>
-                        Download
                       </UaBtn>
                       <UaBtn
+                        title="Comment"
                         disabled={!isDone}
-                        onClick={() => {
+                        onClick={(e) => {
+                          e.stopPropagation();
                           if (!isDone) return;
                           setCommentActId(a.id);
                           setCommentText("");
                           setCommentOpen(true);
                         }}
                       >
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                           <path d={PATHS.messages} />
                         </svg>
-                        Comment
                       </UaBtn>
                       <UaBtn
-                        onClick={() => {
+                        title={a.hidden ? "Unhide in feed" : "Hide from feed"}
+                        onClick={(e) => {
+                          e.stopPropagation();
                           void toggleActivityHidden(a.id)
                             .then(() =>
                               showToast(
@@ -396,10 +413,15 @@ function AccountingOfficer() {
                             );
                         }}
                       >
-                        {a.hidden ? "Unhide" : "Hide"}
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d={a.hidden ? PATHS.eye : PATHS.eyeOff} />
+                        </svg>
                       </UaBtn>
                       <UaBtn
-                        onClick={() => {
+                        title="Delete"
+                        className="text-critical-semantic hover:border-critical-semantic hover:bg-critical-surface hover:text-critical-semantic"
+                        onClick={(e) => {
+                          e.stopPropagation();
                           if (!confirm(`Soft delete "${a.title}"? It can be restored later.`)) return;
                           void softDeleteActivity(a.id)
                             .then(() =>
@@ -410,7 +432,9 @@ function AccountingOfficer() {
                             );
                         }}
                       >
-                        Delete
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d={PATHS.trash} />
+                        </svg>
                       </UaBtn>
                     </div>
                   </div>
@@ -471,7 +495,7 @@ function AccountingOfficer() {
             }
           >
             {users.map((u) => (
-              <div key={u.id} className="mb-3 flex items-center gap-3 last:mb-0">
+              <div key={u.id} className={`mb-3 flex items-center gap-3 last:mb-0 ${!u.isActive ? "opacity-50 grayscale" : ""}`}>
                 <div
                   className="flex h-[30px] w-[30px] shrink-0 items-center justify-center overflow-hidden rounded-full font-display text-xs font-bold text-white"
                   style={{ background: u.color }}
@@ -484,7 +508,10 @@ function AccountingOfficer() {
                   )}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <div className="text-[12.5px] font-bold text-foreground">{u.name}</div>
+                  <div className="text-[12.5px] font-bold text-foreground">
+                    {u.name}
+                    {!u.isActive && <span className="ml-2 rounded bg-critical-surface px-1.5 py-0.5 text-[10px] text-critical">Deactivated</span>}
+                  </div>
                   <div className="text-[11px] font-medium text-foreground-faint">
                     {u.designation || "No designation set"}
                     {u.gradeLevel ? ` · ${u.gradeLevel}` : ""}
@@ -501,6 +528,7 @@ function AccountingOfficer() {
                       phone: u.phone || "",
                       stateOfOrigin: u.stateOfOrigin || "",
                       dateJoined: u.dateJoined || "",
+                      roleType: u.isSecretary ? "secretary" : u.isCorps ? "corps" : u.isIntern ? "intern" : "member",
                     });
                     setProfileOpen(true);
                   }}
@@ -526,7 +554,7 @@ function AccountingOfficer() {
               onChange={(e) => setAssignTo(e.target.value)}
               className="field-input"
             >
-              {users
+              {activeUsers
                 .filter((u) => u.id !== head.id)
                 .map((u) => (
                   <option key={u.id} value={u.id}>
@@ -694,6 +722,18 @@ function AccountingOfficer() {
               )}
             </Field>
           ))}
+          <Field label="Role type">
+            <select
+              value={pe.roleType}
+              onChange={(e) => setPe((p) => ({ ...p, roleType: e.target.value }))}
+              className="field-input"
+            >
+              <option value="member">Member</option>
+              <option value="secretary">Secretary</option>
+              <option value="corps">NYSC Corps</option>
+              <option value="intern">Intern</option>
+            </select>
+          </Field>
           <div className="mt-[22px] flex gap-2.5">
             <button
               type="button"
@@ -704,9 +744,33 @@ function AccountingOfficer() {
             </button>
             <button
               type="button"
+              className="flex-[1.3] cursor-pointer rounded-[10px] border border-border bg-transparent py-3 font-bold text-foreground-secondary transition-colors hover:bg-surface-muted"
+              onClick={async () => {
+                const { resetMemberPasswordAction } = await import("@/lib/auth/actions");
+                if (confirm(`Are you sure you want to reset ${userMap[editUserId]?.name}'s password to the default?`)) {
+                  const res = await resetMemberPasswordAction(editUserId);
+                  if (res.ok && res.password) {
+                    setProfileOpen(false); // Close profile modal
+                    setResetCredentials({ username: userMap[editUserId]?.username || "", starterPassword: res.password });
+                  } else {
+                    showToast("Reset failed", res.error || "An error occurred.");
+                  }
+                }
+              }}
+            >
+              Reset Password
+            </button>
+            <button
+              type="button"
               className="flex-[1.3] cursor-pointer rounded-[10px] border-none bg-primary py-3 font-bold text-primary-foreground transition-colors hover:bg-primary-hover"
               onClick={() => {
-                void updateUserProfile(editUserId, pe)
+                const patch = {
+                  ...pe,
+                  isSecretary: pe.roleType === "secretary",
+                  isCorps: pe.roleType === "corps",
+                  isIntern: pe.roleType === "intern",
+                };
+                void updateUserProfile(editUserId, patch)
                   .then(() => {
                     setProfileOpen(false);
                     showToast(
@@ -722,8 +786,100 @@ function AccountingOfficer() {
               Save
             </button>
           </div>
+          {editUserId !== head.id && (
+            <div className="mt-4 border-t border-line pt-4">
+              {userMap[editUserId]?.isActive !== false ? (
+                <button
+                  type="button"
+                  className="w-full cursor-pointer rounded-[10px] border border-critical bg-critical-bg py-3 font-bold text-critical"
+                  onClick={() => {
+                    if (confirm(`Are you sure you want to deactivate ${userMap[editUserId]?.name}? They will no longer be able to log in.`)) {
+                      void updateUserProfile(editUserId, { isActive: false })
+                        .then(() => {
+                          setProfileOpen(false);
+                          showToast(
+                            "Account deactivated",
+                            `${userMap[editUserId]?.name}'s account has been deactivated.`,
+                          );
+                        })
+                        .catch((err) =>
+                          showToast("Could not deactivate", err.message || "Please try again."),
+                        );
+                    }
+                  }}
+                >
+                  Deactivate Account
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="w-full cursor-pointer rounded-[10px] border border-good bg-good-bg py-3 font-bold text-good"
+                  onClick={() => {
+                    void updateUserProfile(editUserId, { isActive: true })
+                      .then(() => {
+                        setProfileOpen(false);
+                        showToast(
+                          "Account reactivated",
+                          `${userMap[editUserId]?.name}'s account is active again.`,
+                        );
+                      })
+                      .catch((err) =>
+                        showToast("Could not reactivate", err.message || "Please try again."),
+                      );
+                  }}
+                >
+                  Reactivate Account
+                </button>
+              )}
+            </div>
+          )}
         </ModalPanel>
       </ModalBackdrop>
+
+      {resetCredentials && (
+        <ModalBackdrop open onClose={() => setResetCredentials(null)} labelledBy="reset-member-title">
+          <ModalPanel>
+            <div className="text-center">
+              <h3 id="reset-member-title" className="m-0 mb-4 font-display text-xl text-primary">
+                Password Reset Successfully
+              </h3>
+              <div className="mb-6 rounded-xl bg-neutral-bg p-5 text-left font-mono text-[13px] leading-relaxed text-ink shadow-sm border border-line">
+                <div className="mb-2">
+                  <span className="font-bold text-ink-soft uppercase tracking-wider text-[11px]">Username</span>
+                  <div className="mt-1 text-[15px] font-bold text-ink">{resetCredentials.username}</div>
+                </div>
+                <div>
+                  <span className="font-bold text-ink-soft uppercase tracking-wider text-[11px]">New temporary password</span>
+                  <div className="mt-1 text-[15px] font-bold text-ink">{resetCredentials.starterPassword}</div>
+                </div>
+              </div>
+              <div className="flex flex-col gap-3">
+                <button
+                  type="button"
+                  className="w-full cursor-pointer rounded-[10px] border-none bg-aztec py-3.5 font-bold text-white transition-colors hover:bg-aztec-3"
+                  onClick={async () => {
+                    try {
+                      await navigator.clipboard.writeText(resetCredentials.starterPassword);
+                      showToast("Password copied", "You can now paste it securely.");
+                    } catch {
+                      showToast("Copy failed", "Please copy manually.");
+                    }
+                  }}
+                >
+                  Copy Password
+                </button>
+                <button
+                  type="button"
+                  className="w-full cursor-pointer rounded-[10px] border-[1.5px] border-line bg-transparent py-3.5 font-bold transition-colors hover:bg-neutral-bg"
+                  onClick={() => setResetCredentials(null)}
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </ModalPanel>
+        </ModalBackdrop>
+      )}
 
       {addMemberOpen && <AddMember onClose={() => setAddMemberOpen(false)} />}
 
@@ -768,17 +924,21 @@ function UaBtn({
   children,
   onClick,
   disabled,
+  title,
+  className,
 }: {
   children: React.ReactNode;
-  onClick?: () => void;
+  onClick?: (e: React.MouseEvent) => void;
   disabled?: boolean;
+  title?: string;
+  className?: string;
 }) {
   return (
     <button
       type="button"
       disabled={disabled}
       onClick={onClick}
-      className={`flex flex-1 items-center justify-center gap-1.5 rounded-[9px] border-[1.5px] border-border bg-surface px-2.5 py-2 text-[11.5px] font-bold text-foreground-secondary transition-all hover:border-primary hover:bg-surface-hover hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-border disabled:hover:bg-surface disabled:hover:text-foreground-secondary`}
+      className={`flex items-center justify-center gap-1.5 rounded-[9px] border-[1.5px] border-border bg-surface px-2.5 py-2 text-[11.5px] font-bold text-foreground-secondary transition-all hover:border-primary hover:bg-surface-hover hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-border disabled:hover:bg-surface disabled:hover:text-foreground-secondary ${className || ""}`} title={title}
     >
       {children}
     </button>

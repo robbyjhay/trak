@@ -5,6 +5,8 @@
 import "server-only";
 import bcrypt from "bcryptjs";
 import { randomBytes } from "node:crypto";
+import crypto from "node:crypto";
+import { getEnv } from "@/lib/env";
 
 const DEFAULT_COST = 12;
 const MIN_PASSWORD_LENGTH = 12;
@@ -94,3 +96,38 @@ export {
   MIN_PASSWORD_LENGTH,
   MAX_PASSWORD_LENGTH,
 };
+
+
+export function encryptString(plaintext: string): string {
+  const secret = getEnv().TRAK_SESSION_SECRET;
+  const key = crypto.createHash("sha256").update(secret).digest();
+  
+  const iv = crypto.randomBytes(12);
+  const cipher = crypto.createCipheriv("aes-256-gcm", key, iv);
+  
+  let encrypted = cipher.update(plaintext, "utf8", "base64");
+  encrypted += cipher.final("base64");
+  const authTag = cipher.getAuthTag().toString("base64");
+  
+  return `${iv.toString("base64")}:${authTag}:${encrypted}`;
+}
+
+export function decryptString(ciphertext: string): string {
+  const secret = getEnv().TRAK_SESSION_SECRET;
+  const key = crypto.createHash("sha256").update(secret).digest();
+  
+  const parts = ciphertext.split(":");
+  if (parts.length !== 3) throw new Error("Invalid ciphertext format");
+  
+  const iv = Buffer.from(parts[0], "base64");
+  const authTag = Buffer.from(parts[1], "base64");
+  const encrypted = parts[2];
+  
+  const decipher = crypto.createDecipheriv("aes-256-gcm", key, iv);
+  decipher.setAuthTag(authTag);
+  
+  let decrypted = decipher.update(encrypted, "base64", "utf8");
+  decrypted += decipher.final("utf8");
+  
+  return decrypted;
+}

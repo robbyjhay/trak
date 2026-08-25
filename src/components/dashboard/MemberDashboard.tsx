@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useTrak } from "@/context/TrakStore";
-import { addDays, iso, longDateLabel } from "@/lib/dates";
+import { addDays, iso } from "@/lib/dates";
 import { firstName } from "@/lib/utils";
 import { rampColor } from "@/lib/constants";
 import { PATHS } from "@/components/icons";
@@ -11,36 +11,90 @@ import { useEffect, useState } from "react";
 
 export function MemberDashboard({ user }: { user: User }) {
   const router = useRouter();
-  const { now, bucket } = useTrak();
+  const { now, bucket, activitiesFor } = useTrak();
   const b = bucket(user.id);
   const completedThisMonth = b.completed.filter(
     (a) => a.createdAt >= iso(addDays(now, -30)),
   ).length;
+  const loggedTotal = activitiesFor(user.id).length;
 
   return (
     <div>
       {/* Featured Summary & Greeting */}
-      <div className="mb-8 rounded-3xl bg-surface p-8 shadow-sm border border-border">
-        <div className="flex flex-col lg:flex-row justify-between gap-8">
-          <div className="flex-1">
-            <div className="mb-3 text-[12px] font-bold tracking-[0.12em] text-saffron-dim dark:text-saffron uppercase">
-              {longDateLabel(now)}
+      <div
+        className="mb-8 rounded-3xl bg-surface p-8 shadow-sm border border-border"
+        role="group"
+        aria-label="My activity summary"
+      >
+        {/*
+          Mirrors the Unit Performance container structure: story column (heading +
+          dynamic summary, Logged pinned bottom on desktop) beside a metric grid with
+          identical geometry & box attributes (hero row-span-2 + two slim tiles,
+          w-full shrink-0 grid-cols-2 gap-3 lg:w-auto lg:min-w-[420px]).
+          Mobile stacks story → Logged banner → hero+split grid.
+        */}
+        <div className="flex flex-col gap-5 lg:flex-row lg:justify-between lg:gap-8">
+          {/* Story & history — summary top-left, Logged bottom-left on desktop */}
+          <div className="flex min-w-0 flex-1 flex-col gap-4 lg:justify-between">
+            <div>
+              <h2 className="mb-3 font-display text-3xl font-semibold text-foreground tracking-tight">
+                My Performance
+              </h2>
+              <p className="m-0 max-w-lg text-[15px] leading-relaxed text-foreground-secondary">
+                You have completed{" "}
+                <strong className="font-bold text-foreground">{completedThisMonth}</strong>{" "}
+                {completedThisMonth === 1 ? "task" : "tasks"} this month.{" "}
+                {completedThisMonth === 0
+                  ? "Let's get to work and clear those pending items!"
+                  : "Great job staying productive!"}
+              </p>
+            </div>
+
+            {/* Logged · All Time — historical context; capped to the summary's
+                text measure on desktop so it doesn't stretch across the column */}
+            <div className="flex min-w-0 items-center justify-between gap-3 rounded-2xl border border-border bg-surface-muted px-4 py-3 sm:px-5 lg:max-w-lg">
+              <div className="flex min-w-0 items-center gap-3">
+                <div className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-[9px] bg-surface text-foreground-secondary">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d={PATHS.checkList} />
+                  </svg>
+                </div>
+                <span className="truncate text-[13px] font-semibold whitespace-nowrap text-foreground-secondary sm:text-[14px]">
+                  Logged · All Time
+                </span>
+              </div>
+              <span className="shrink-0 text-[20px] font-bold tabular-nums text-foreground sm:text-[22px]" aria-label={`${loggedTotal} logged all time`}>
+                {loggedTotal}
+              </span>
             </div>
           </div>
-          
-          {/* KPI Redesign: Hierarchy instead of 4 identical cards */}
-          <div className="grid grid-cols-2 gap-3 w-full lg:w-auto lg:min-w-[400px]">
-            <div className="rounded-2xl bg-surface-muted p-4 sm:p-6 flex flex-col justify-center border border-border shadow-sm row-span-2">
-              <div className="text-[32px] sm:text-[36px] leading-none font-extrabold text-foreground mb-1.5 sm:mb-2">{completedThisMonth}</div>
-              <div className="text-[12.5px] sm:text-[14px] font-semibold text-foreground-secondary leading-snug">Completed this month</div>
+
+          {/* Active workspace — same width, breadth & box attributes as Unit Performance metrics */}
+          <div className="grid w-full shrink-0 grid-cols-2 gap-3 lg:w-auto lg:min-w-[420px]">
+            {/* Completed — hero spanning both rows */}
+            <div className="row-span-2 flex flex-col justify-center rounded-2xl border border-success-surface bg-success-surface/40 p-6 shadow-sm">
+              <div className="mb-2 text-[36px] leading-none font-extrabold text-foreground">
+                {completedThisMonth}
+              </div>
+              <div className="text-[14px] font-semibold text-good">Completed</div>
             </div>
-            <div className="rounded-2xl bg-warning-surface/40 px-3.5 sm:px-5 py-3 sm:py-4 border border-warning-surface flex items-center justify-between h-full min-w-0">
-              <span className="text-[12.5px] sm:text-[14px] font-semibold text-warning-foreground">Pending</span>
-              <span className="text-[18px] sm:text-[22px] font-bold text-warning-foreground ml-2">{b.pending.length}</span>
+
+            {/* Pending / Missed — actionable pair, no icons */}
+            <div className="flex min-w-0 items-center justify-between gap-3 rounded-2xl border border-warning-surface bg-warning-surface/40 px-5 py-3.5">
+              <span className="text-[14px] font-semibold whitespace-nowrap text-warning-foreground">
+                Pending
+              </span>
+              <span className="text-[22px] font-bold text-warning-foreground" aria-label={`${b.pending.length} pending`}>
+                {b.pending.length}
+              </span>
             </div>
-            <div className="rounded-2xl bg-critical-surface/40 px-3.5 sm:px-5 py-3 sm:py-4 border border-critical-surface flex items-center justify-between h-full min-w-0">
-              <span className="text-[12.5px] sm:text-[14px] font-semibold text-critical">Missed</span>
-              <span className="text-[18px] sm:text-[22px] font-bold text-critical ml-2">{b.missed.length}</span>
+            <div className="flex min-w-0 items-center justify-between gap-3 rounded-2xl border border-critical-surface bg-critical-surface/40 px-5 py-3.5">
+              <span className="text-[14px] font-semibold whitespace-nowrap text-critical">
+                Missed
+              </span>
+              <span className="text-[22px] font-bold text-critical" aria-label={`${b.missed.length} missed`}>
+                {b.missed.length}
+              </span>
             </div>
           </div>
         </div>
@@ -86,13 +140,13 @@ function Kpi({
           ? "bg-critical-surface text-critical"
           : "bg-surface-muted text-foreground-secondary";
   return (
-    <div className="relative rounded-2xl border border-border bg-surface p-5">
+    <div className="relative h-full min-w-0 rounded-2xl border border-border bg-surface p-5">
       <div className={`mb-3.5 flex h-[34px] w-[34px] items-center justify-center rounded-[9px] ${iconBg}`}>
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
           <path d={path} />
         </svg>
       </div>
-      <div className="mb-1.5 text-[30px] leading-none font-extrabold text-foreground">{value}</div>
+      <div className="mb-1.5 text-[30px] leading-none font-extrabold tabular-nums text-foreground">{value}</div>
       <div className="text-xs font-semibold text-foreground-secondary">{label}</div>
     </div>
   );

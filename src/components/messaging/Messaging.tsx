@@ -5,11 +5,12 @@ import { useTrak } from "@/context/TrakStore";
 import { useConnectNav } from "@/context/ConnectNav";
 import {
   canBroadcast,
+  canDeleteAnyCommunityMessage,
   canManageTeamProfiles,
   canWipeCommunity,
   roleLabel,
 } from "@/lib/permissions";
-import { cn, firstName, formatDuration, initials } from "@/lib/utils";
+import { cn, firstName, initials } from "@/lib/utils";
 import { PATHS } from "@/components/icons";
 import { PrimaryBtn } from "@/components/ui/Buttons";
 import { NewConversation } from "@/components/messaging/NewConversation";
@@ -18,11 +19,15 @@ import { CallPanel } from "@/components/call/CallPanel";
 import { useCall } from "@/context/CallContext";
 import type { CallRecord, Dm, TrakDb } from "@/lib/types";
 
+// New specialized components
+import { ConversationList } from "./ConversationList";
+import { ChatThread } from "./ChatThread";
+import { Composer } from "./Composer";
+
 type ThreadItem =
   | { kind: "dm"; id: string; dm: Dm }
   | { kind: "call"; id: string; call: CallRecord };
 
-/** uid() ids share a counter, so the numeric suffix is a global ordering key. */
 function sortByUid(id: string): number {
   const m = id.match(/_(\d+)$/);
   return m ? Number(m[1]) : 0;
@@ -59,11 +64,15 @@ export function Messaging({
     sendCommunity,
     wipeCommunity,
     sendBroadcast,
+    deleteDmMessage,
+    deleteCommunityMessage,
     showToast,
   } = useTrak();
-  const { view, setView } = useConnectNav();
-  const { activeCall, elapsedSec, startCall } = useCall();
+  const { view, setView, setMobileThreadOpen } = useConnectNav();
+  const { activeCall, startCall } = useCall();
+  
   const me = sessionUser.id;
+  
   const [activeConv, setActiveConv] = useState<string>("community");
   const [mobilePane, setMobilePane] = useState<"list" | "thread">("list");
   const [input, setInput] = useState("");
@@ -72,186 +81,110 @@ export function Messaging({
   const [newConvOpen, setNewConvOpen] = useState(false);
   const [newConvKey, setNewConvKey] = useState(0);
   const [addMemberOpen, setAddMemberOpen] = useState(false);
+  const [contactsSearch, setContactsSearch] = useState("");
 
   useEffect(() => {
     setView(initialView);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  useEffect(() => {
+    setMobileThreadOpen(mobilePane === "thread");
+  }, [mobilePane, setMobileThreadOpen]);
+
+  useEffect(() => {
+    const handlePopState = () => {
+      if (window.location.hash !== "#thread" && mobilePane === "thread") {
+        setMobilePane("list");
+      }
+    };
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, [mobilePane]);
+
   const canBc = canBroadcast(sessionUser);
   const canWipe = canWipeCommunity(sessionUser);
-
-  function dmPartners() {
-    const s = new Set<string>();
-    db.dms.forEach((d) => {
-      if (d.a === me) s.add(d.b);
-      if (d.b === me) s.add(d.a);
-    });
-    users.forEach((u) => {
-      if (u.id !== me) s.add(u.id);
-    });
-    return [...s];
-  }
+  const canDeleteAny = canDeleteAnyCommunityMessage(sessionUser);
 
   function openThread(pid: string) {
     setActiveConv(pid);
+    if (window.innerWidth < 768) {
+      window.history.pushState(null, "", "#thread");
+    }
     setMobilePane("thread");
     setNewConvOpen(false);
   }
 
+  function handleBack() {
+    if (window.location.hash === "#thread") {
+      window.history.back();
+    } else {
+      setMobilePane("list");
+    }
+  }
+
   return (
-    <div className="h-full">
+    <div className="h-full bg-background">
       {view === "messages" ? (
-        <div className="flex h-full overflow-hidden rounded-[20px] border border-border bg-surface">
-          {/* Conv list */}
+        <div className="flex h-full overflow-hidden">
+          {/* Conversation List Panel */}
+          <ConversationList
+            activeConv={activeConv}
+            setActiveConv={setActiveConv}
+            mobilePane={mobilePane}
+            setMobilePane={setMobilePane}
+            canBc={canBc}
+            onNewConv={() => {
+              setNewConvKey((k) => k + 1);
+              setNewConvOpen(true);
+            }}
+          />
+
+          {/* Active Thread Panel */}
           <div
             className={cn(
-              "relative w-full shrink-0 flex-col border-r border-border md:flex md:w-[300px]",
-              mobilePane === "thread" ? "hidden" : "flex",
-            )}
-          >
-            <div className="border-b border-border p-4">
-              <input
-                type="search"
-                placeholder="Search conversations…"
-                className="w-full rounded-[10px] border-[1.5px] border-input-border bg-input px-3.5 py-2.5 text-[13px] text-foreground placeholder-input-placeholder outline-none focus:border-border-strong"
-                aria-label="Search conversations"
-              />
-            </div>
-            <div className="flex-1 overflow-y-auto p-2.5">
-              <ConvItem
-                active={activeConv === "community"}
-                onClick={() => {
-                  setActiveConv("community");
-                  setMobilePane("thread");
-                }}
-                avatar={
-                  <div className="flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-full bg-aztec-3">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2">
-                      <path d={PATHS.users} />
-                    </svg>
-                  </div>
-                }
-                name="Community Chat"
-                snippet={
-                  db.community[db.community.length - 1]?.text ||
-                  "No messages yet"
-                }
-              />
-              {canBc && (
-                <ConvItem
-                  active={activeConv === "broadcast"}
-                  onClick={() => {
-                    setActiveConv("broadcast");
-                    setMobilePane("thread");
-                  }}
-                  avatar={
-                    <div className="flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-full bg-linear-to-br from-saffron to-[#d9a72c] text-aztec">
-                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <path d={PATHS.send} />
-                      </svg>
-                    </div>
-                  }
-                  name="Broadcast"
-                  snippet="Send an announcement to all"
-                />
-              )}
-              <div className="px-2.5 pt-3 pb-1.5 text-[10.5px] font-bold tracking-wider text-foreground-faint uppercase">
-                Direct Messages
-              </div>
-              {dmPartners().map((pid) => {
-                const p = userMap[pid];
-                if (!p) return null;
-                const items = threadItems(db, me, pid);
-                const last = items[items.length - 1];
-                const onCall = activeCall?.partnerId === pid;
-                const snippet = onCall
-                  ? activeCall.status === "ringing"
-                    ? "Ringing…"
-                    : `On call · ${formatDuration(elapsedSec)}`
-                  : last
-                    ? last.kind === "call"
-                      ? `${last.call.from === me ? "You called" : "Incoming call"} · ${formatDuration(last.call.durationSec)}`
-                      : last.dm.text
-                    : "Say hello 👋";
-                return (
-                  <ConvItem
-                    key={pid}
-                    active={activeConv === pid}
-                    onClick={() => openThread(pid)}
-                    avatar={
-                      <div
-                        className="flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-full font-display text-[13px] font-bold text-white"
-                        style={{ background: p.color }}
-                      >
-                        {initials(p.name)}
-                      </div>
-                    }
-                    name={p.name}
-                    snippet={snippet}
-                  />
-                );
-              })}
-            </div>
-
-            <button
-              type="button"
-              onClick={() => {
-                setNewConvKey((k) => k + 1);
-                setNewConvOpen(true);
-              }}
-              className="absolute right-4 bottom-4 z-10 flex h-11 w-11 cursor-pointer items-center justify-center rounded-full border-none bg-wa text-white shadow-toast transition-transform hover:scale-105"
-              aria-label="New conversation"
-            >
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.4">
-                <path d={PATHS.plus} />
-              </svg>
-            </button>
-          </div>
-
-          {/* Thread */}
-          <div
-            className={cn(
-              "flex min-w-0 flex-1 flex-col",
-              mobilePane === "list" ? "hidden md:flex" : "flex",
+              "min-w-0 flex-1 flex-col bg-background shadow-[-10px_0_20px_-15px_rgba(0,0,0,0.1)] z-10",
+              mobilePane === "list"
+                ? "hidden md:flex"
+                : "fixed inset-0 z-[100] flex md:static md:z-auto",
             )}
           >
             {activeConv === "community" && (
               <>
-                <div className="flex items-center gap-3 border-b border-border px-[22px] py-3.5">
-                  <BackBtn onClick={() => setMobilePane("list")} />
-                  <div className="flex h-[34px] w-[34px] items-center justify-center rounded-full bg-aztec-3">
-                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2">
+                <div className="flex items-center gap-4 border-b border-border bg-surface px-4 py-3 sm:px-6 md:px-8 shadow-sm z-10">
+                  <BackBtn onClick={handleBack} />
+                  <div className="flex h-[42px] w-[42px] items-center justify-center rounded-full bg-surface-interactive text-primary border border-border/50">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                       <path d={PATHS.users} />
                     </svg>
                   </div>
-                  <div className="min-w-0">
-                    <div className="truncate text-[13.5px] font-bold text-foreground">Community Chat</div>
-                    <div className="truncate text-[11px] text-foreground-faint">
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-[15px] font-bold text-foreground tracking-tight">Community Chat</div>
+                    <div className="truncate text-[11.5px] font-medium text-foreground-secondary mt-0.5">
                       Visible to all {users.length} unit members
                     </div>
                   </div>
                   {canWipe && (
                     <button
                       type="button"
-                      className="ml-auto flex h-[34px] w-[34px] cursor-pointer items-center justify-center rounded-[9px] border-[1.5px] border-critical-semantic/30 bg-surface text-critical-semantic hover:bg-critical-surface transition-colors"
+                      className="ml-auto flex h-[38px] w-[38px] cursor-pointer items-center justify-center rounded-xl border border-critical-semantic/30 bg-surface text-critical-semantic hover:bg-critical-surface transition-colors"
                       onClick={() => setWipeOpen((v) => !v)}
                       aria-label="Wipe community chat"
                     >
-                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                         <path d={PATHS.trash} />
                       </svg>
                     </button>
                   )}
                 </div>
                 {canWipe && wipeOpen && (
-                  <div className="flex items-center gap-3 border-b border-critical-semantic/30 bg-critical-surface px-[22px] py-3.5">
-                    <label className="text-[11px] font-bold text-critical-semantic uppercase">
+                  <div className="flex items-center gap-3 border-b border-critical-semantic/30 bg-critical-surface px-4 py-3 sm:px-6 md:px-8 z-10">
+                    <label className="text-[12px] font-extrabold tracking-wide text-critical-semantic uppercase">
                       Wipe all community messages
                     </label>
                     <button
                       type="button"
-                      className="ml-auto cursor-pointer rounded-lg border-none bg-critical-semantic px-3.5 py-2 text-xs font-bold text-critical-foreground hover:opacity-90 transition-opacity"
+                      className="ml-auto cursor-pointer rounded-[10px] border-none bg-critical-semantic px-4 py-2 text-[12px] font-bold text-critical-foreground hover:opacity-90 transition-opacity shadow-sm"
                       onClick={() => {
                         void wipeCommunity()
                           .then(() => {
@@ -273,33 +206,29 @@ export function Messaging({
                     </button>
                   </div>
                 )}
-                <ThreadScroll>
-                  {db.community.length
-                    ? db.community.map((m) => (
-                        <Bubble
-                          key={m.id}
-                          fromId={m.from}
-                          text={m.text}
-                          time={m.at}
-                          me={me}
-                          userMap={userMap}
-                        />
-                      ))
-                    : (
-                      <div className="py-8 text-center text-[13px] text-foreground-faint">
-                        No messages yet.
-                      </div>
-                    )}
-                </ThreadScroll>
+                
+                <ChatThread 
+                  items={db.community.map(m => ({ kind: "dm", id: m.id, dm: m as unknown as Dm }))} 
+                  me={me} 
+                  userMap={userMap} 
+                  isGroup={true}
+                  onDeleteMessage={(messageId, forEveryone) => {
+                    void deleteCommunityMessage(messageId, forEveryone).catch(() =>
+                      showToast("Could not delete message", "Please try again."),
+                    );
+                  }}
+                  canDeleteAny={canDeleteAny}
+                />
+                
                 <Composer
                   value={input}
                   onChange={setInput}
                   placeholder="Message the whole unit…"
-                  onSend={() => {
-                    if (!input.trim()) return;
+                  onSend={(attachments) => {
+                    if (!input.trim() && (!attachments || attachments.length === 0)) return;
                     const text = input.trim();
                     setInput("");
-                    void sendCommunity(text).catch(() =>
+                    void sendCommunity(text, attachments).catch(() =>
                       showToast("Could not send message", "Please try again."),
                     );
                   }}
@@ -308,55 +237,57 @@ export function Messaging({
             )}
 
             {activeConv === "broadcast" && (
-              <div className="flex flex-1 flex-col">
-                <div className="flex items-center gap-3 border-b border-border px-[22px] py-3.5 md:hidden">
-                  <BackBtn onClick={() => setMobilePane("list")} />
-                  <div className="text-[13.5px] font-bold text-foreground">Broadcast</div>
+              <div className="flex flex-1 flex-col bg-surface">
+                <div className="flex items-center gap-3 border-b border-border bg-surface px-4 py-3 sm:px-6 md:px-8 shadow-sm md:hidden z-10">
+                  <BackBtn onClick={handleBack} />
+                  <div className="text-[15px] font-bold text-foreground">Broadcast</div>
                 </div>
-                <div className="flex flex-1 flex-col items-center justify-center p-6 text-center sm:p-10">
-                <div className="mb-[18px] flex h-14 w-14 items-center justify-center rounded-2xl bg-linear-to-br from-saffron to-[#d9a72c] text-aztec">
-                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d={PATHS.send} />
-                  </svg>
-                </div>
-                <h3 className="m-0 mb-1.5 font-display text-xl text-foreground">
-                  Broadcast to the unit
-                </h3>
-                <p className="mb-[22px] max-w-[380px] text-[13px] text-foreground-secondary">
-                  Only the Unit Head and the Secretary can send this. It reaches all{" "}
-                  {users.length} members at once.
-                </p>
-                <textarea
-                  value={bcText}
-                  onChange={(e) => setBcText(e.target.value)}
-                  placeholder="Write your announcement…"
-                  className="mb-3.5 min-h-[100px] w-full max-w-[440px] rounded-[14px] border-[1.5px] border-input-border bg-input px-4 py-3.5 text-foreground placeholder-input-placeholder outline-none focus:border-border-strong"
-                />
-                <PrimaryBtn
-                  onClick={() => {
-                    if (!bcText.trim()) return;
-                    const text = bcText.trim();
-                    void sendBroadcast(text)
-                      .then(() => {
-                        setBcText("");
-                        showToast(
-                          "Broadcast sent",
-                          `Delivered to all ${users.length} unit members.`,
+                <div className="flex flex-1 flex-col items-center justify-center p-6 text-center sm:p-10 max-w-2xl mx-auto">
+                  <div className="mb-6 flex h-[72px] w-[72px] items-center justify-center rounded-[24px] bg-linear-to-br from-amber-500 to-orange-500 text-white shadow-xl">
+                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                      <path d={PATHS.send} />
+                    </svg>
+                  </div>
+                  <h3 className="m-0 mb-3 font-display text-2xl font-bold text-foreground tracking-tight">
+                    Broadcast to the unit
+                  </h3>
+                  <p className="mb-8 max-w-[420px] text-[14px] leading-relaxed text-foreground-secondary">
+                    Only the Unit Head and the Secretary can send this. It reaches all{" "}
+                    <strong className="text-foreground">{users.length} members</strong> at once and triggers a push notification.
+                  </p>
+                  <textarea
+                    value={bcText}
+                    onChange={(e) => setBcText(e.target.value)}
+                    placeholder="Write your announcement…"
+                    className="mb-5 min-h-[140px] w-full max-w-[500px] rounded-[18px] border-[1.5px] border-input-border bg-input px-5 py-4 text-[14.5px] text-foreground placeholder-input-placeholder outline-none focus:border-border-strong shadow-sm transition-colors resize-none"
+                    suppressHydrationWarning
+                  />
+                  <PrimaryBtn
+                    className="h-[48px] px-8 rounded-full text-[14px] font-bold shadow-md hover:scale-105 active:scale-95 transition-transform"
+                    onClick={() => {
+                      if (!bcText.trim()) return;
+                      const text = bcText.trim();
+                      void sendBroadcast(text)
+                        .then(() => {
+                          setBcText("");
+                          showToast(
+                            "Broadcast sent",
+                            `Delivered to all ${users.length} unit members.`,
+                          );
+                        })
+                        .catch(() =>
+                          showToast(
+                            "Could not send broadcast",
+                            "Please try again.",
+                          ),
                         );
-                      })
-                      .catch(() =>
-                        showToast(
-                          "Could not send broadcast",
-                          "Please try again.",
-                        ),
-                      );
-                  }}
-                >
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d={PATHS.send} />
-                  </svg>
-                  Send to all {users.length} members
-                </PrimaryBtn>
+                    }}
+                  >
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="-ml-1 mr-1.5">
+                      <path d={PATHS.send} />
+                    </svg>
+                    Send to all {users.length} members
+                  </PrimaryBtn>
                 </div>
               </div>
             )}
@@ -369,37 +300,41 @@ export function Messaging({
                     const p = userMap[activeConv];
                     const items = threadItems(db, me, activeConv);
                     const onCall = activeCall?.partnerId === activeConv;
+                    
                     return (
                       <>
                         {onCall ? (
                           <CallPanel
                             partner={p}
-                            onBack={() => setMobilePane("list")}
+                            onBack={handleBack}
                           />
                         ) : (
-                          <div className="flex items-center gap-3 border-b border-border px-[22px] py-3.5">
-                            <BackBtn onClick={() => setMobilePane("list")} />
+                          <div className="flex items-center gap-4 border-b border-border bg-surface px-4 py-3 sm:px-6 md:px-8 shadow-sm z-10">
+                            <BackBtn onClick={handleBack} />
                             <div
-                              className="flex h-[34px] w-[34px] items-center justify-center rounded-full font-display text-xs font-bold text-white"
+                              className="flex h-[42px] w-[42px] items-center justify-center rounded-full font-display text-[15px] font-bold text-white shadow-sm cursor-pointer hover:opacity-90 transition-opacity"
                               style={{ background: p.color }}
+                              title="View Profile"
                             >
-                              {initials(p.name)}
+                              {p.photoUrl ? (
+                                <img src={p.photoUrl} alt="" className="h-full w-full rounded-full object-cover" />
+                              ) : initials(p.name)}
                             </div>
-                            <div className="min-w-0">
-                              <div className="truncate text-[13.5px] font-bold text-foreground">{p.name}</div>
-                              <div className="truncate text-[11px] text-foreground-faint">
+                            <div className="min-w-0 flex-1 cursor-pointer" title="View Profile">
+                              <div className="truncate text-[15.5px] font-bold text-foreground tracking-tight">{p.name}</div>
+                              <div className="truncate text-[11.5px] font-medium text-foreground-secondary mt-0.5">
                                 {roleLabel(p)} · {p.username}
                               </div>
                             </div>
-                            <div className="ml-auto flex gap-2">
+                            <div className="ml-auto flex gap-2.5">
                               <button
                                 type="button"
                                 onClick={() => startCall(p.id)}
-                                title="Log a phone call"
-                                aria-label={`Log a phone call with ${p.name}`}
-                                className="flex h-[34px] w-[34px] cursor-pointer items-center justify-center rounded-[9px] border-[1.5px] border-border bg-surface text-foreground-secondary transition-colors hover:border-border-strong hover:text-foreground hover:bg-surface-hover"
+                                title="Start Voice Call"
+                                aria-label={`Call ${p.name}`}
+                                className="flex h-[40px] w-[40px] cursor-pointer items-center justify-center rounded-full border border-border/80 bg-surface text-foreground-secondary transition-colors hover:border-primary/50 hover:text-primary hover:bg-primary/5 shadow-sm"
                               >
-                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
                                   <path d={PATHS.phone} />
                                 </svg>
                               </button>
@@ -408,53 +343,39 @@ export function Messaging({
                                 target="_blank"
                                 rel="noreferrer"
                                 title="WhatsApp"
-                                className="flex h-[34px] w-[34px] items-center justify-center rounded-[9px] border-[1.5px] border-border bg-surface text-foreground-secondary transition-colors hover:border-border-strong hover:text-foreground hover:bg-surface-hover"
+                                className="flex h-[40px] w-[40px] items-center justify-center rounded-full border border-border/80 bg-surface text-foreground-secondary transition-colors hover:border-[#25D366]/50 hover:text-[#25D366] hover:bg-[#25D366]/5 shadow-sm"
                               >
-                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
                                   <path d={PATHS.whatsapp} />
                                 </svg>
                               </a>
                             </div>
                           </div>
                         )}
-                        <ThreadScroll>
-                          {items.length
-                            ? items.map((it) =>
-                                it.kind === "call" ? (
-                                  <CallPill
-                                    key={it.id}
-                                    call={it.call}
-                                    me={me}
-                                  />
-                                ) : (
-                                  <Bubble
-                                    key={it.id}
-                                    fromId={it.dm.from}
-                                    text={it.dm.text}
-                                    time={it.dm.at}
-                                    me={me}
-                                    userMap={userMap}
-                                  />
-                                ),
-                              )
-                            : (
-                              <div className="py-8 text-center text-[13px] text-foreground-faint">
-                                No messages yet — say hello.
-                              </div>
-                            )}
-                        </ThreadScroll>
+                        
+                        <ChatThread 
+                          items={items} 
+                          me={me} 
+                          userMap={userMap}
+                          onDeleteMessage={(messageId, forEveryone) => {
+                            void deleteDmMessage(messageId, forEveryone).catch(() =>
+                              showToast("Could not delete message", "Please try again."),
+                            );
+                          }}
+                        />
+                        
                         <Composer
                           value={input}
                           onChange={setInput}
                           placeholder={`Message ${firstName(p.name)}…`}
-                          onSend={() => {
-                            if (!input.trim()) return;
+                          onSend={(attachments) => {
+                            if (!input.trim() && (!attachments || attachments.length === 0)) return;
                             const text = input.trim();
                             setInput("");
-                            void sendDm(activeConv, text).catch(() =>
+                            void sendDm(activeConv, text, attachments).catch((err) =>
                               showToast(
                                 "Could not send message",
-                                "Please try again.",
+                                err?.message || "Please try again.",
                               ),
                             );
                           }}
@@ -467,16 +388,26 @@ export function Messaging({
           </div>
         </div>
       ) : (
-        <div className="flex h-full flex-col">
-          <div className="mb-4 flex flex-wrap items-center justify-between gap-2.5">
-            <div className="flex flex-wrap items-center gap-2.5">
-              <input
-                type="search"
-                placeholder="Search the unit…"
-                className="w-full rounded-[10px] border-[1.5px] border-input-border bg-input px-3.5 py-2.5 text-[13px] text-foreground placeholder-input-placeholder outline-none focus:border-border-strong sm:w-[280px]"
-                aria-label="Search the unit"
-              />
-              <span className="text-[11.5px] font-semibold text-foreground-faint">
+        <div className="flex h-full flex-col px-4 py-5 sm:px-6 md:px-8 max-w-7xl mx-auto">
+          <div className="mb-6 flex flex-wrap items-center justify-between gap-4 border-b border-border pb-5">
+            <div className="flex flex-wrap items-center gap-4">
+              <h1 className="m-0 text-2xl font-extrabold text-foreground tracking-tight">Contacts</h1>
+              <div className="relative">
+                <svg className="absolute left-3.5 top-1/2 -translate-y-1/2 text-foreground-faint" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                  <circle cx="11" cy="11" r="8"></circle>
+                  <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                </svg>
+                <input
+                  type="search"
+                  placeholder="Search the unit…"
+                  value={contactsSearch}
+                  onChange={(e) => setContactsSearch(e.target.value)}
+                  className="w-full rounded-full border border-input-border bg-input pl-10 pr-4 py-2 text-[14px] text-foreground placeholder-input-placeholder outline-none focus:border-border-strong sm:w-[320px] transition-colors shadow-sm"
+                  aria-label="Search the unit"
+                  suppressHydrationWarning
+                />
+              </div>
+              <span className="text-[12.5px] font-bold text-foreground-secondary bg-surface-muted px-3 py-1.5 rounded-full border border-border/50">
                 {users.length - 1} members
               </span>
             </div>
@@ -484,62 +415,74 @@ export function Messaging({
               <button
                 type="button"
                 onClick={() => setAddMemberOpen(true)}
-                className="inline-flex cursor-pointer items-center gap-1.5 rounded-[9px] border-none bg-primary px-[15px] py-2 text-xs font-bold text-primary-foreground transition-transform hover:-translate-y-px hover:bg-primary-hover"
+                className="inline-flex cursor-pointer items-center gap-2 rounded-full border-none bg-primary px-5 py-2.5 text-[13.5px] font-bold text-primary-foreground shadow-sm transition-transform hover:-translate-y-px hover:shadow-md hover:bg-primary-hover active:scale-95"
               >
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                   <path d={PATHS.plus} />
                 </svg>
                 Add member
               </button>
             )}
           </div>
-          <div className="min-h-0 flex-1 overflow-y-auto pr-0.5">
-            <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="min-h-0 flex-1 overflow-y-auto pb-20 md:pb-6 scrollbar-thin">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
               {users
                 .filter((u) => u.id !== me)
+                .filter((u) => contactsSearch ? u.name.toLowerCase().includes(contactsSearch.toLowerCase()) || u.username?.toLowerCase().includes(contactsSearch.toLowerCase()) : true)
                 .map((p) => (
                   <div
                     key={p.id}
-                    className="rounded-[18px] border border-border bg-surface px-[26px] py-6 shadow-card"
+                    className="rounded-[24px] border border-border bg-surface px-6 py-6 shadow-sm hover:shadow-md transition-shadow group flex flex-col"
                   >
-                    <div className="mb-3.5 flex items-center gap-3">
+                    <div className="mb-4 flex items-center gap-4">
                       <div
-                        className="flex h-[42px] w-[42px] items-center justify-center rounded-full font-display text-[15px] font-bold text-white"
+                        className="flex h-[52px] w-[52px] items-center justify-center rounded-full font-display text-[18px] font-bold text-white shadow-sm"
                         style={{ background: p.color }}
                       >
-                        {initials(p.name)}
+                        {p.photoUrl ? (
+                          <img src={p.photoUrl} alt="" className="h-full w-full rounded-full object-cover" />
+                        ) : initials(p.name)}
                       </div>
-                      <div>
-                        <div className="text-[13.5px] font-bold text-foreground">{p.name}</div>
-                        <div className="text-[10.5px] font-bold text-foreground-faint uppercase">
+                      <div className="min-w-0">
+                        <div className="truncate text-[15.5px] font-bold text-foreground tracking-tight">{p.name}</div>
+                        <div className="truncate text-[11.5px] font-bold tracking-wide text-foreground-faint uppercase mt-0.5">
                           {roleLabel(p)}
                         </div>
                       </div>
                     </div>
-                    <div className="mb-3.5 rounded-lg bg-surface-muted px-2.5 py-1.5 font-mono text-[10.5px] text-foreground-faint">
-                      {p.username} · {p.phone}
+                    <div className="mb-5 rounded-[12px] bg-surface-muted border border-border/50 px-3 py-2 font-mono text-[11.5px] text-foreground-secondary flex flex-col gap-1">
+                      <div className="flex items-center gap-2">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+                        {p.username}
+                      </div>
+                      {p.phone && (
+                        <div className="flex items-center gap-2">
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d={PATHS.phone}></path></svg>
+                          {p.phone}
+                        </div>
+                      )}
                     </div>
-                    <div className="flex gap-2">
+                    <div className="flex gap-2.5 mt-auto">
                       <a
-                        href={`https://wa.me/${p.phone.replace("+", "").replace(/\s/g, "")}`}
+                        href={`https://wa.me/${p.phone?.replace("+", "").replace(/\s/g, "") || ""}`}
                         target="_blank"
                         rel="noreferrer"
-                        className="flex flex-1 flex-col items-center gap-1 rounded-[11px] border-[1.5px] border-border bg-surface px-1.5 py-2.5 text-[10px] font-bold text-foreground-secondary no-underline hover:bg-surface-hover hover:text-foreground transition-colors"
+                        className="flex flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-xl border border-border bg-surface py-2.5 text-[12px] font-bold text-foreground-secondary no-underline hover:border-[#25D366]/50 hover:bg-[#25D366]/5 hover:text-[#25D366] transition-colors"
                       >
-                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
                           <path d={PATHS.whatsapp} />
                         </svg>
                         WhatsApp
                       </a>
                       <button
                         type="button"
-                        className="flex flex-1 cursor-pointer flex-col items-center gap-1 rounded-[11px] border-[1.5px] border-border bg-surface px-1.5 py-2.5 text-[10px] font-bold text-foreground-secondary hover:bg-surface-hover hover:text-foreground transition-colors"
+                        className="flex flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-xl border border-border bg-surface py-2.5 text-[12px] font-bold text-foreground-secondary hover:border-primary/50 hover:bg-primary/5 hover:text-primary transition-colors"
                         onClick={() => {
                           setView("messages");
                           openThread(p.id);
                         }}
                       >
-                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
                           <path d={PATHS.messages} />
                         </svg>
                         Message
@@ -547,6 +490,11 @@ export function Messaging({
                     </div>
                   </div>
                 ))}
+                {users.filter(u => u.id !== me).filter((u) => contactsSearch ? u.name.toLowerCase().includes(contactsSearch.toLowerCase()) || u.username?.toLowerCase().includes(contactsSearch.toLowerCase()) : true).length === 0 && (
+                  <div className="col-span-full py-12 text-center text-[14px] text-foreground-faint">
+                    No contacts matched your search
+                  </div>
+                )}
             </div>
           </div>
         </div>
@@ -571,183 +519,12 @@ function BackBtn({ onClick }: { onClick: () => void }) {
     <button
       type="button"
       onClick={onClick}
-      className="flex h-[34px] w-[34px] shrink-0 cursor-pointer items-center justify-center rounded-[9px] border-[1.5px] border-border bg-surface text-foreground-secondary hover:bg-surface-hover hover:text-foreground transition-colors md:hidden"
+      className="flex h-[40px] w-[40px] shrink-0 cursor-pointer items-center justify-center rounded-full border border-border/80 bg-surface text-foreground-secondary hover:bg-surface-hover hover:text-foreground transition-colors md:hidden shadow-sm"
       aria-label="Back to conversations"
     >
-      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
         <path d={PATHS.chevronLeft} />
       </svg>
     </button>
-  );
-}
-
-function ConvItem({
-  active,
-  onClick,
-  avatar,
-  name,
-  snippet,
-}: {
-  active: boolean;
-  onClick: () => void;
-  avatar: React.ReactNode;
-  name: string;
-  snippet: string;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`mb-0.5 flex w-full cursor-pointer items-center gap-2.5 rounded-xl border-none p-2.5 text-left transition-colors ${
-        active
-          ? "bg-surface-interactive text-foreground shadow-xs dark:bg-surface-active"
-          : "bg-transparent text-foreground hover:bg-surface-hover"
-      }`}
-    >
-      {avatar}
-      <div className="min-w-0 flex-1">
-        <div
-          className={`truncate text-[12.5px] font-bold ${active ? "text-foreground" : "text-foreground"}`}
-        >
-          {name}
-        </div>
-        <div
-          className={`truncate text-[11.5px] ${active ? "text-foreground-secondary" : "text-foreground-faint"}`}
-        >
-          {snippet}
-        </div>
-      </div>
-    </button>
-  );
-}
-
-function CallPill({
-  call,
-  me,
-}: {
-  call: CallRecord;
-  me: string;
-}) {
-  const outgoing = call.from === me;
-  return (
-    <div className="mx-auto flex w-fit max-w-full items-center gap-2 rounded-full border border-border bg-surface px-3.5 py-1.5 text-[11px] font-bold text-foreground-secondary">
-      <span
-        className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full ${
-          outgoing
-            ? "bg-primary/20 text-primary-foreground dark:text-primary"
-            : "bg-surface-muted text-foreground"
-        }`}
-      >
-        <svg
-          width="11"
-          height="11"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2.2"
-          className={outgoing ? "" : "rotate-[135deg]"}
-        >
-          <path d={PATHS.phone} />
-        </svg>
-      </span>
-      <span>{outgoing ? "You called" : "Incoming call"}</span>
-      <span className="font-mono text-foreground-faint">
-        {formatDuration(call.durationSec)}
-      </span>
-      <span className="text-foreground-faint/70">{call.at}</span>
-    </div>
-  );
-}
-
-function Bubble({
-  fromId,
-  text,
-  time,
-  me,
-  userMap,
-}: {
-  fromId: string;
-  text: string;
-  time: string;
-  me: string;
-  userMap: ReturnType<typeof useTrak>["userMap"];
-}) {
-  const isMe = fromId === me;
-  const p = userMap[fromId];
-  return (
-    <div
-      className={`flex max-w-[68%] gap-2.5 ${isMe ? "flex-row-reverse self-end" : ""}`}
-    >
-      <div
-        className="mt-0.5 flex h-[26px] w-[26px] shrink-0 items-center justify-center rounded-full font-display text-[10px] font-bold text-white"
-        style={{ background: p?.color || "#888" }}
-      >
-        {initials(p?.name || "?")}
-      </div>
-      <div
-        className={`rounded-[14px] px-3.5 py-2.5 ${
-          isMe
-            ? "rounded-br-sm bg-aztec-3 text-white"
-            : "rounded-bl-sm bg-surface-muted text-foreground"
-        }`}
-      >
-        {!isMe && (
-          <div className="mb-0.5 text-[10.5px] font-bold text-foreground-faint">
-            {firstName(p?.name || "")}
-          </div>
-        )}
-        <div className="text-[13px] leading-snug">{text}</div>
-        <div
-          className={`mt-1 text-right text-[9.5px] ${isMe ? "text-white/60" : "text-foreground-faint"}`}
-        >
-          {time}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function ThreadScroll({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="flex flex-1 flex-col gap-3.5 overflow-y-auto bg-background px-[22px] py-5">
-      {children}
-    </div>
-  );
-}
-
-function Composer({
-  value,
-  onChange,
-  placeholder,
-  onSend,
-}: {
-  value: string;
-  onChange: (v: string) => void;
-  placeholder: string;
-  onSend: () => void;
-}) {
-  return (
-    <div className="flex items-center gap-2.5 border-t border-border bg-surface px-[22px] pt-4 pb-[76px] md:pb-4">
-      <input
-        type="text"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder}
-        className="flex-1 rounded-full border-[1.5px] border-input-border bg-input px-4 py-3 text-[13.5px] text-foreground placeholder-input-placeholder outline-none focus:border-border-strong"
-        onKeyDown={(e) => {
-          if (e.key === "Enter") onSend();
-        }}
-      />
-      <button
-        type="button"
-        onClick={onSend}
-        className="flex h-[42px] w-[42px] shrink-0 cursor-pointer items-center justify-center rounded-full border-none bg-primary text-primary-foreground hover:bg-primary-hover transition-colors"
-        aria-label="Send"
-      >
-        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-          <path d={PATHS.send} />
-        </svg>
-      </button>
-    </div>
   );
 }

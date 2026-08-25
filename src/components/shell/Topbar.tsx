@@ -7,9 +7,11 @@ import { useTrak } from "@/context/TrakStore";
 import { roleLabel } from "@/lib/permissions";
 import { initials, firstName } from "@/lib/utils";
 import { PATHS } from "@/components/icons";
-import { fmtDate } from "@/lib/dates";
-import { logoutAction, switchUserAction } from "@/lib/auth/actions";
+import { formatRelativeDate } from "@/lib/dates";
+import { logoutAction } from "@/lib/auth/actions";
 import { NOTIF_PATHS } from "@/lib/constants";
+import { cn } from "@/lib/utils";
+import { useConnectNav } from "@/context/ConnectNav";
 import { ConnectTabs } from "@/components/messaging/ConnectTabs";
 
 export function Topbar() {
@@ -17,6 +19,7 @@ export function Topbar() {
   const router = useRouter();
   const { sessionUser, myNotifications, markNotifRead, markAllNotifsRead } =
     useTrak();
+  const { isMobileThreadOpen } = useConnectNav();
   const [menuOpen, setMenuOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
   const chipRef = useRef<HTMLDivElement>(null);
@@ -26,6 +29,7 @@ export function Topbar() {
   const unread = notifs.filter((n) => !n.read).length;
 
   const isConnect = pathname === "/messages" || pathname === "/contacts";
+  const isSettings = pathname.startsWith("/settings");
 
   useEffect(() => {
     function onDoc(e: MouseEvent) {
@@ -52,7 +56,7 @@ export function Topbar() {
     <header className="sticky top-0 z-40 flex h-[88px] shrink-0 items-center justify-between gap-4 bg-background px-6 sm:px-10 relative">
       <div className="flex flex-col justify-center">
         <h1 className="text-[22px] font-extrabold tracking-tight text-foreground">
-          {greeting}
+          {isSettings ? "Settings" : isConnect ? "Connect" : greeting}
         </h1>
       </div>
 
@@ -128,7 +132,7 @@ export function Topbar() {
                       <div className="min-w-0 flex-1">
                         <div className="text-[12.5px] leading-snug">{n.text}</div>
                         <div className="mt-0.5 text-[10.5px] text-foreground-faint">
-                          {n.createdAt ? fmtDate(n.createdAt) : ""}
+                          {n.createdAt ? formatRelativeDate(n.createdAt) : ""}
                         </div>
                       </div>
                       {!n.read && (
@@ -192,35 +196,16 @@ export function Topbar() {
                 My Profile
               </MenuBtn>
               <MenuBtn
-                href="/activities"
-                onClick={() => setMenuOpen(false)}
-                path={PATHS.checkList}
-              >
-                My Activities
-              </MenuBtn>
-              <MenuBtn
                 href="/settings"
                 onClick={() => setMenuOpen(false)}
                 path={PATHS.settings}
               >
                 Settings
               </MenuBtn>
-              <form action={switchUserAction}>
-                <button
-                  type="submit"
-                  className="flex w-full items-center gap-2 rounded-lg border-none bg-transparent px-3 py-2.5 text-left text-[12.5px] font-semibold text-foreground hover:bg-surface-hover"
-                  role="menuitem"
-                >
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d={PATHS.switchUser} />
-                  </svg>
-                  Switch user
-                </button>
-              </form>
               <form action={logoutAction}>
                 <button
                   type="submit"
-                  className="flex w-full items-center gap-2 rounded-lg border-none bg-transparent px-3 py-2.5 text-left text-[12.5px] font-semibold text-critical-semantic hover:bg-surface-hover"
+                  className="flex w-full items-center gap-2 rounded-lg border-none bg-transparent px-3 py-2.5 text-left text-[12.5px] font-semibold text-critical hover:bg-critical-bg"
                   role="menuitem"
                 >
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">

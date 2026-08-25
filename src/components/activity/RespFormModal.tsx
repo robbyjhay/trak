@@ -6,7 +6,7 @@ import { ModalBackdrop, ModalPanel } from "@/components/ui/Modal";
 import type { Responsibility } from "@/lib/types";
 
 const FIELD_INPUT =
-  "w-full rounded-[10px] border-[1.5px] border-input-border bg-input text-foreground placeholder:text-input-placeholder px-3.5 py-2.5 text-[13px] outline-none focus:border-primary";
+  "w-full rounded-[10px] border-[1.5px] border-input-border bg-input text-foreground placeholder:text-input-placeholder px-3.5 py-2.5 text-[13px] outline-none focus:border-border-strong";
 
 export function RespFormModal({
   open,

@@ -57,6 +57,7 @@ export function toSessionUser(user: AuthUserRow): SessionUser {
     role: mapRole(user.role),
     isSecretary: user.isSecretary,
     isCorps: user.isCorps,
+    isIntern: (user as any).isIntern ?? false,
     mustChangePassword: user.mustChangePassword,
   };
 }
@@ -568,4 +569,32 @@ export async function acceptInvite(
     }),
     rawToken: session.rawToken,
   };
+}
+
+import { getDefaultMemberPassword } from "@/lib/services/settings.service";
+export async function resetMemberPassword(targetUserId: string, headId: string) {
+  const targetUser = await prisma.user.findUnique({ where: { id: targetUserId } });
+  if (!targetUser) throw new Error("User not found.");
+  
+  if (targetUser.id === headId || targetUser.role === "head") {
+    throw new Error("Cannot reset the Unit Head's password via this method.");
+  }
+
+  const defaultPass = await getDefaultMemberPassword();
+  if (!defaultPass) {
+    throw new Error("No default member password configured. Please configure it in Settings first.");
+  }
+
+  const { hashPassword } = await import("@/lib/auth/password");
+  const passwordHash = await hashPassword(defaultPass);
+
+  await prisma.user.update({
+    where: { id: targetUserId },
+    data: { 
+      passwordHash,
+      mustChangePassword: true
+    }
+  });
+
+  return defaultPass;
 }

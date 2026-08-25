@@ -118,7 +118,7 @@ export default function RsvpPage({
           value={name}
           onChange={(e) => setName(e.target.value)}
           placeholder="Your name"
-          className="w-full rounded-[11px] border-[1.5px] border-input-border bg-input px-4 py-3.5 text-[14.5px] text-foreground placeholder:text-input-placeholder outline-none focus:border-primary focus:ring-2 focus:ring-primary/40"
+          className="w-full rounded-[11px] border-[1.5px] border-input-border bg-input px-4 py-3.5 text-[14.5px] text-foreground placeholder:text-input-placeholder outline-none focus:border-border-strong focus:ring-1 focus:ring-border"
         />
       </div>
       <div className="mb-3.5">
@@ -134,7 +134,7 @@ export default function RsvpPage({
           value={phone}
           onChange={(e) => setPhone(e.target.value)}
           placeholder="080..."
-          className="w-full rounded-[11px] border-[1.5px] border-input-border bg-input px-4 py-3.5 text-[14.5px] text-foreground placeholder:text-input-placeholder outline-none focus:border-primary focus:ring-2 focus:ring-primary/40"
+          className="w-full rounded-[11px] border-[1.5px] border-input-border bg-input px-4 py-3.5 text-[14.5px] text-foreground placeholder:text-input-placeholder outline-none focus:border-border-strong focus:ring-1 focus:ring-border"
         />
       </div>
       <div className="mb-2">
@@ -150,7 +150,7 @@ export default function RsvpPage({
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           placeholder="you@example.com"
-          className="w-full rounded-[11px] border-[1.5px] border-input-border bg-input px-4 py-3.5 text-[14.5px] text-foreground placeholder:text-input-placeholder outline-none focus:border-primary focus:ring-2 focus:ring-primary/40"
+          className="w-full rounded-[11px] border-[1.5px] border-input-border bg-input px-4 py-3.5 text-[14.5px] text-foreground placeholder:text-input-placeholder outline-none focus:border-border-strong focus:ring-1 focus:ring-border"
         />
       </div>
       {error && (

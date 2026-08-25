@@ -19,9 +19,9 @@ export function IncomingCallOverlay() {
       <div className="mx-4 w-full max-w-[340px] overflow-hidden rounded-[20px] border border-border bg-modal shadow-modal">
         <div className="flex flex-col items-center bg-linear-to-b from-aztec to-aztec-2 px-6 pt-8 pb-6 text-white">
           <div className="relative mb-4">
-            <span className="absolute inset-0 animate-ping rounded-full bg-primary/30" />
+            <span className="absolute inset-0 motion-safe:animate-ping rounded-full bg-primary/30" />
             <span
-              className="absolute -inset-3 animate-ping rounded-full bg-primary/20"
+              className="absolute -inset-3 motion-safe:animate-ping rounded-full bg-primary/20"
               style={{ animationDelay: "0.4s" }}
             />
             <div

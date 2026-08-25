@@ -130,16 +130,66 @@ export async function skipPasswordChangeAction(): Promise<void> {
 
 export async function logoutAction() {
   await destroyCurrentSession();
-  redirect("/login");
-}
-
-export async function switchUserAction() {
-  await destroyCurrentSession();
+  revalidatePath("/", "layout");
   redirect("/login");
 }
 
 /** Clear cookie without DB (edge cases). Prefer logoutAction. */
 export async function forceClearSessionAction() {
   await clearSessionCookie();
+  revalidatePath("/", "layout");
   redirect("/login");
+}
+
+import { setDefaultMemberPassword } from "@/lib/services/settings.service";
+import { validatePasswordPolicy, passwordPolicyMessage } from "@/lib/auth/password";
+
+export async function updateDefaultPasswordAction(_prev: any, formData: FormData): Promise<{ ok: boolean; error?: string }> {
+  const session = await readSession();
+  if (!session || session.role !== "head") {
+    return { ok: false, error: "Unauthorized" };
+  }
+
+  const password = String(formData.get("password") || "");
+  const confirm = String(formData.get("confirm") || "");
+
+  const policyError = validatePasswordPolicy(password, { confirm });
+  if (policyError) {
+    return { ok: false, error: passwordPolicyMessage(policyError) };
+  }
+
+  try {
+    await setDefaultMemberPassword(password);
+    const { recordAuditEvent } = await import("@/lib/services/audit.service");
+    await recordAuditEvent({
+      userId: session.id,
+      action: "settings_change",
+      targetId: session.id,
+      targetType: "unit_settings",
+      meta: { field: "defaultMemberPassword" },
+    });
+    return { ok: true };
+  } catch (err) {
+    console.error("Failed to update default password", err);
+    return { ok: false, error: "An unexpected error occurred." };
+  }
+}
+
+import { resetMemberPassword } from "@/lib/services/auth.service";
+
+export async function resetMemberPasswordAction(userId: string): Promise<{ ok: boolean; password?: string; error?: string }> {
+  const session = await readSession();
+  if (!session || session.role !== "head") {
+    return { ok: false, error: "Unauthorized" };
+  }
+  
+  try {
+    const defaultPass = await resetMemberPassword(userId, session.id);
+    return { ok: true, password: defaultPass };
+  } catch (err) {
+    if (err instanceof Error) {
+      return { ok: false, error: err.message };
+    }
+    return { ok: false, error: "An unexpected error occurred." };
+  }
 }

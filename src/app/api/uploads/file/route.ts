@@ -11,14 +11,20 @@ export async function GET(req: Request) {
   if (!buf) return jsonError(404, "Not found");
 
   const ext = key.split(".").pop()?.toLowerCase();
-  const type =
-    ext === "png"
-      ? "image/png"
-      : ext === "webp"
-        ? "image/webp"
-        : ext === "pdf"
-          ? "application/pdf"
-          : "image/jpeg";
+  let type = "image/jpeg";
+  if (ext === "png") type = "image/png";
+  else if (ext === "webp") type = "image/webp";
+  else if (ext === "pdf") type = "application/pdf";
+  else if (ext === "doc") type = "application/msword";
+  else if (ext === "docx") type = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+  else if (ext === "xls") type = "application/vnd.ms-excel";
+  else if (ext === "xlsx") type = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+  else if (ext === "ppt") type = "application/vnd.ms-powerpoint";
+  else if (ext === "pptx") type = "application/vnd.openxmlformats-officedocument.presentationml.presentation";
+  else if (ext === "txt") type = "text/plain";
+  else if (ext === "csv") type = "text/csv";
+  else if (ext === "zip") type = "application/zip";
+  else if (ext !== "jpg" && ext !== "jpeg") type = "application/octet-stream";
 
   return new Response(new Uint8Array(buf), {
     status: 200,

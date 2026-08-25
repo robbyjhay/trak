@@ -1,6 +1,9 @@
 @import "tailwindcss";
 @config "../../tailwind.config.ts";
 
+/* Class-based dark mode: ThemeContext toggles `.dark` on <html> (see layout.tsx) */
+@custom-variant dark (&:where(.dark, .dark *));
+
 /*
   Design tokens → Tailwind theme utilities.
   Prefer utilities (bg-aztec, text-ink-soft, font-display) over ad-hoc CSS vars
@@ -25,8 +28,14 @@
   --color-warning: #c99f2f;
   --color-warning-bg: #fdf3d8;
   --color-warning-ink: #8a6a1f;
+  --color-warning-semantic: var(--warning-semantic);
+  --color-warning-surface: var(--warning-surface);
+  --color-warning-foreground: var(--warning-foreground);
   --color-critical: #b5453a;
   --color-critical-bg: #fbeceb;
+  --color-critical-semantic: var(--critical-semantic);
+  --color-critical-surface: var(--critical-surface);
+  --color-critical-foreground: var(--critical-foreground);
   --color-neutral: #3a4a44;
   --color-neutral-bg: #eef0ec;
   --color-cat-meeting: #12915f;
@@ -121,7 +130,7 @@
   --input: var(--card);
   --input-border: var(--line);
   --input-placeholder: var(--ink-faint);
-  --input-focus: var(--saffron);
+  --input-focus: var(--border-strong);
 
   --success: var(--good);
   --success-surface: var(--good-bg);
@@ -186,7 +195,7 @@
   --input: var(--aztec-2);
   --input-border: #224239;
   --input-placeholder: #5f7069;
-  --input-focus: var(--saffron);
+  --input-focus: var(--border-strong);
 
   --success: var(--good);
   --success-surface: rgba(46,125,91,0.12);
@@ -296,7 +305,7 @@ button {
   textarea,
   summary
 ):focus-visible {
-  outline: 2px solid var(--saffron);
+  outline: 2px solid var(--border-strong);
   outline-offset: 2px;
 }
 

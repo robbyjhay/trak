@@ -1,14 +1,14 @@
 "use client";
 
-import { useActionState, useState } from "react";
-import { firstName } from "@/lib/utils";
-import { PATHS } from "@/components/icons";
+import { useState, useActionState } from "react";
 import {
-  logoutAction,
   setNewPasswordAction,
   skipPasswordChangeAction,
+  logoutAction,
   type SetPasswordResult,
 } from "@/lib/auth/actions";
+import { firstName } from "@/lib/utils";
+import { PATHS } from "@/components/icons";
 
 export function SetPasswordForm({
   name,
@@ -72,7 +72,7 @@ export function SetPasswordForm({
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 disabled={pending}
-                className="w-full rounded-xl border-[1.5px] border-input-border bg-input px-3.5 py-3.5 text-[14.5px] text-foreground outline-none placeholder:text-input-placeholder focus:border-primary focus:ring-2 focus:ring-primary/40 disabled:opacity-60"
+                className="w-full rounded-xl border-[1.5px] border-input-border bg-input px-3.5 py-3.5 text-[14.5px] text-foreground outline-none placeholder:text-input-placeholder focus:border-border-strong focus:ring-1 focus:ring-border disabled:opacity-60"
               />
             </div>
             <div className="mb-4">
@@ -94,7 +94,7 @@ export function SetPasswordForm({
                 value={confirm}
                 onChange={(e) => setConfirm(e.target.value)}
                 disabled={pending}
-                className="w-full rounded-xl border-[1.5px] border-input-border bg-input px-3.5 py-3.5 text-[14.5px] text-foreground outline-none placeholder:text-input-placeholder focus:border-primary focus:ring-2 focus:ring-primary/40 disabled:opacity-60"
+                className="w-full rounded-xl border-[1.5px] border-input-border bg-input px-3.5 py-3.5 text-[14.5px] text-foreground outline-none placeholder:text-input-placeholder focus:border-border-strong focus:ring-1 focus:ring-border disabled:opacity-60"
               />
             </div>
 
@@ -138,11 +138,11 @@ export function SetPasswordForm({
             </form>
           )}
 
-          <form action={logoutAction}>
+          <form action={logoutAction} className="mt-3">
             <button
               type="submit"
               disabled={pending}
-              className="mt-3 w-full cursor-pointer rounded-xl border-[1.5px] border-border bg-surface-interactive py-3 text-[13px] font-bold text-foreground-secondary transition-colors hover:border-critical/30 hover:text-critical focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:opacity-60"
+              className="w-full cursor-pointer rounded-xl border-[1.5px] border-border bg-surface-interactive py-3 text-[13px] font-bold text-foreground-secondary transition-colors hover:border-critical/30 hover:text-critical focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:opacity-60"
             >
               Log out
             </button>

@@ -50,9 +50,9 @@ export function CallPanel({
         <div className="relative flex h-10 w-10 shrink-0 items-center justify-center">
           {status === "ringing" && (
             <>
-              <span className="absolute inset-0 animate-ping rounded-full bg-primary/40" />
+              <span className="absolute inset-0 motion-safe:animate-ping rounded-full bg-primary/40" />
               <span
-                className="absolute -inset-2 animate-ping rounded-full bg-primary/25"
+                className="absolute -inset-2 motion-safe:animate-ping rounded-full bg-primary/25"
                 style={{ animationDelay: "0.3s" }}
               />
             </>

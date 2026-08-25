@@ -158,7 +158,7 @@ const DEMO_MEMBERS: SeedUser[] = [
   },
   {
     username: "DLUJEF",
-    name: "Okikiola Jefferson",
+    name: "Okikioluwa Jefferson",
     role: "member",
     isCorps: true,
     corpsEnd: "2027-01-15",

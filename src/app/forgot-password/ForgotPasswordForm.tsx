@@ -69,7 +69,7 @@ export function ForgotPasswordForm() {
           onChange={(e) => setIdentifier(e.target.value)}
           placeholder="your.username or you@example.gov.ng"
           required
-          className="w-full rounded-xl border-[1.5px] border-input-border bg-input px-3.5 py-3.5 text-[14.5px] text-foreground outline-none placeholder:text-input-placeholder focus:border-primary focus:ring-2 focus:ring-primary/40"
+          className="w-full rounded-xl border-[1.5px] border-input-border bg-input px-3.5 py-3.5 text-[14.5px] text-foreground outline-none placeholder:text-input-placeholder focus:border-border-strong focus:ring-1 focus:ring-border"
         />
       </div>
 

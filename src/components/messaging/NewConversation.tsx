@@ -28,8 +28,8 @@ export function NewConversation({
   );
 
   return (
-    <ModalBackdrop open={open} onClose={onClose}>
-      <ModalPanel className="p-6">
+    <ModalBackdrop open={open} onClose={onClose} bottomSheetOnMobile={true}>
+      <ModalPanel className="p-6" bottomSheetOnMobile={true}>
         <div className="mb-4 flex items-center justify-between">
           <h2 className="m-0 font-display text-[20px] font-semibold text-foreground">
             New conversation
@@ -77,9 +77,6 @@ export function NewConversation({
                     {roleLabel(p)} · {p.username}
                   </div>
                 </div>
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="shrink-0 text-foreground-faint">
-                  <path d="M9 18l6-6-6-6" />
-                </svg>
               </button>
             ))
           )}

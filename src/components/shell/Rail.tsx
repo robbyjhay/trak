@@ -19,6 +19,7 @@ export function Rail() {
 
   const isActive = (item: { href: string; also?: string[] }) => {
     if (pathname === item.href) return true;
+    if (item.href === "/settings" && pathname.startsWith("/settings")) return true;
     if (item.href === "/activities" && pathname.startsWith("/activity/")) return true;
     if (item.also?.some((p) => pathname.startsWith(p))) return true;
     return false;

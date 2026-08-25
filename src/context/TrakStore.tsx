@@ -27,6 +27,7 @@ import type {
   TrakDb,
   User,
   WrapupData,
+  SendMessageAttachmentInput,
 } from "@/lib/types";
 import {
   activitiesFor as activitiesForMut,
@@ -115,21 +116,7 @@ interface TrakStoreValue {
   ) => Promise<void>;
   markNotifRead: (id: string) => Promise<void>;
   markAllNotifsRead: () => Promise<void>;
-  updateUserProfile: (
-    userId: string,
-    patch: Partial<
-      Pick<
-        User,
-        | "designation"
-        | "gradeLevel"
-        | "sex"
-        | "phone"
-        | "stateOfOrigin"
-        | "dateJoined"
-        | "photoUrl"
-      >
-    >,
-  ) => Promise<void>;
+  updateUserProfile: (userId: string, patch: Partial<User>) => Promise<void>;
   addUser: (u: {
     name: string;
     username?: string;
@@ -140,7 +127,7 @@ interface TrakStoreValue {
     phone?: string;
     stateOfOrigin?: string;
     dateJoined?: string;
-    roleType?: "member" | "secretary" | "corps";
+    roleType?: "member" | "secretary" | "corps" | "intern";
   }) => Promise<{ username: string; starterPassword: string }>;
   createResponsibility: (input: {
     code: string;
@@ -157,9 +144,11 @@ interface TrakStoreValue {
       deliverables: string[];
     },
   ) => Promise<Responsibility>;
-  sendDm: (toId: string, text: string) => Promise<void>;
-  sendCommunity: (text: string) => Promise<void>;
+  sendDm: (toId: string, text: string, attachments?: SendMessageAttachmentInput[]) => Promise<void>;
+  sendCommunity: (text: string, attachments?: SendMessageAttachmentInput[]) => Promise<void>;
   wipeCommunity: () => Promise<void>;
+  deleteDmMessage: (messageId: string, forEveryone: boolean) => Promise<void>;
+  deleteCommunityMessage: (messageId: string, forEveryone: boolean) => Promise<void>;
   sendBroadcast: (text: string) => Promise<void>;
   recordCall: (partnerId: string, durationSec: number) => Promise<void>;
   addRsvpAttendee: (logId: string, attendee: Attendee) => Promise<void>;
@@ -585,20 +574,20 @@ export function TrakStoreProvider({
       bump();
       return res.responsibility;
     },
-    sendDm: async (toId, text) => {
+    sendDm: async (toId, text, attachments) => {
       const res = await apiSend<{
         dms: typeof db.dms;
         notifications: Notification[];
-      }>("/api/messages/dms", "POST", { toId, text });
+      }>("/api/messages/dms", "POST", { toId, text, attachments });
       stateRef.current.db.dms = res.dms;
       mergeNotifications(res.notifications);
       bump();
     },
-    sendCommunity: async (text) => {
+    sendCommunity: async (text, attachments) => {
       const res = await apiSend<{ community: typeof db.community }>(
         "/api/messages/community",
         "POST",
-        { text },
+        { text, attachments },
       );
       stateRef.current.db.community = res.community;
       bump();
@@ -616,6 +605,24 @@ export function TrakStoreProvider({
       const res = await apiSend<{ community: typeof db.community }>(
         "/api/messages/community",
         "DELETE",
+      );
+      stateRef.current.db.community = res.community;
+      bump();
+    },
+    deleteDmMessage: async (messageId, forEveryone) => {
+      const res = await apiSend<{
+        dms: typeof db.dms;
+        notifications: Notification[];
+      }>(`/api/messages/dms/${messageId}`, "DELETE", { forEveryone });
+      stateRef.current.db.dms = res.dms;
+      mergeNotifications(res.notifications);
+      bump();
+    },
+    deleteCommunityMessage: async (messageId, forEveryone) => {
+      const res = await apiSend<{ community: typeof db.community }>(
+        `/api/messages/community/${messageId}`,
+        "DELETE",
+        { forEveryone },
       );
       stateRef.current.db.community = res.community;
       bump();

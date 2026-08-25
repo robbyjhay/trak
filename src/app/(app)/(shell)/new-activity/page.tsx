@@ -6,6 +6,7 @@ import { useTrak } from "@/context/TrakStore";
 import { TYPE_COLOR } from "@/lib/constants";
 import { TypeIcon } from "@/components/icons";
 import { PrimaryBtn } from "@/components/ui/Buttons";
+import { Switch } from "@/components/ui/Switch";
 import { fmtDate, fmtTime } from "@/lib/dates";
 import type { ActivityType } from "@/lib/types";
 import { PATHS } from "@/components/icons";
@@ -145,7 +146,7 @@ export default function NewActivityPage() {
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="e.g. Digital literacy training — SS2 batch"
-              className="w-full rounded-[11px] border-[1.5px] border-input-border bg-input text-foreground placeholder:text-input-placeholder px-[15px] py-3.5 text-sm outline-none focus:border-primary"
+              className="w-full rounded-[11px] border-[1.5px] border-input-border bg-input text-foreground placeholder:text-input-placeholder px-[15px] py-3.5 text-sm outline-none focus:border-border-strong"
             />
           </Section>
 
@@ -154,7 +155,7 @@ export default function NewActivityPage() {
               value={desc}
               onChange={(e) => setDesc(e.target.value)}
               placeholder="What is this activity about?"
-              className="min-h-[88px] w-full rounded-[11px] border-[1.5px] border-input-border bg-input text-foreground placeholder:text-input-placeholder px-[15px] py-3.5 text-sm outline-none focus:border-primary"
+              className="min-h-[88px] w-full rounded-[11px] border-[1.5px] border-input-border bg-input text-foreground placeholder:text-input-placeholder px-[15px] py-3.5 text-sm outline-none focus:border-border-strong"
             />
           </Section>
 
@@ -171,7 +172,7 @@ export default function NewActivityPage() {
                     setStart(e.target.value);
                     if (!end || end < e.target.value) setEnd(e.target.value);
                   }}
-                  className="w-full rounded-[11px] border-[1.5px] border-input-border bg-input text-foreground placeholder:text-input-placeholder px-[15px] py-3.5 outline-none focus:border-primary"
+                  className="w-full rounded-[11px] border-[1.5px] border-input-border bg-input text-foreground placeholder:text-input-placeholder px-[15px] py-3.5 outline-none focus:border-border-strong"
                 />
               </div>
               <div>
@@ -182,7 +183,7 @@ export default function NewActivityPage() {
                   type="date"
                   value={end}
                   onChange={(e) => setEnd(e.target.value)}
-                  className="w-full rounded-[11px] border-[1.5px] border-input-border bg-input text-foreground placeholder:text-input-placeholder px-[15px] py-3.5 outline-none focus:border-primary"
+                  className="w-full rounded-[11px] border-[1.5px] border-input-border bg-input text-foreground placeholder:text-input-placeholder px-[15px] py-3.5 outline-none focus:border-border-strong"
                 />
               </div>
             </div>
@@ -199,7 +200,7 @@ export default function NewActivityPage() {
               type="time"
               value={time}
               onChange={(e) => setTime(e.target.value)}
-              className="w-[220px] rounded-[11px] border-[1.5px] border-input-border bg-input text-foreground placeholder:text-input-placeholder px-[15px] py-3.5 outline-none focus:border-primary"
+              className="w-[220px] rounded-[11px] border-[1.5px] border-input-border bg-input text-foreground placeholder:text-input-placeholder px-[15px] py-3.5 outline-none focus:border-border-strong"
             />
           </Section>
 
@@ -212,28 +213,24 @@ export default function NewActivityPage() {
               value={location}
               onChange={(e) => setLocation(e.target.value)}
               placeholder="e.g. PSSDC ICT Hub, Room 204 — or a Zoom / Google Meet link"
-              className="w-full rounded-[11px] border-[1.5px] border-input-border bg-input text-foreground placeholder:text-input-placeholder px-[15px] py-3.5 text-sm outline-none focus:border-primary"
+              className="w-full rounded-[11px] border-[1.5px] border-input-border bg-input text-foreground placeholder:text-input-placeholder px-[15px] py-3.5 text-sm outline-none focus:border-border-strong"
             />
           </Section>
 
           <Section label="Budget tracking" optional>
-            <div className="flex items-center gap-3 mb-3">
-              <button
-                type="button"
-                onClick={() => setHasBudget(!hasBudget)}
-                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors ${
-                  hasBudget ? "bg-primary" : "bg-surface-muted border border-border"
-                }`}
+            <div className="mb-3 flex items-center gap-3">
+              <Switch
+                id="has-budget"
+                checked={hasBudget}
+                onChange={setHasBudget}
+                aria-label="Budget tracking"
+              />
+              <label
+                htmlFor="has-budget"
+                className="cursor-pointer text-[13px] font-semibold"
               >
-                <span
-                  className={`pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow-sm ring-0 transition-transform ${
-                    hasBudget ? "translate-x-5" : "translate-x-0"
-                  }`}
-                />
-              </button>
-              <span className="text-[13px] font-semibold">
                 {hasBudget ? "This activity has a budget" : "No budget tracking"}
-              </span>
+              </label>
             </div>
             {hasBudget && (
               <div>
@@ -246,7 +243,7 @@ export default function NewActivityPage() {
                   value={estimatedAmount}
                   onChange={(e) => setEstimatedAmount(e.target.value)}
                   placeholder="e.g. 250000"
-                  className="w-full max-w-[300px] rounded-[11px] border-[1.5px] border-input-border bg-input text-foreground placeholder:text-input-placeholder px-[15px] py-3.5 text-sm outline-none focus:border-primary"
+                  className="w-full max-w-[300px] rounded-[11px] border-[1.5px] border-input-border bg-input text-foreground placeholder:text-input-placeholder px-[15px] py-3.5 text-sm outline-none focus:border-border-strong"
                 />
               </div>
             )}

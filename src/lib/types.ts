@@ -19,6 +19,7 @@ export interface User {
   role: UserRole;
   isSecretary: boolean;
   isCorps: boolean;
+  isIntern: boolean;
   corpsEnd?: string;
   color: string;
   phone: string;
@@ -28,6 +29,7 @@ export interface User {
   stateOfOrigin: string;
   dateJoined: string;
   photoUrl: string | null;
+  isActive: boolean;
 }
 
 /** Server-only credential row — never sent to the client. */
@@ -121,13 +123,34 @@ export interface Comment {
   createdAt: string;
 }
 
+export interface MessageAttachment {
+  id: string;
+  name: string;
+  size: number;
+  contentType: string;
+  storageKey: string;
+  width?: number | null;
+  height?: number | null;
+}
+
+export interface SendMessageAttachmentInput {
+  name: string;
+  size: number;
+  contentType: string;
+  storageKey: string;
+  width?: number | null;
+  height?: number | null;
+}
+
 export interface Dm {
+  isDeleted?: boolean;
   id: string;
   a: string;
   b: string;
   from: string;
   text: string;
   at: string;
+  attachments?: MessageAttachment[];
 }
 
 export interface CallRecord {
@@ -140,11 +163,13 @@ export interface CallRecord {
 }
 
 export interface CommunityMessage {
+  isDeleted?: boolean;
   id: string;
   from: string;
   text: string;
   at: string;
   replyToId?: string | null;
+  attachments?: MessageAttachment[];
 }
 
 export interface Broadcast {
@@ -160,6 +185,7 @@ export interface Notification {
   type: NotifType;
   text: string;
   activityId: string | null;
+  messageId?: string | null;
   createdAt: string;
   read: boolean;
 }
@@ -185,6 +211,7 @@ export interface SessionUser {
   role: UserRole;
   isSecretary: boolean;
   isCorps: boolean;
+  isIntern: boolean;
   mustChangePassword: boolean;
 }
 

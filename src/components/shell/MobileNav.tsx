@@ -6,6 +6,8 @@ import { usePathname } from "next/navigation";
 import { PATHS } from "@/components/icons";
 import { cn } from "@/lib/utils";
 
+import { useConnectNav } from "@/context/ConnectNav";
+
 const NAV_LEFT = [
   { href: "/dashboard", defaultLabel: "Dashboard", path: PATHS.dashboard },
   { href: "/activities", defaultLabel: "Activities", path: PATHS.checkList },
@@ -66,13 +68,19 @@ function ScoopBackground() {
 export function MobileNav() {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
+  const { isMobileThreadOpen } = useConnectNav();
 
   const isActive = (item: { href: string; also?: string[] }) => {
     if (pathname === item.href) return true;
+    if (item.href === "/settings" && pathname.startsWith("/settings")) return true;
     if (item.href === "/activities" && pathname.startsWith("/activity/")) return true;
     if (item.also?.some((p) => pathname.startsWith(p))) return true;
     return false;
   };
+
+  if (isMobileThreadOpen && (pathname === "/messages" || pathname === "/contacts")) {
+    return null;
+  }
 
   return (
     <>

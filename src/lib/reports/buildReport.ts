@@ -142,13 +142,14 @@ export function buildActivityReportHTML(
 <style>
   @page{ margin:2cm 2.2cm; }
   *{ font-family:Calibri, "Segoe UI", Arial, sans-serif; box-sizing:border-box; }
-  body{ color:#1a1a1a; font-size:11.5pt; line-height:1.6; margin:0; padding:0; background:#f2f1ec; }
+  body{ color:#1a1a1a; font-size:11.5pt; line-height:1.6; margin:0; padding:24px 16px; background:transparent; }
+  .paper{ max-width:100%; width:210mm; min-height:297mm; margin:0 auto; background:#f2f1ec; box-shadow:0 6px 28px rgba(0,0,0,0.22); overflow:hidden; }
   .letterhead{ background:#0d1d1a; color:#fbfaf6; padding:22px 44px; }
   .letterhead .top{ display:flex; align-items:center; justify-content:space-between; }
   .letterhead .org{ font-size:9pt; letter-spacing:.14em; text-transform:uppercase; color:#f6c642; margin-bottom:3px; }
   .letterhead .unit{ font-size:15pt; font-weight:700; color:#fbfaf6; }
   .letterhead .meta{ text-align:right; font-size:8.5pt; color:rgba(251,250,246,.7); line-height:1.5; }
-  .doc-wrap{ max-width:740px; margin:0 auto; background:#fff; padding:0 44px 46px; }
+  .doc-wrap{ max-width:740px; margin:0 auto; background:#fff; padding:0 44px 46px; min-height:calc(297mm - 90px); }
   .titleblock{ text-align:center; padding:30px 0 18px; }
   .titleblock h1{ font-size:19pt; letter-spacing:.06em; margin:0 0 8px 0; color:#0d1d1a; }
   .titleblock .ref{ font-size:9.5pt; color:#666; font-family:"Courier New",monospace; }
@@ -167,13 +168,25 @@ export function buildActivityReportHTML(
   .note{ color:#8a6a1f; font-style:italic; font-size:10pt; }
   .sign-table{ border:none; margin-top:46px; }
   .sign-table td{ border:none; width:50%; vertical-align:top; padding:0 14px 0 0; }
-  .sign-line{ border-top:1px solid #333; width:230px; margin-top:38px; padding-top:6px; font-size:10pt; line-height:1.5; }
-  .remarks-block{ margin-top:64px; padding-top:22px; border-top:1px dashed #ccc; }
-  .attendance-page{ page-break-before:always; break-before:page; padding-top:6px; }
-  .attendance-page .pagelabel{ font-size:8.5pt; letter-spacing:.1em; text-transform:uppercase; color:#999; margin-bottom:2px; }
-  .footer{ margin-top:40px; padding-top:12px; border-top:1px solid #ddd; font-size:8.5pt; color:#888; text-align:center; }
+  
+  @media screen and (max-width: 640px) {
+    body { padding: 12px 8px; }
+    .paper { width: 100%; box-shadow: 0 4px 16px rgba(0,0,0,0.15); min-height: auto; }
+    .letterhead { padding: 16px; }
+    .letterhead .unit { font-size: 13pt; }
+    .letterhead .org { font-size: 8pt; }
+    .letterhead .meta { font-size: 8pt; }
+    .doc-wrap { padding: 0 16px 24px; min-height: auto; }
+    table { table-layout: fixed; }
+    th, td { word-wrap: break-word; overflow-wrap: break-word; font-size: 9.5pt; padding: 5px; }
+  }
+  @media print {
+    body { padding: 0; }
+    .paper { width: 100%; box-shadow: none; margin: 0; min-height: auto; }
+  }
 </style></head>
 <body>
+  <div class="paper">
   <div class="letterhead">
     <div class="top">
       <div>
@@ -276,6 +289,7 @@ export function buildActivityReportHTML(
     </div>
 
     <div class="footer">PSSDC — Digital Learning Unit &middot; Internal document, generated automatically from Trak &middot; ${refNo}</div>
+  </div>
   </div>
 </body>
 </html>`;

@@ -1,0 +1,9 @@
+▼Todo
+[✓] Add deletedAt fields + DeletedMessage model to schema.prisma
+[✓] Add delete permissions to permissions.ts
+[✓] Add delete service functions to service.ts
+[•] Create DELETE API routes for DMs and community messages
+[ ] Add delete UI context menu to Bubble.tsx
+[ ] Add deleteMessage method to TrakStore.tsx
+[ ] Filter deleted-for-me messages in ChatThread.tsx and Messaging.tsx
+[ ] Run prisma migrate

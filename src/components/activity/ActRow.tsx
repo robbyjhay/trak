@@ -42,7 +42,7 @@ export function ActRow({
   if (days > 1) {
     metaLine = `${fmtDateShort(a.startDate)}–${fmtDateShort(a.endDate)}`;
   } else {
-    const actDate = new Date(a.startDate + "T" + (a.startTime || "00:00"));
+    const actDate = new Date(a.startDate.includes("T") ? a.startDate : a.startDate + "T" + (a.startTime || "00:00"));
     const now = new Date();
     if (actDate.toDateString() === now.toDateString() && a.status === "pending" && actDate > now) {
       const diffMins = Math.floor((actDate.getTime() - now.getTime()) / 60000);
@@ -90,7 +90,17 @@ export function ActRow({
         <TypeIcon type={a.type} />
       </div>
       <div className="min-w-0 flex-1">
-        <div className="mb-0.5 truncate text-[13.5px] font-bold">{a.title}</div>
+        <div className="mb-0.5 flex items-center gap-2">
+          <div className="truncate min-w-0 text-[13.5px] font-bold">{a.title}</div>
+          {a.hidden && (
+            <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-surface-muted px-1.5 py-0.5 text-[9.5px] font-bold text-foreground-secondary border border-border" title="Hidden from unit feed">
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d={PATHS.eyeOff} />
+              </svg>
+              Hidden
+            </span>
+          )}
+        </div>
         <div className="flex flex-wrap items-center gap-2 text-[11.5px] text-foreground-faint">
           <span>{a.type}</span>
           <span className="h-[3px] w-[3px] rounded-full bg-foreground-faint" />
