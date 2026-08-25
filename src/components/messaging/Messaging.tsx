@@ -28,9 +28,10 @@ type ThreadItem =
   | { kind: "dm"; id: string; dm: Dm }
   | { kind: "call"; id: string; call: CallRecord };
 
-function sortByUid(id: string): number {
-  const m = id.match(/_(\d+)$/);
-  return m ? Number(m[1]) : 0;
+function getCreatedAt(item: ThreadItem): number {
+  if (item.kind === "dm") return new Date(item.dm.at).getTime();
+  if (item.kind === "call") return new Date(item.call.at).getTime();
+  return 0;
 }
 
 function threadItems(db: TrakDb, me: string, other: string): ThreadItem[] {
@@ -47,7 +48,7 @@ function threadItems(db: TrakDb, me: string, other: string): ThreadItem[] {
           (c.a === me && c.b === other) || (c.a === other && c.b === me),
       )
       .map((call) => ({ kind: "call" as const, id: call.id, call })),
-  ].sort((x, y) => sortByUid(x.id) - sortByUid(y.id));
+  ].sort((x, y) => getCreatedAt(x) - getCreatedAt(y));
 }
 
 export function Messaging({
@@ -208,7 +209,7 @@ export function Messaging({
                 )}
                 
                 <ChatThread 
-                  items={db.community.map(m => ({ kind: "dm", id: m.id, dm: m as unknown as Dm }))} 
+                  items={[...db.community].sort((a, b) => new Date(a.at).getTime() - new Date(b.at).getTime()).map(m => ({ kind: "dm", id: m.id, dm: m as unknown as Dm }))} 
                   me={me} 
                   userMap={userMap} 
                   isGroup={true}

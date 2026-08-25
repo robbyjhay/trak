@@ -1,6 +1,7 @@
 import { readSession } from "@/lib/auth/session";
 import { redirect } from "next/navigation";
 import { DefaultPasswordForm } from "./DefaultPasswordForm";
+import { ThemeSettings } from "./ThemeSettings";
 
 export default async function SettingsPage() {
   const session = await readSession();
@@ -27,6 +28,10 @@ export default async function SettingsPage() {
           <DefaultPasswordForm />
         </div>
       )}
+
+      <div className="max-w-md mt-6">
+        <ThemeSettings />
+      </div>
     </div>
   );
 }

@@ -196,8 +196,8 @@ export async function createSignedUpload(input: {
     .digest("hex")
     .slice(0, 32);
   const appUrl = process.env.APP_URL || "http://localhost:3000";
-  const uploadUrl = `${appUrl}/api/uploads/put?key=${encodeURIComponent(key)}&token=${token}`;
-  const publicUrl = `${appUrl}/api/uploads/file?key=${encodeURIComponent(key)}`;
+  const uploadUrl = `/api/uploads/put?key=${encodeURIComponent(key)}&token=${token}`;
+  const publicUrl = `/api/uploads/file?key=${encodeURIComponent(key)}`;
 
   return { key, uploadUrl, publicUrl, expiresAt, method: "PUT" };
 }

@@ -575,22 +575,49 @@ export function TrakStoreProvider({
       return res.responsibility;
     },
     sendDm: async (toId, text, attachments) => {
-      const res = await apiSend<{
-        dms: typeof db.dms;
-        notifications: Notification[];
-      }>("/api/messages/dms", "POST", { toId, text, attachments });
-      stateRef.current.db.dms = res.dms;
-      mergeNotifications(res.notifications);
+      const tempId = `temp_${Date.now()}`;
+      stateRef.current.db.dms.push({
+        id: tempId,
+        a: session.id,
+        b: toId,
+        from: session.id,
+        text,
+        attachments: (attachments || []).map((a, i) => ({ ...a, id: `${tempId}_${i}`, messageId: tempId })),
+        at: new Date().toISOString(),
+      });
       bump();
+      try {
+        const res = await apiSend<{
+          dms: typeof db.dms;
+          notifications: Notification[];
+        }>("/api/messages/dms", "POST", { toId, text, attachments });
+        stateRef.current.db.dms = res.dms;
+        mergeNotifications(res.notifications);
+      } finally {
+        bump();
+      }
     },
     sendCommunity: async (text, attachments) => {
-      const res = await apiSend<{ community: typeof db.community }>(
-        "/api/messages/community",
-        "POST",
-        { text, attachments },
-      );
-      stateRef.current.db.community = res.community;
+      const tempId = `temp_${Date.now()}`;
+      stateRef.current.db.community.push({
+        id: tempId,
+        from: session.id,
+        text,
+        attachments: (attachments || []).map((a, i) => ({ ...a, id: `${tempId}_${i}`, messageId: tempId })),
+        at: new Date().toISOString(),
+        replyToId: null,
+      });
       bump();
+      try {
+        const res = await apiSend<{ community: typeof db.community }>(
+          "/api/messages/community",
+          "POST",
+          { text, attachments },
+        );
+        stateRef.current.db.community = res.community;
+      } finally {
+        bump();
+      }
     },
     recordCall: async (partnerId, durationSec) => {
       const res = await apiSend<{ calls: typeof db.calls }>(
@@ -610,22 +637,42 @@ export function TrakStoreProvider({
       bump();
     },
     deleteDmMessage: async (messageId, forEveryone) => {
-      const res = await apiSend<{
-        dms: typeof db.dms;
-        notifications: Notification[];
-      }>(`/api/messages/dms/${messageId}`, "DELETE", { forEveryone });
-      stateRef.current.db.dms = res.dms;
-      mergeNotifications(res.notifications);
+      if (forEveryone) {
+        const msg = stateRef.current.db.dms.find(m => m.id === messageId);
+        if (msg) msg.isDeleted = true;
+      } else {
+        stateRef.current.db.dms = stateRef.current.db.dms.filter(m => m.id !== messageId);
+      }
       bump();
+      try {
+        const res = await apiSend<{
+          dms: typeof db.dms;
+          notifications: Notification[];
+        }>(`/api/messages/dms/${messageId}`, "DELETE", { forEveryone });
+        stateRef.current.db.dms = res.dms;
+        mergeNotifications(res.notifications);
+      } finally {
+        bump();
+      }
     },
     deleteCommunityMessage: async (messageId, forEveryone) => {
-      const res = await apiSend<{ community: typeof db.community }>(
-        `/api/messages/community/${messageId}`,
-        "DELETE",
-        { forEveryone },
-      );
-      stateRef.current.db.community = res.community;
+      if (forEveryone) {
+        const msg = stateRef.current.db.community.find(m => m.id === messageId);
+        if (msg) msg.isDeleted = true;
+      } else {
+        stateRef.current.db.community = stateRef.current.db.community.filter(m => m.id !== messageId);
+      }
       bump();
+      try {
+        const res = await apiSend<{ community: typeof db.community }>(
+          `/api/messages/community/${messageId}`,
+          "DELETE",
+          { forEveryone },
+        );
+        stateRef.current.db.community = res.community;
+      } finally {
+        bump();
+      }
     },
     sendBroadcast: async (text) => {
       const res = await apiSend<{
