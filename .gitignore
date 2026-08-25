@@ -70,3 +70,8 @@ backups/
 # Playwright test artifacts
 test-results/
 playwright-report/
+
+# Local scratch & artifacts
+scratch/
+UI-UX Design — Before & After/
+eslint-errors.txt
