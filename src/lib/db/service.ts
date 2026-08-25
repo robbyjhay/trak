@@ -149,6 +149,12 @@ async function pushNotification(
   activityId?: string | null,
   messageId?: string | null,
 ): Promise<void> {
+  const prefs = await prisma.userPreferences.findUnique({ where: { userId } });
+  if (prefs && type !== 'broadcast') {
+    if (!prefs.notificationsEnabled) return;
+    if (type === 'dm' && !prefs.dmNotifications) return;
+    if (['activity_created', 'activity_completed', 'activity_missed', 'comment', 'mention'].includes(type) && !prefs.activityNotifications) return;
+  }
   await prisma.notification.create({
     data: {
       userId,
@@ -162,7 +168,12 @@ async function pushNotification(
 
 function publicStorageUrl(key: string | null | undefined): string | null {
   if (!key) return null;
-  if (key.startsWith("http://") || key.startsWith("https://") || key.startsWith("data:")) {
+  if (
+    key.startsWith("http://") ||
+    key.startsWith("https://") ||
+    key.startsWith("data:") ||
+    key.startsWith("/")
+  ) {
     return key;
   }
   const base = process.env.S3_PUBLIC_BASE_URL || process.env.APP_URL || "";
@@ -717,6 +728,95 @@ export async function submitDailyLog(
     activity: mapActivity(updatedAct),
   };
 }
+export async function updateActivityEndDate(
+  session: SessionUser,
+  activityId: string,
+  endDate: string,
+): Promise<Activity> {
+  const actor = await requireActor(session);
+  const act = await prisma.activity.findUnique({
+    where: { id: activityId },
+    include: { dailyLogs: true },
+  });
+  if (!act || act.softDeletedAt) throw new ServiceError(404, "Activity not found.");
+  if (act.createdById !== session.id && actor.role !== "head") {
+    throw new ServiceError(403, "Not allowed to update this activity.");
+  }
+  
+  const newEnd = dateFromIso(endDate);
+  if (newEnd < act.startDate) {
+    throw new ServiceError(400, "endDate must be on or after startDate.");
+  }
+
+  const nDays = daysBetween(iso(act.startDate), endDate) + 1;
+  if (nDays > 90) {
+    throw new ServiceError(400, "Activity span cannot exceed 90 days.");
+  }
+
+  const requiredDates = Array.from({ length: nDays }, (_, i) => iso(addDays(act.startDate, i)));
+  const submittedLogs = act.dailyLogs.filter((l) => l.status === "submitted");
+
+  // Check if there are submitted logs outside the new range
+  const submittedDates = submittedLogs.map((l) => iso(l.date));
+  for (const d of submittedDates) {
+    if (!requiredDates.includes(d)) {
+      throw new ServiceError(
+        400,
+        "Cannot move end date earlier than existing submitted daily logs.",
+      );
+    }
+  }
+
+  const existingDates = act.dailyLogs.map((l) => iso(l.date));
+  const missingDates = requiredDates.filter((d) => !existingDates.includes(d));
+  const datesToRemove = existingDates.filter((d) => !requiredDates.includes(d));
+
+  const updatedAct = await prisma.$transaction(async (tx) => {
+    // Delete pending logs outside range
+    if (datesToRemove.length > 0) {
+      await tx.dailyLog.deleteMany({
+        where: {
+          activityId,
+          date: { in: datesToRemove.map(dateFromIso) },
+          status: "pending",
+        },
+      });
+    }
+
+    // Create missing logs for newly added dates
+    if (missingDates.length > 0) {
+      await tx.dailyLog.createMany({
+        data: missingDates.map((d) => ({
+          activityId,
+          date: dateFromIso(d),
+        })),
+      });
+    }
+
+    // Update Activity endDate
+    return await tx.activity.update({
+      where: { id: activityId },
+      data: { endDate: newEnd },
+      include: activityInclude,
+    });
+  });
+
+  await recordAuditEvent({
+    userId: session.authUserId,
+    action: "activity_update",
+    targetId: activityId,
+    targetType: "activity",
+  });
+
+  await recomputeActivityStatus(activityId);
+
+  const refreshed = await prisma.activity.findUniqueOrThrow({
+    where: { id: activityId },
+    include: activityInclude,
+  });
+  return mapActivity(refreshed);
+}
+
 
 export async function updateActivityWrapup(
   session: SessionUser,
@@ -905,20 +1005,28 @@ export async function listDmsForUser(
   const [rows, total] = await Promise.all([
     prisma.directMessage.findMany({
       where,
-      orderBy: { createdAt: "asc" },
+      orderBy: { createdAt: "desc" },
       skip,
       take: limit,
+      include: {
+        attachments: true,
+        deletedBy: { where: { userId: session.id }, select: { id: true } }
+      }
     }),
     prisma.directMessage.count({ where }),
   ]);
 
-  return { dms: rows.map(mapDm), total };
+  return { 
+    dms: rows.map(r => mapDm(r, r.deletedBy?.length ? new Set([r.id]) : undefined)), 
+    total 
+  };
 }
 
 export async function sendDm(
   session: SessionUser,
   toId: string,
   text: string,
+  attachments?: any[]
 ): Promise<{ id: string }> {
   const actor = await requireActor(session);
   if (toId === session.id) {
@@ -929,7 +1037,9 @@ export async function sendDm(
     throw new ServiceError(404, "Recipient not found.");
   }
   const trimmed = text.trim();
-  if (!trimmed) throw new ServiceError(400, "Message text is required.");
+  if (!trimmed && (!attachments || attachments.length === 0)) {
+    throw new ServiceError(400, "Message text or attachment is required.");
+  }
 
   const [a, b] = canonicalPair(session.id, toId);
   const msg = await prisma.directMessage.create({
@@ -938,6 +1048,18 @@ export async function sendDm(
       participantB: b,
       fromUserId: session.id,
       text: trimmed,
+      ...(attachments && attachments.length > 0 && {
+        attachments: {
+          create: attachments.map((att: any) => ({
+            name: att.name,
+            size: att.size,
+            contentType: att.contentType,
+            storageKey: att.storageKey,
+            width: att.width,
+            height: att.height
+          }))
+        }
+      })
     },
   });
 
@@ -953,7 +1075,7 @@ export async function sendDm(
 }
 
 export async function listCommunity(
-  opts?: { page?: number; limit?: number },
+  opts?: { page?: number; limit?: number; userId?: string },
 ): Promise<{ community: ReturnType<typeof mapCommunity>[]; total: number }> {
   const page = opts?.page ?? 1;
   const limit = Math.min(opts?.limit ?? 100, 200);
@@ -964,21 +1086,31 @@ export async function listCommunity(
       orderBy: { createdAt: "asc" },
       skip,
       take: limit,
+      include: {
+        attachments: true,
+        ...(opts?.userId ? { deletedBy: { where: { userId: opts.userId }, select: { id: true } } } : {})
+      }
     }),
     prisma.communityMessage.count(),
   ]);
 
-  return { community: rows.map(mapCommunity), total };
+  return { 
+    community: rows.map(r => mapCommunity(r, (r as any).deletedBy?.length ? new Set([r.id]) : undefined)), 
+    total 
+  };
 }
 
 export async function sendCommunity(
   session: SessionUser,
   text: string,
   replyToId?: string | null,
+  attachments?: any[]
 ): Promise<{ id: string }> {
   await requireActor(session);
   const trimmed = text.trim();
-  if (!trimmed) throw new ServiceError(400, "Message text is required.");
+  if (!trimmed && (!attachments || attachments.length === 0)) {
+    throw new ServiceError(400, "Message text or attachment is required.");
+  }
 
   // Parse @mentions: @username
   const mentionMatches = trimmed.match(/@([A-Za-z0-9_]+)/g) || [];
@@ -992,6 +1124,18 @@ export async function sendCommunity(
         fromUserId: session.id,
         text: trimmed,
         replyToId: replyToId || null,
+        ...(attachments && attachments.length > 0 && {
+          attachments: {
+            create: attachments.map((att: any) => ({
+              name: att.name,
+              size: att.size,
+              contentType: att.contentType,
+              storageKey: att.storageKey,
+              width: att.width,
+              height: att.height
+            }))
+          }
+        })
       },
     });
 
@@ -1080,13 +1224,13 @@ export async function sendBroadcast(
   });
   if (others.length) {
     await prisma.notification.createMany({
-      data: others.map((u) => ({
-        userId: u.id,
-        type: "broadcast" as const,
-        text: `Broadcast from ${mapUser(actor).name}: ${trimmed}`,
-      })),
-    });
-  }
+        data: others.map((u) => ({
+          userId: u.id,
+          type: "broadcast" as const,
+          text: `Broadcast from ${mapUser(actor).name}: ${trimmed}`,
+        })),
+      });
+    }
 
   return { id: msg.id };
 }
@@ -1438,6 +1582,10 @@ export async function getScopedBootstrap(session: SessionUser): Promise<{
       },
       orderBy: { createdAt: "asc" },
       take: 200,
+      include: {
+        attachments: true,
+        deletedBy: { where: { userId: session.id }, select: { id: true } }
+      }
     }),
     prisma.callRecord.findMany({
       where: {
@@ -1449,6 +1597,10 @@ export async function getScopedBootstrap(session: SessionUser): Promise<{
     prisma.communityMessage.findMany({
       orderBy: { createdAt: "asc" },
       take: 100,
+      include: {
+        attachments: true,
+        deletedBy: { where: { userId: session.id }, select: { id: true } }
+      }
     }),
     prisma.broadcast.findMany({
       orderBy: { createdAt: "desc" },
@@ -1483,12 +1635,61 @@ export async function getScopedBootstrap(session: SessionUser): Promise<{
     activities: activities.map(mapActivity),
     dailyLogs: dailyLogs.map(mapDailyLog),
     comments: comments.map(mapComment),
-    dms: dmRows.map(mapDm),
+    dms: dmRows.map(r => mapDm(r, (r as any).deletedBy?.length ? new Set([r.id]) : undefined)),
     calls: callRows.map(mapCall),
-    community: communityRows.map(mapCommunity),
+    community: communityRows.map(r => mapCommunity(r, (r as any).deletedBy?.length ? new Set([r.id]) : undefined)),
     broadcasts: broadcastRows.map(mapBroadcast),
     notifications: notifRows.map(mapNotification),
     responsibilities,
     serverTime: new Date().toISOString(),
   };
+}
+
+export async function deleteCommunityMessage(session: SessionUser, id: string, forEveryone: boolean) {
+  const actor = await requireActor(session);
+  const msg = await prisma.communityMessage.findUnique({ where: { id } });
+  if (!msg) throw new ServiceError(404, "Message not found.");
+
+  if (forEveryone) {
+    if (msg.fromUserId !== session.id && actor.role !== "head") {
+      throw new ServiceError(403, "Not allowed to delete this message for everyone.");
+    }
+    await prisma.communityMessage.update({
+      where: { id },
+      data: { deletedAt: new Date() },
+    });
+  } else {
+    await prisma.deletedMessage.upsert({
+      where: { userId_communityMessageId: { userId: session.id, communityMessageId: id } },
+      update: {},
+      create: { userId: session.id, communityMessageId: id },
+    });
+  }
+  return true;
+}
+
+export async function deleteDmMessage(session: SessionUser, id: string, forEveryone: boolean) {
+  const msg = await prisma.directMessage.findUnique({ where: { id } });
+  if (!msg) throw new ServiceError(404, "Message not found.");
+  
+  if (msg.participantA !== session.id && msg.participantB !== session.id) {
+    throw new ServiceError(403, "Not a participant in this conversation.");
+  }
+
+  if (forEveryone) {
+    if (msg.fromUserId !== session.id) {
+      throw new ServiceError(403, "Only the sender can delete a message for everyone.");
+    }
+    await prisma.directMessage.update({
+      where: { id },
+      data: { deletedAt: new Date() },
+    });
+  } else {
+    await prisma.deletedMessage.upsert({
+      where: { userId_directMessageId: { userId: session.id, directMessageId: id } },
+      update: {},
+      create: { userId: session.id, directMessageId: id },
+    });
+  }
+  return true;
 }

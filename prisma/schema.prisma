@@ -129,6 +129,7 @@ model User {
   callRecordsFrom     CallRecord[]             @relation("CallFrom")
   notifications       Notification[]           @relation("UserNotification")
   auditEvents         AuditEvent[]
+  deletedMessages     DeletedMessage[]
 
   @@index([role])
   @@index([isActive])
@@ -357,32 +358,61 @@ model Comment {
 // ---------------------------------------------------------------------------
 
 model DirectMessage {
-  id           String   @id @default(uuid()) @db.Uuid
-  participantA String   @db.Uuid
-  participantB String   @db.Uuid
-  fromUserId   String   @map("from_user_id") @db.Uuid
-  text         String   @db.Text
-  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  id           String    @id @default(uuid()) @db.Uuid
+  participantA String    @db.Uuid
+  participantB String    @db.Uuid
+  fromUserId   String    @map("from_user_id") @db.Uuid
+  text         String    @db.Text
+  deletedAt    DateTime? @map("deleted_at") @db.Timestamptz(3)
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
 
   userA  User @relation("DirectMessageParticipantA", fields: [participantA], references: [id], onDelete: Cascade)
   userB  User @relation("DirectMessageParticipantB", fields: [participantB], references: [id], onDelete: Cascade)
   sender User @relation("DirectMessageSender", fields: [fromUserId], references: [id], onDelete: Cascade)
 
+  attachments MessageAttachment[]
+  deletedBy  DeletedMessage[]
+
   @@index([participantA, participantB, createdAt])
   @@map("direct_messages")
 }
 
+model MessageAttachment {
+  id                 String   @id @default(uuid()) @db.Uuid
+  directMessageId    String?  @map("direct_message_id") @db.Uuid
+  communityMessageId String?  @map("community_message_id") @db.Uuid
+
+  name               String   @db.VarChar(300)
+  size               Int      @default(0)
+  contentType        String   @default("application/octet-stream") @map("content_type") @db.VarChar(128)
+  storageKey         String   @map("storage_key") @db.VarChar(512)
+  width              Int?
+  height             Int?
+
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  directMessage      DirectMessage?    @relation(fields: [directMessageId], references: [id], onDelete: Cascade)
+  communityMessage   CommunityMessage? @relation(fields: [communityMessageId], references: [id], onDelete: Cascade)
+
+  @@index([directMessageId])
+  @@index([communityMessageId])
+  @@map("message_attachments")
+}
+
 model CommunityMessage {
-  id         String   @id @default(uuid()) @db.Uuid
-  fromUserId String   @map("from_user_id") @db.Uuid
-  text       String   @db.Text
-  replyToId  String?  @map("reply_to_id") @db.Uuid
-  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  id         String    @id @default(uuid()) @db.Uuid
+  fromUserId String    @map("from_user_id") @db.Uuid
+  text       String    @db.Text
+  replyToId  String?   @map("reply_to_id") @db.Uuid
+  deletedAt  DateTime? @map("deleted_at") @db.Timestamptz(3)
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
 
   sender   User                       @relation("CommunityMessageSender", fields: [fromUserId], references: [id], onDelete: Cascade)
   replyTo  CommunityMessage?          @relation("CommunityMessageReply", fields: [replyToId], references: [id], onDelete: SetNull)
   replies  CommunityMessage[]         @relation("CommunityMessageReply")
   mentions CommunityMessageMention[]
+  attachments MessageAttachment[]
+  deletedBy DeletedMessage[]
 
   @@index([createdAt])
   @@map("community_messages")
@@ -397,6 +427,24 @@ model CommunityMessageMention {
 
   @@id([messageId, userId])
   @@map("community_message_mentions")
+}
+
+model DeletedMessage {
+  id                 String    @id @default(uuid()) @db.Uuid
+  userId             String    @map("user_id") @db.Uuid
+  directMessageId    String?   @map("direct_message_id") @db.Uuid
+  communityMessageId String?   @map("community_message_id") @db.Uuid
+  createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  user             User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  directMessage    DirectMessage?    @relation(fields: [directMessageId], references: [id], onDelete: Cascade)
+  communityMessage CommunityMessage? @relation(fields: [communityMessageId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, directMessageId])
+  @@unique([userId, communityMessageId])
+  @@index([directMessageId])
+  @@index([communityMessageId])
+  @@map("deleted_messages")
 }
 
 model Broadcast {

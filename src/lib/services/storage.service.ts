@@ -17,18 +17,27 @@ class StorageError extends Error {
   }
 }
 
-export type UploadPurpose = "avatar" | "evidence" | "invoice";
+export type UploadPurpose = "avatar" | "evidence" | "invoice" | "message_attachment";
 
 const ALLOWED_MIME: Record<UploadPurpose, string[]> = {
   avatar: ["image/jpeg", "image/png", "image/webp"],
   evidence: ["image/jpeg", "image/png", "image/webp", "application/pdf"],
   invoice: ["image/jpeg", "image/png", "image/webp", "application/pdf"],
+  message_attachment: [
+    "image/jpeg", "image/png", "image/webp", 
+    "application/pdf", 
+    "application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "application/vnd.ms-excel", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "application/vnd.ms-powerpoint", "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    "text/plain", "text/csv", "application/zip"
+  ],
 };
 
 const MAX_SIZE: Record<UploadPurpose, number> = {
   avatar: 2 * 1024 * 1024,
   evidence: 10 * 1024 * 1024,
   invoice: 10 * 1024 * 1024,
+  message_attachment: 25 * 1024 * 1024, // 25 MB
 };
 
 function isS3Configured(): boolean {
@@ -56,9 +65,53 @@ function extForMime(mime: string): string {
       return "webp";
     case "application/pdf":
       return "pdf";
+    case "application/msword":
+      return "doc";
+    case "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
+      return "docx";
+    case "application/vnd.ms-excel":
+      return "xls";
+    case "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet":
+      return "xlsx";
+    case "application/vnd.ms-powerpoint":
+      return "ppt";
+    case "application/vnd.openxmlformats-officedocument.presentationml.presentation":
+      return "pptx";
+    case "text/plain":
+      return "txt";
+    case "text/csv":
+      return "csv";
+    case "application/zip":
+      return "zip";
     default:
       return "bin";
   }
+}
+
+const EXT_TO_MIME: Record<string, string> = {
+  ".txt": "text/plain",
+  ".csv": "text/csv",
+  ".pdf": "application/pdf",
+  ".doc": "application/msword",
+  ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  ".xls": "application/vnd.ms-excel",
+  ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  ".ppt": "application/vnd.ms-powerpoint",
+  ".pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+  ".zip": "application/zip",
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".png": "image/png",
+  ".webp": "image/webp",
+};
+
+function normalizeContentType(contentType: string, filename?: string): string {
+  if (contentType !== "application/octet-stream" || !filename) return contentType;
+  const lower = filename.toLowerCase();
+  for (const [ext, mime] of Object.entries(EXT_TO_MIME)) {
+    if (lower.endsWith(ext)) return mime;
+  }
+  return contentType;
 }
 
 export function validateUpload(
@@ -85,6 +138,7 @@ export { StorageError };
 export async function createSignedUpload(input: {
   purpose: UploadPurpose;
   contentType: string;
+  filename?: string;
   size: number;
   userId: string;
 }): Promise<{
@@ -94,10 +148,11 @@ export async function createSignedUpload(input: {
   expiresAt: string;
   method: "PUT";
 }> {
-  validateUpload(input.purpose, input.contentType, input.size);
+  const contentType = normalizeContentType(input.contentType, input.filename);
+  validateUpload(input.purpose, contentType, input.size);
 
   const id = randomBytes(16).toString("hex");
-  const ext = extForMime(input.contentType);
+  const ext = extForMime(contentType);
   const key = `${input.purpose}/${input.userId}/${id}.${ext}`;
   const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString();
 
@@ -118,7 +173,7 @@ export async function createSignedUpload(input: {
     const command = new PutObjectCommand({
       Bucket: process.env.S3_BUCKET!,
       Key: key,
-      ContentType: input.contentType,
+      ContentType: contentType,
       ContentLength: input.size,
     });
 
