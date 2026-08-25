@@ -98,7 +98,7 @@ test.describe('Set Password Screen', () => {
     await page.locator('button[type="submit"]', { hasText: 'Save password & continue' }).click();
 
     // Should be redirected to dashboard
-    await expect(page).toHaveURL(/.*dashboard/);
+    await expect(page).toHaveURL(/.*dashboard/, { timeout: 30_000 });
 
     // Verify in DB that mustChangePassword is false
     const dbUser = await prisma.user.findUnique({

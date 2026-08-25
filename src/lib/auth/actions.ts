@@ -93,18 +93,21 @@ export async function setNewPasswordAction(
   const confirm = String(formData.get("confirm") || "");
 
   try {
+    console.log("--> Starting setInitialPassword");
     await setInitialPassword(
       session.authUserId || session.id,
       password,
       confirm,
       session.username,
     );
+    console.log("--> Finished setInitialPassword");
     revalidatePath("/", "layout");
     redirect("/dashboard");
   } catch (err) {
     if (err instanceof AuthError) {
       return { ok: false, error: err.message };
     }
+    unstable_rethrow(err);
     throw err;
   }
 }

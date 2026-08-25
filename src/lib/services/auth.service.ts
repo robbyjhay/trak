@@ -118,7 +118,7 @@ export async function validateSession(
   if (!session) return null;
   if (session.revokedAt) return null;
   if (session.expiresAt.getTime() <= Date.now()) return null;
-  if (!session.user.isActive) return null;
+  if (!session.user || !session.user.isActive) return null;
 
   // Throttle lastUsedAt updates
   const now = Date.now();
