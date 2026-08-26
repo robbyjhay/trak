@@ -130,3 +130,34 @@ export function suggestUsername(
   while (taken.has(`${base}${n}`)) n += 1;
   return `${base}${n}`;
 }
+
+export async function copyToClipboard(text: string): Promise<void> {
+  if (navigator.clipboard && window.isSecureContext) {
+    try {
+      await navigator.clipboard.writeText(text);
+      return;
+    } catch (err) {
+      console.warn("navigator.clipboard failed, falling back", err);
+    }
+  }
+  
+  // Fallback for non-secure contexts (e.g., http://0.0.0.0:3000)
+  const textArea = document.createElement("textarea");
+  textArea.value = text;
+  
+  // Avoid scrolling to bottom
+  textArea.style.top = "0";
+  textArea.style.left = "0";
+  textArea.style.position = "fixed";
+
+  document.body.appendChild(textArea);
+  textArea.focus();
+  textArea.select();
+
+  try {
+    const successful = document.execCommand("copy");
+    if (!successful) throw new Error("Fallback copy command failed");
+  } finally {
+    document.body.removeChild(textArea);
+  }
+}

@@ -224,12 +224,16 @@ function AccountingOfficer() {
               <div key={u.id} className="mb-3 flex items-center gap-3 last:mb-0">
                 <button
                   type="button"
-                  className="flex h-[30px] w-[30px] shrink-0 cursor-pointer items-center justify-center rounded-full border-none font-display text-xs font-bold text-white"
+                  className="flex h-[30px] w-[30px] shrink-0 cursor-pointer items-center justify-center rounded-full border-none font-display text-xs font-bold text-white overflow-hidden"
                   style={{ background: u.color }}
                   onClick={() => router.push(`/member/${u.id}`)}
                   title={`View ${firstName(u.name)}'s activities`}
                 >
-                  {initials(u.name)}
+                  {u.photoUrl ? (
+                    <img src={u.photoUrl} alt="" className="h-full w-full object-cover" />
+                  ) : (
+                    initials(u.name)
+                  )}
                 </button>
                 <button
                   type="button"
@@ -331,10 +335,14 @@ function AccountingOfficer() {
                   >
                     <div className="mb-2.5 flex items-center gap-2.5">
                       <div
-                        className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full font-display text-[11px] font-bold text-white"
+                        className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full font-display text-[11px] font-bold text-white overflow-hidden"
                         style={{ background: owner?.color }}
                       >
-                        {initials(owner?.name || "?")}
+                        {owner?.photoUrl ? (
+                          <img src={owner.photoUrl} alt="" className="h-full w-full object-cover" />
+                        ) : (
+                          initials(owner?.name || "?")
+                        )}
                       </div>
                       <div className="min-w-0 flex-1">
                         <div className="text-[13px] font-bold text-foreground flex items-center flex-wrap gap-2">
@@ -859,7 +867,8 @@ function AccountingOfficer() {
                   className="w-full cursor-pointer rounded-[10px] border-none bg-aztec py-3.5 font-bold text-white transition-colors hover:bg-aztec-3"
                   onClick={async () => {
                     try {
-                      await navigator.clipboard.writeText(resetCredentials.starterPassword);
+                      const { copyToClipboard } = await import("@/lib/utils");
+                      await copyToClipboard(resetCredentials.starterPassword);
                       showToast("Password copied", "You can now paste it securely.");
                     } catch {
                       showToast("Copy failed", "Please copy manually.");

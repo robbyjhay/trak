@@ -591,8 +591,7 @@ export async function resetMemberPassword(targetUserId: string, headId: string) 
   await prisma.user.update({
     where: { id: targetUserId },
     data: { 
-      passwordHash,
-      mustChangePassword: true
+      passwordHash
     }
   });
 

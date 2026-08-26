@@ -83,10 +83,11 @@ export function AddMember({ onClose }: { onClose: () => void }) {
             <div className="flex flex-col gap-3">
               <button
                 type="button"
-                className="w-full cursor-pointer rounded-[10px] border-none bg-primary py-3.5 font-bold text-primary-foreground transition-colors hover:bg-primary-hover"
+                className="w-full cursor-pointer rounded-xl border-none bg-primary py-3.5 font-bold text-primary-foreground transition-colors hover:bg-primary-hover"
                 onClick={async () => {
                   try {
-                    await navigator.clipboard.writeText(successCredentials.starterPassword);
+                    const { copyToClipboard } = await import("@/lib/utils");
+                    await copyToClipboard(successCredentials.starterPassword);
                     showToast("Password copied", "You can now paste it securely.");
                   } catch {
                     showToast("Copy failed", "Please copy manually.");
