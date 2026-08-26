@@ -131,23 +131,43 @@ function Kpi({
   label: string;
   path: string;
 }) {
-  const iconBg =
-    kind === "pending"
-      ? "bg-warning-surface text-warning-foreground"
-      : kind === "completed"
-        ? "bg-success-surface text-good"
-        : kind === "missed"
-          ? "bg-critical-surface text-critical"
-          : "bg-surface-muted text-foreground-secondary";
+  const isPending = kind === "pending";
+  const isCompleted = kind === "completed";
+  const isMissed = kind === "missed";
+
+  const cardColors = isPending
+    ? "bg-warning-surface/40 border-warning-semantic/30"
+    : isCompleted
+    ? "bg-success-surface/40 border-success/30"
+    : isMissed
+    ? "bg-critical-surface/40 border-critical/30"
+    : "bg-surface border-border";
+
+  const iconColors = isPending
+    ? "bg-warning-surface text-warning-foreground"
+    : isCompleted
+    ? "bg-success-surface text-success"
+    : isMissed
+    ? "bg-critical-surface text-critical"
+    : "bg-surface-muted text-foreground-secondary";
+
+  const valueColors = isPending
+    ? "text-warning-foreground"
+    : isCompleted
+    ? "text-success"
+    : isMissed
+    ? "text-critical"
+    : "text-foreground";
+
   return (
-    <div className="relative h-full min-w-0 rounded-2xl border border-border bg-surface p-5">
-      <div className={`mb-3.5 flex h-[34px] w-[34px] items-center justify-center rounded-[9px] ${iconBg}`}>
+    <div className={`relative h-full min-w-0 rounded-2xl border p-5 ${cardColors}`}>
+      <div className={`mb-3.5 flex h-[34px] w-[34px] items-center justify-center rounded-[9px] ${iconColors}`}>
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
           <path d={path} />
         </svg>
       </div>
-      <div className="mb-1.5 text-[30px] leading-none font-extrabold tabular-nums text-foreground">{value}</div>
-      <div className="text-xs font-semibold text-foreground-secondary">{label}</div>
+      <div className={`mb-1.5 text-[30px] leading-none font-extrabold tabular-nums ${valueColors}`}>{value}</div>
+      <div className={`text-xs font-semibold ${isPending || isCompleted || isMissed ? "opacity-80 " + valueColors : "text-foreground-secondary"}`}>{label}</div>
     </div>
   );
 }

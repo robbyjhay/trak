@@ -84,7 +84,13 @@ export function PersonActivities({ userId }: { userId: string }) {
               onClick={() => setTab(key)}
               className={`cursor-pointer rounded-lg border-none px-4 py-2 text-[12.5px] font-bold ${
                 tab === key
-                  ? "bg-card text-ink shadow-sm ring-1 ring-line"
+                  ? key === "pending"
+                    ? "bg-warning-surface text-warning-foreground shadow-sm ring-1 ring-warning-semantic/30"
+                    : key === "completed"
+                    ? "bg-success-surface text-success shadow-sm ring-1 ring-success/30"
+                    : key === "missed"
+                    ? "bg-critical-surface text-critical shadow-sm ring-1 ring-critical/30"
+                    : "bg-card text-ink shadow-sm ring-1 ring-line"
                   : "bg-transparent text-ink-soft"
               }`}
             >

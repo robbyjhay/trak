@@ -8,7 +8,7 @@ import { roleLabel } from "@/lib/permissions";
 import { initials, firstName } from "@/lib/utils";
 import { PATHS } from "@/components/icons";
 import { formatRelativeDate } from "@/lib/dates";
-import { logoutAction, switchUserAction } from "@/lib/auth/actions";
+import { logoutAction } from "@/lib/auth/actions";
 import { NOTIF_PATHS } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import { useConnectNav } from "@/context/ConnectNav";
@@ -202,18 +202,6 @@ export function Topbar() {
               >
                 Settings
               </MenuBtn>
-              <form action={switchUserAction}>
-                <button
-                  type="submit"
-                  className="flex w-full items-center gap-2 rounded-lg border-none bg-transparent px-3 py-2.5 text-left text-[12.5px] font-semibold text-foreground hover:bg-surface-hover"
-                  role="menuitem"
-                >
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d={PATHS.switchUser} />
-                  </svg>
-                  Switch user
-                </button>
-              </form>
               <form action={logoutAction}>
                 <button
                   type="submit"
