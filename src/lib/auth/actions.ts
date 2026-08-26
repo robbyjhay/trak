@@ -93,14 +93,12 @@ export async function setNewPasswordAction(
   const confirm = String(formData.get("confirm") || "");
 
   try {
-    console.log("--> Starting setInitialPassword");
     await setInitialPassword(
       session.authUserId || session.id,
       password,
       confirm,
       session.username,
     );
-    console.log("--> Finished setInitialPassword");
     revalidatePath("/", "layout");
     redirect("/dashboard");
   } catch (err) {
@@ -171,7 +169,6 @@ export async function updateDefaultPasswordAction(_prev: any, formData: FormData
     await setDefaultMemberPassword(password);
     return { ok: true };
   } catch (err) {
-    console.error("Failed to update default password", err);
     return { ok: false, error: "An unexpected error occurred." };
   }
 }
