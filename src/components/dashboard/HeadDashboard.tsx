@@ -3,13 +3,14 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTrak } from "@/context/TrakStore";
-import { MemberDashboard, Kpi, Card, RespBars } from "./MemberDashboard";
-import { addDays, fmtDate, iso, longDateLabel } from "@/lib/dates";
+import { MemberDashboard, Card, RespBars, QuickActionTile } from "./MemberDashboard";
+import { addDays, fmtDate, iso, longDateLabel, formatRelativeDate } from "@/lib/dates";
 import { firstName, initials } from "@/lib/utils";
 import { roleLabel } from "@/lib/permissions";
 import { TYPE_COLOR } from "@/lib/constants";
 import { TypeIcon, PATHS } from "@/components/icons";
-import { GhostBtn, PrimaryMini } from "@/components/ui/Buttons";
+import { GhostBtn } from "@/components/ui/Buttons";
+import { Switch } from "@/components/ui/Switch";
 import { ModalBackdrop, ModalPanel } from "@/components/ui/Modal";
 import { AddMember } from "@/components/messaging/AddMember";
 import { useReportPreview } from "@/components/reports/ReportPreview";
@@ -25,17 +26,13 @@ export function HeadDashboard() {
 
   return (
     <div>
-      <div className="page-head mb-[22px]">
-        <div className="mb-2 text-[11.5px] font-bold tracking-[0.12em] text-saffron-dim uppercase">
+      <div className="page-head mb-6">
+        <div className="mb-2 text-[12px] font-bold tracking-[0.12em] text-saffron-dim dark:text-saffron uppercase">
           {longDateLabel(useTrak().now)} · PSSDC — Digital Learning Unit
         </div>
-        <h1 className="m-0 mb-1.5 font-display text-[30px] font-semibold">
-          Good day, {firstName(head.name || sessionUser.name)}
-        </h1>
-        <p className="m-0 text-[13.5px] text-ink-soft">Unit Head view.</p>
       </div>
 
-      <div className="mb-7 flex w-fit gap-2 rounded-[14px] bg-aztec p-1.5">
+      <div className="mb-8 flex w-fit rounded-full bg-surface-muted p-1 border border-border">
         {(
           [
             ["mine", "My Activities"],
@@ -46,10 +43,10 @@ export function HeadDashboard() {
             key={key}
             type="button"
             onClick={() => setPanel(key)}
-            className={`cursor-pointer rounded-[10px] border-none px-5 py-2.5 text-[13px] font-bold ${
+            className={`cursor-pointer rounded-full border-none px-6 py-2.5 text-[14px] font-semibold transition-all duration-200 ${
               panel === key
-                ? "bg-saffron text-aztec"
-                : "bg-transparent text-paper/60"
+                ? "bg-surface text-foreground shadow-sm ring-1 ring-border"
+                : "bg-transparent text-foreground-secondary hover:text-foreground hover:bg-surface-hover/50"
             }`}
           >
             {label}
@@ -169,16 +166,60 @@ function AccountingOfficer() {
 
   return (
     <div>
-      <div className="mb-[26px] grid grid-cols-2 gap-4 md:grid-cols-4">
-        <Kpi kind="neutral" value={thisMonth.length} label="Unit Activities This Month" path={PATHS.chart} />
-        <Kpi kind="completed" value={`${completionRate}%`} label="Unit Completion Rate" path={PATHS.check} />
-        <Kpi kind="missed" value={missedAll} label="Missed, Unit-Wide" path={PATHS.alert} />
-        <Kpi kind="neutral" value={`${activeUsers.length}/${users.length}`} label="Personnel Active" path={PATHS.users} />
+      {/* Featured Summary & Unit Status */}
+      <div className="mb-8 rounded-3xl bg-surface p-8 shadow-sm border border-border">
+        <div className="flex flex-col lg:flex-row justify-between gap-8">
+          <div className="flex-1">
+            <h2 className="mb-3 font-display text-3xl font-semibold text-foreground tracking-tight">Unit Performance</h2>
+            <p className="text-[15px] leading-relaxed text-foreground-secondary max-w-lg">
+              Monitoring {users.length} active personnel. This month, the unit has logged <span className="font-semibold text-foreground">{thisMonth.length}</span> activities with a completion rate of <span className="font-semibold text-foreground">{completionRate}%</span>.
+            </p>
+          </div>
+          <div className="grid w-full shrink-0 grid-cols-2 gap-3 lg:w-auto lg:min-w-[420px]">
+            <div className="row-span-2 flex flex-col justify-center rounded-2xl bg-surface-muted p-6 border border-border shadow-sm">
+              <div className="text-[36px] leading-none font-extrabold text-foreground mb-2">{completionRate}%</div>
+              <div className="text-[14px] font-semibold text-foreground-secondary">Completion Rate</div>
+            </div>
+            <div className="flex flex-col justify-center items-start rounded-2xl bg-surface-muted px-5 py-3 border border-border min-w-0">
+              <span className="text-2xl font-bold text-foreground">{thisMonth.length}</span>
+              <span className="text-xs text-foreground-secondary">Monthly Activities</span>
+            </div>
+            <div className="flex flex-col justify-center items-start rounded-2xl bg-critical-surface/40 px-5 py-3 border border-critical-surface min-w-0">
+              <span className="text-2xl font-bold text-critical">{missedAll}</span>
+              <span className="text-xs text-critical">Missed (All Time)</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Quick Actions Row */}
+      <div className="mb-8 grid grid-cols-2 md:grid-cols-4 gap-4">
+        <QuickActionTile 
+          icon={PATHS.send} 
+          label="Delegate Task" 
+          onClick={() => setDelegateOpen(true)}
+          primary 
+        />
+        <QuickActionTile 
+          icon={PATHS.messages} 
+          label="Broadcast" 
+          onClick={() => router.push("/messages")} 
+        />
+        <QuickActionTile 
+          icon={PATHS.users} 
+          label="Add Member" 
+          onClick={() => setAddMemberOpen(true)} 
+        />
+        <QuickActionTile 
+          icon={PATHS.chart} 
+          label="Unit Reports" 
+          onClick={() => router.push("/reports")} 
+        />
       </div>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1.5fr_1fr]">
-        <div>
-          <Card title="Team performance" sub="Completed this month">
+        <div className="flex flex-col gap-6">
+          <Card title="Team performance" sub="Completed this month" large>
             {teamCounts.map(({ u, count }) => (
               <div key={u.id} className="mb-3 flex items-center gap-3 last:mb-0">
                 <button
@@ -192,12 +233,12 @@ function AccountingOfficer() {
                 </button>
                 <button
                   type="button"
-                  className="w-[90px] shrink-0 cursor-pointer truncate border-none bg-transparent text-left text-[12.5px] font-bold sm:w-[118px]"
+                  className="w-[90px] shrink-0 cursor-pointer truncate border-none bg-transparent text-left text-[12.5px] font-bold text-foreground transition-colors hover:text-primary sm:w-[118px]"
                   onClick={() => router.push(`/member/${u.id}`)}
                 >
                   {u.name}
                 </button>
-                <div className="h-2.5 flex-1 overflow-hidden rounded-sm bg-neutral-bg">
+                <div className="h-2.5 flex-1 overflow-hidden rounded-sm bg-surface-muted">
                   <div
                     className="h-full rounded-sm"
                     style={{
@@ -206,8 +247,8 @@ function AccountingOfficer() {
                     }}
                   />
                 </div>
-                <div className="w-5 text-right font-mono text-[11.5px] font-bold">{count}</div>
-                <div className="ml-1.5 hidden shrink-0 rounded-full bg-neutral-bg px-1.5 py-0.5 text-[9.5px] font-bold tracking-wide text-ink-faint uppercase sm:inline-flex">
+                <div className="w-5 text-right font-mono text-[11.5px] font-bold text-foreground">{count}</div>
+                <div className="ml-1.5 hidden shrink-0 rounded-full bg-surface-muted px-1.5 py-0.5 text-[9.5px] font-bold tracking-wide text-foreground-faint uppercase sm:inline-flex">
                   {roleLabel(u)}
                 </div>
               </div>
@@ -221,9 +262,10 @@ function AccountingOfficer() {
                 ? `Most recent 8 of ${unitSorted.length}`
                 : "Most recent across the unit"
             }
+            large
             action={
               <div className="flex items-center gap-2">
-                <div className="flex gap-1 rounded-lg bg-neutral-bg p-0.5">
+                <div className="flex gap-1 rounded-lg bg-surface-muted p-0.5">
                   {(
                     [
                       ["all", "All"],
@@ -236,32 +278,39 @@ function AccountingOfficer() {
                       key={key}
                       type="button"
                       onClick={() => setFeedFilter(key)}
-                      className={`cursor-pointer rounded-md border-none px-2.5 py-1 text-[10.5px] font-bold ${
+                      className={`cursor-pointer rounded-md border-none px-2.5 py-1 text-[10.5px] font-bold transition-colors ${
                         feedFilter === key
-                          ? "bg-card text-ink shadow-sm"
-                          : "bg-transparent text-ink-faint"
+                          ? "bg-surface text-foreground shadow-sm"
+                          : "bg-transparent text-foreground-muted hover:text-foreground"
                       }`}
                     >
                       {label}
                     </button>
                   ))}
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setShowHidden(!showHidden)}
-                  className={`cursor-pointer rounded-md border-[1.5px] px-2.5 py-1 text-[10.5px] font-bold transition-colors ${
-                    showHidden
-                      ? "border-saffron bg-[#fff8e6] text-saffron-dim"
-                      : "border-line bg-transparent text-ink-faint hover:border-saffron-dim"
-                  }`}
-                >
-                  {showHidden ? "Showing hidden" : "Show hidden"}
-                </button>
+                <div className="flex items-center gap-1.5">
+                  <Switch
+                    id="show-hidden-feed"
+                    checked={showHidden}
+                    onChange={setShowHidden}
+                    aria-label="Show hidden activities"
+                  />
+                  <label
+                    htmlFor="show-hidden-feed"
+                    className={`cursor-pointer text-[10.5px] font-bold whitespace-nowrap transition-colors ${
+                      showHidden
+                        ? "text-warning-ink"
+                        : "text-foreground-faint hover:text-foreground"
+                    }`}
+                  >
+                    {showHidden ? "Showing hidden" : "Show hidden"}
+                  </label>
+                </div>
               </div>
             }
           >
             {unitShown.length === 0 ? (
-              <div className="py-8 text-center text-[13px] text-ink-faint">
+              <div className="py-8 text-center text-[13px] text-foreground-faint">
                 No activities logged yet.
               </div>
             ) : (
@@ -277,7 +326,8 @@ function AccountingOfficer() {
                 return (
                   <div
                     key={a.id}
-                    className="mb-3.5 rounded-[14px] border border-line px-[18px] py-4 last:mb-0"
+                    onClick={() => router.push(`/activity/${a.id}`)}
+                    className="mb-3.5 rounded-[14px] border border-border bg-surface px-[18px] py-4 last:mb-0 cursor-pointer hover:border-primary hover:shadow-sm transition-all"
                   >
                     <div className="mb-2.5 flex items-center gap-2.5">
                       <div
@@ -287,16 +337,26 @@ function AccountingOfficer() {
                         {initials(owner?.name || "?")}
                       </div>
                       <div className="min-w-0 flex-1">
-                        <div className="text-[13px] font-bold">{a.title}</div>
-                        <div className="text-[11px] text-ink-faint">
-                          {owner?.name} · {fmtDate(a.createdAt)} ·{" "}
+                        <div className="text-[13px] font-bold text-foreground flex items-center flex-wrap gap-2">
+                          {a.title}
+                          {a.hidden && (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-surface-muted px-2 py-0.5 text-[9.5px] font-bold text-foreground-secondary border border-border" title="Hidden from unit feed">
+                              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                <path d={PATHS.eyeOff} />
+                              </svg>
+                              Hidden
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-[11px] text-foreground-faint">
+                          {owner?.name} · {formatRelativeDate(a.createdAt)} ·{" "}
                           <span
                             className={`rounded-full px-2 py-0.5 text-[9.5px] font-bold ${
                               a.status === "pending"
-                                ? "bg-warning-bg text-warning-ink"
+                                ? "bg-warning-surface text-warning-foreground"
                                 : a.status === "completed"
-                                  ? "bg-good-bg text-good"
-                                  : "bg-critical-bg text-critical"
+                                  ? "bg-success-surface text-good"
+                                  : "bg-critical-surface text-critical"
                             }`}
                           >
                             {statusText}
@@ -310,44 +370,41 @@ function AccountingOfficer() {
                         <TypeIcon type={a.type} size={14} />
                       </div>
                     </div>
-                    <div className="mt-1 flex gap-2">
-                      <UaBtn onClick={() => router.push(`/activity/${a.id}`)}>
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                          <path d={PATHS.eye} />
-                        </svg>
-                        View
-                      </UaBtn>
+                    <div className="mt-1 flex gap-4" onClick={(e) => e.stopPropagation()}>
                       <UaBtn
+                        title="Download Report"
                         disabled={!isDone}
-                        onClick={() => isDone && openReport(a.id)}
+                        onClick={(e) => { e.stopPropagation(); if (isDone) openReport(a.id); }}
                       >
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                           <path d={PATHS.download} />
                         </svg>
-                        Download
                       </UaBtn>
                       <UaBtn
+                        title="Comment"
                         disabled={!isDone}
-                        onClick={() => {
+                        onClick={(e) => {
+                          e.stopPropagation();
                           if (!isDone) return;
                           setCommentActId(a.id);
                           setCommentText("");
                           setCommentOpen(true);
                         }}
                       >
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                           <path d={PATHS.messages} />
                         </svg>
-                        Comment
                       </UaBtn>
                       <UaBtn
-                        onClick={() => {
+                        title={a.hidden ? "Unhide in feed" : "Hide from feed"}
+                        onClick={(e) => {
+                          e.stopPropagation();
                           void toggleActivityHidden(a.id)
                             .then(() =>
                               showToast(
                                 a.hidden ? "Activity unhidden" : "Activity hidden",
                                 a.hidden
-                                  ? `"${a.title}" is now visible to the unit.`
+                                   ? `"${a.title}" is now visible to the unit.`
                                   : `"${a.title}" is now hidden from the unit feed.`,
                               ),
                             )
@@ -356,10 +413,15 @@ function AccountingOfficer() {
                             );
                         }}
                       >
-                        {a.hidden ? "Unhide" : "Hide"}
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d={a.hidden ? PATHS.eye : PATHS.eyeOff} />
+                        </svg>
                       </UaBtn>
                       <UaBtn
-                        onClick={() => {
+                        title="Delete"
+                        className="text-critical-semantic hover:border-critical-semantic hover:bg-critical-surface hover:text-critical-semantic"
+                        onClick={(e) => {
+                          e.stopPropagation();
                           if (!confirm(`Soft delete "${a.title}"? It can be restored later.`)) return;
                           void softDeleteActivity(a.id)
                             .then(() =>
@@ -370,7 +432,9 @@ function AccountingOfficer() {
                             );
                         }}
                       >
-                        Delete
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d={PATHS.trash} />
+                        </svg>
                       </UaBtn>
                     </div>
                   </div>
@@ -378,7 +442,9 @@ function AccountingOfficer() {
               })
             )}
           </Card>
+        </div>
 
+        <div className="flex flex-col gap-6">
           <Card title="Unit activities by type" sub="Last 90 days">
             <div className="mb-3 flex h-[26px] overflow-hidden rounded-md">
               {typeOrder.map(([name, color]) => {
@@ -390,7 +456,7 @@ function AccountingOfficer() {
                     style={{
                       width: `${pct}%`,
                       background: color,
-                      borderLeft: "2px solid var(--paper)",
+                      borderLeft: "2px solid var(--surface)",
                     }}
                   >
                     {pct > 10 ? tb[name] : ""}
@@ -400,35 +466,12 @@ function AccountingOfficer() {
             </div>
             <div className="flex flex-wrap gap-3.5">
               {typeOrder.map(([name, color]) => (
-                <div key={name} className="flex items-center gap-1.5 text-[11.5px] font-semibold text-ink-soft">
+                 <div key={name} className="flex items-center gap-1.5 text-[11.5px] font-semibold text-foreground-secondary">
                   <span className="h-2 w-2 rounded-sm" style={{ background: color }} />
                   {name} ({tb[name]})
                 </div>
               ))}
             </div>
-          </Card>
-        </div>
-
-        <div>
-          <Card title="Quick actions">
-            <PrimaryMini
-              className="mb-2.5 w-full justify-center py-3"
-              onClick={() => setDelegateOpen(true)}
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d={PATHS.send} />
-              </svg>
-              Delegate a Task
-            </PrimaryMini>
-            <GhostBtn
-              className="w-full justify-center py-3"
-              onClick={() => router.push("/messages")}
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d={PATHS.send} />
-              </svg>
-              Broadcast to Unit
-            </GhostBtn>
           </Card>
 
           <Card title="By responsibility" sub="Last 90 days">
@@ -465,11 +508,11 @@ function AccountingOfficer() {
                   )}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <div className="text-[12.5px] font-bold">
+                  <div className="text-[12.5px] font-bold text-foreground">
                     {u.name}
-                    {!u.isActive && <span className="ml-2 rounded bg-critical-bg px-1.5 py-0.5 text-[10px] text-critical">Deactivated</span>}
+                    {!u.isActive && <span className="ml-2 rounded bg-critical-surface px-1.5 py-0.5 text-[10px] text-critical">Deactivated</span>}
                   </div>
-                  <div className="text-[11px] font-medium text-ink-faint">
+                  <div className="text-[11px] font-medium text-foreground-faint">
                     {u.designation || "No designation set"}
                     {u.gradeLevel ? ` · ${u.gradeLevel}` : ""}
                   </div>
@@ -501,8 +544,8 @@ function AccountingOfficer() {
       {/* Delegate modal */}
       <ModalBackdrop open={delegateOpen} onClose={() => setDelegateOpen(false)}>
         <ModalPanel>
-          <h3 className="m-0 mb-1.5 font-display text-xl">Delegate a Task</h3>
-          <p className="mb-5 text-[12.5px] text-ink-soft">
+          <h3 className="m-0 mb-1.5 font-display text-xl text-foreground">Delegate a Task</h3>
+          <p className="mb-5 text-[12.5px] text-foreground-secondary">
             Lands in the member&apos;s activity list, tagged &quot;Delegated by Unit Head.&quot;
           </p>
           <Field label="Assign to">
@@ -552,14 +595,14 @@ function AccountingOfficer() {
           <div className="mt-[22px] flex gap-2.5">
             <button
               type="button"
-              className="flex-1 cursor-pointer rounded-[10px] border-[1.5px] border-line bg-transparent py-3 font-bold"
+              className="flex-1 cursor-pointer rounded-[10px] border-[1.5px] border-border bg-transparent py-3 font-bold text-foreground-secondary transition-colors hover:bg-surface-hover hover:text-foreground"
               onClick={() => setDelegateOpen(false)}
             >
               Cancel
             </button>
             <button
               type="button"
-              className="flex-[1.3] cursor-pointer rounded-[10px] border-none bg-aztec py-3 font-bold text-white"
+              className="flex-[1.3] cursor-pointer rounded-[10px] border-none bg-primary py-3 font-bold text-primary-foreground transition-colors hover:bg-primary-hover"
               onClick={() => {
                 const title = taskTitle.trim() || "New task";
                 void createActivity({
@@ -595,8 +638,8 @@ function AccountingOfficer() {
       {/* Comment modal */}
       <ModalBackdrop open={commentOpen} onClose={() => setCommentOpen(false)}>
         <ModalPanel>
-          <h3 className="m-0 mb-1.5 font-display text-xl">Add a remark</h3>
-          <p className="mb-5 text-[12.5px] text-ink-soft">
+          <h3 className="m-0 mb-1.5 font-display text-xl text-foreground">Add a remark</h3>
+          <p className="mb-5 text-[12.5px] text-foreground-secondary">
             Comment, don&apos;t approve — it folds into the report.
           </p>
           <Field label="Remark">
@@ -611,14 +654,14 @@ function AccountingOfficer() {
           <div className="mt-[22px] flex gap-2.5">
             <button
               type="button"
-              className="flex-1 cursor-pointer rounded-[10px] border-[1.5px] border-line bg-transparent py-3 font-bold"
+              className="flex-1 cursor-pointer rounded-[10px] border-[1.5px] border-border bg-transparent py-3 font-bold text-foreground-secondary transition-colors hover:bg-surface-hover hover:text-foreground"
               onClick={() => setCommentOpen(false)}
             >
               Cancel
             </button>
             <button
               type="button"
-              className="flex-[1.3] cursor-pointer rounded-[10px] border-none bg-aztec py-3 font-bold text-white"
+              className="flex-[1.3] cursor-pointer rounded-[10px] border-none bg-primary py-3 font-bold text-primary-foreground transition-colors hover:bg-primary-hover"
               onClick={() => {
                 if (!commentText.trim() || !commentActId) return;
                 const act = db.activities.find((x) => x.id === commentActId);
@@ -644,8 +687,8 @@ function AccountingOfficer() {
       {/* Profile edit modal */}
       <ModalBackdrop open={profileOpen} onClose={() => setProfileOpen(false)}>
         <ModalPanel>
-          <h3 className="m-0 mb-1.5 font-display text-xl">Edit personnel record</h3>
-          <p className="mb-5 text-[12.5px] text-ink-soft">
+          <h3 className="m-0 mb-1.5 font-display text-xl text-foreground">Edit personnel record</h3>
+          <p className="mb-5 text-[12.5px] text-foreground-secondary">
             Update {userMap[editUserId]?.name}&apos;s details.
           </p>
           {(
@@ -694,14 +737,14 @@ function AccountingOfficer() {
           <div className="mt-[22px] flex gap-2.5">
             <button
               type="button"
-              className="flex-1 cursor-pointer rounded-[10px] border-[1.5px] border-line bg-transparent py-3 font-bold"
+              className="flex-1 cursor-pointer rounded-[10px] border-[1.5px] border-border bg-transparent py-3 font-bold text-foreground-secondary transition-colors hover:bg-surface-hover hover:text-foreground"
               onClick={() => setProfileOpen(false)}
             >
               Cancel
             </button>
             <button
               type="button"
-              className="flex-[1.3] cursor-pointer rounded-[10px] border-none bg-aztec py-3 font-bold text-white"
+              className="flex-[1.3] cursor-pointer rounded-[10px] border border-border bg-transparent py-3 font-bold text-foreground-secondary transition-colors hover:bg-surface-muted"
               onClick={async () => {
                 const { resetMemberPasswordAction } = await import("@/lib/auth/actions");
                 if (confirm(`Are you sure you want to reset ${userMap[editUserId]?.name}'s password to the default?`)) {
@@ -719,7 +762,7 @@ function AccountingOfficer() {
             </button>
             <button
               type="button"
-              className="flex-[1.3] cursor-pointer rounded-[10px] border-none bg-aztec py-3 font-bold text-white"
+              className="flex-[1.3] cursor-pointer rounded-[10px] border-none bg-primary py-3 font-bold text-primary-foreground transition-colors hover:bg-primary-hover"
               onClick={() => {
                 const patch = {
                   ...pe,
@@ -845,13 +888,15 @@ function AccountingOfficer() {
           width: 100%;
           padding: 11px 13px;
           border-radius: 10px;
-          border: 1.5px solid var(--line);
+          border: 1.5px solid var(--input-border);
+          background: var(--input);
+          color: var(--foreground);
           font-family: var(--font-archivo), sans-serif;
           font-size: 13px;
           outline: none;
         }
         .field-input:focus {
-          border-color: var(--aztec-3);
+          border-color: var(--input-focus);
         }
       `}</style>
     </div>
@@ -867,7 +912,7 @@ function Field({
 }) {
   return (
     <div className="mb-4">
-      <label className="mb-1.5 block text-[11px] font-bold tracking-wider text-ink-soft uppercase">
+      <label className="mb-1.5 block text-[11px] font-bold tracking-wider text-foreground-secondary uppercase">
         {label}
       </label>
       {children}
@@ -879,17 +924,21 @@ function UaBtn({
   children,
   onClick,
   disabled,
+  title,
+  className,
 }: {
   children: React.ReactNode;
-  onClick?: () => void;
+  onClick?: (e: React.MouseEvent) => void;
   disabled?: boolean;
+  title?: string;
+  className?: string;
 }) {
   return (
     <button
       type="button"
       disabled={disabled}
       onClick={onClick}
-      className={`flex flex-1 items-center justify-center gap-1.5 rounded-[9px] border-[1.5px] border-line bg-surface px-2.5 py-2 text-[11.5px] font-bold text-ink-soft transition-all hover:border-saffron-dim hover:bg-[#fffaf0] hover:text-ink disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-line disabled:hover:bg-surface disabled:hover:text-ink-soft`}
+      className={`flex items-center justify-center gap-1.5 rounded-[9px] border-[1.5px] border-border bg-surface px-2.5 py-2 text-[11.5px] font-bold text-foreground-secondary transition-all hover:border-primary hover:bg-surface-hover hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-border disabled:hover:bg-surface disabled:hover:text-foreground-secondary ${className || ""}`} title={title}
     >
       {children}
     </button>

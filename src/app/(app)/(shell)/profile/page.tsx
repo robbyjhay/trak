@@ -1,66 +1,161 @@
 "use client";
 
+import { useRef, useState, type ChangeEvent, type KeyboardEvent } from "react";
 import { useTrak } from "@/context/TrakStore";
+import { apiSend } from "@/lib/api/client";
 import { roleLabel } from "@/lib/permissions";
 import { fmtDate } from "@/lib/dates";
 import { initials } from "@/lib/utils";
 import { PATHS } from "@/components/icons";
-import { GhostBtn, PrimaryBtn } from "@/components/ui/Buttons";
-import { ModalBackdrop, ModalPanel } from "@/components/ui/Modal";
-import { useSelfieCapture } from "@/hooks/useSelfieCapture";
+import { Switch } from "@/components/ui/Switch";
+
+/** Square-crop + downscale to a 480px JPEG blob (same output as before). */
+async function fileToSquareJpegBlob(file: File): Promise<Blob> {
+  const dataUrl = await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = () => reject(new Error("Could not read the file"));
+    reader.readAsDataURL(file);
+  });
+
+  const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+    const el = new Image();
+    el.onload = () => resolve(el);
+    el.onerror = () => reject(new Error("Could not decode the image"));
+    el.src = dataUrl;
+  });
+
+  const width = img.naturalWidth || img.width;
+  const height = img.naturalHeight || img.height;
+  const size = Math.min(width, height);
+  if (!size) throw new Error("Empty image");
+
+  const canvas = document.createElement("canvas");
+  canvas.width = 480;
+  canvas.height = 480;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("Canvas unavailable");
+  ctx.drawImage(img, (width - size) / 2, (height - size) / 2, size, size, 0, 0, 480, 480);
+  const blob = await new Promise<Blob | null>((resolve) =>
+    canvas.toBlob(resolve, "image/jpeg", 0.9),
+  );
+  if (!blob) throw new Error("Could not encode image");
+  return blob;
+}
+
+/** Upload via the existing avatar storage pipeline, returns the public URL. */
+async function uploadAvatar(blob: Blob): Promise<string> {
+  const signed = await apiSend<{
+    key: string;
+    uploadUrl: string;
+    publicUrl: string;
+    method: "PUT";
+  }>("/api/uploads/sign", "POST", {
+    purpose: "avatar",
+    contentType: blob.type || "image/jpeg",
+    filename: "avatar.jpg",
+    size: blob.size,
+  });
+  const putRes = await fetch(signed.uploadUrl, {
+    method: signed.method,
+    headers: { "Content-Type": blob.type || "image/jpeg" },
+    body: blob,
+  });
+  if (!putRes.ok) throw new Error("Upload failed");
+  // Store root-relative for same-origin URLs so the avatar resolves on any
+  // host (localhost, LAN IP, deployed domain) instead of baking in APP_URL.
+  const origin = window.location.origin;
+  return signed.publicUrl.startsWith(`${origin}/`)
+    ? signed.publicUrl.slice(origin.length)
+    : signed.publicUrl;
+}
 
 export default function ProfilePage() {
   const {
     sessionUser,
-    dismissedPhotoNudges,
-    dismissPhotoNudge,
-    dismissedNotifNudges,
-    dismissNotifNudge,
     notificationsEnabled,
     setNotificationsEnabled,
     updateUserProfile,
     showToast,
   } = useTrak();
   const u = sessionUser;
-  const showNudge = !u.photoUrl && !dismissedPhotoNudges.has(u.id);
+  const showNudge = !u.photoUrl;
   const notifSupported = typeof Notification !== "undefined";
   const showNotifNudge =
-    notifSupported &&
-    !notificationsEnabled &&
-    Notification.permission !== "denied" &&
-    !dismissedNotifNudges.has(u.id);
+    notifSupported && !notificationsEnabled && Notification.permission !== "denied";
 
-  // Destructure so state/handlers are plain values (not a ref-tainted object).
-  const {
-    open: selfieOpen,
-    error: selfieError,
-    hint: selfieHint,
-    previewUrl: selfiePreview,
-    offerNewTab,
-    videoRef,
-    canvasRef,
-    openCapture,
-    close: closeSelfie,
-    shoot,
-    retake,
-  } = useSelfieCapture();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [photoBusy, setPhotoBusy] = useState(false);
+
+  const openPicker = () => {
+    if (!photoBusy) fileInputRef.current?.click();
+  };
+
+  const handlePhotoPicked = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file || photoBusy) return;
+    setPhotoBusy(true);
+    try {
+      const blob = await fileToSquareJpegBlob(file);
+      const photoUrl = await uploadAvatar(blob);
+      await updateUserProfile(u.id, { photoUrl });
+      showToast("Profile photo saved", "Looking good!");
+    } catch {
+      showToast("Could not save photo", "Please try again.");
+    } finally {
+      setPhotoBusy(false);
+    }
+  };
+
+  const handleCardKeyDown = (event: KeyboardEvent<HTMLElement>) => {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      openPicker();
+    }
+  };
+
+  const handleNotifToggle = (checked: boolean) => {
+    if (!notifSupported) return;
+    if (!checked) {
+      setNotificationsEnabled(false);
+      return;
+    }
+    void (async () => {
+      try {
+        const perm = await Notification.requestPermission();
+        if (perm === "granted") {
+          setNotificationsEnabled(true);
+          showToast(
+            "Mobile notifications activated",
+            "You'll get a device popup when something needs your attention.",
+          );
+        }
+      } catch {
+        /* ignore */
+      }
+    })();
+  };
 
   return (
     <div>
-      <div className="mb-[22px]">
-        <div className="mb-2 text-[11.5px] font-bold tracking-[0.12em] text-saffron-dim uppercase">
-          Welcome
-        </div>
-        <h1 className="m-0 mb-1.5 font-display text-[30px] font-semibold">
-          My Profile
-        </h1>
-        <p className="m-0 text-[13.5px] text-ink-soft">
-          Everything Trak and the Digital Learning Unit has on file for you.
-        </p>
-      </div>
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={(e) => void handlePhotoPicked(e)}
+      />
 
       {showNudge && (
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-4 rounded-[18px] border-none bg-linear-to-br from-aztec to-aztec-2 px-[26px] py-6 text-paper">
+        <div
+          role="button"
+          tabIndex={0}
+          aria-label="Add a profile photo"
+          onClick={openPicker}
+          onKeyDown={handleCardKeyDown}
+          className="mb-[22px] flex cursor-pointer flex-wrap items-center justify-between gap-4 rounded-[18px] border-none bg-linear-to-br from-aztec to-aztec-2 px-[26px] py-6 text-paper transition-transform hover:-translate-y-px focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-saffron"
+        >
           <div className="flex items-center gap-3.5">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[11px] bg-saffron/18 text-saffron">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -70,82 +165,65 @@ export default function ProfilePage() {
             <div>
               <div className="text-sm font-bold">Add a profile photo</div>
               <div className="mt-0.5 text-[12.5px] text-paper/65">
-                Take a quick selfie so your teammates recognise you across Trak.
+                Use your camera, photo library, or files so teammates recognise you
+                across Trak.
               </div>
             </div>
           </div>
-          <div className="flex shrink-0 items-center gap-2">
-            <PrimaryBtn
-              className="bg-saffron text-aztec shadow-none"
-              onClick={() => openCapture()}
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d={PATHS.camera} />
-              </svg>
-              Take a selfie
-            </PrimaryBtn>
-            <button
-              type="button"
-              className="flex h-8 w-8 items-center justify-center rounded-full border-none bg-paper/14 text-base text-paper"
-              onClick={() => dismissPhotoNudge(u.id)}
-              aria-label="Dismiss"
-            >
-              ×
-            </button>
-          </div>
+          <svg
+            className={`shrink-0 text-paper/70 transition-transform ${photoBusy ? "animate-pulse" : ""}`}
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.5"
+          >
+            <path d={PATHS.chevronRight} />
+          </svg>
         </div>
       )}
 
       {showNotifNudge && (
-        <div className="mb-[22px] flex flex-wrap items-center justify-between gap-4 rounded-[18px] border-[1.5px] border-[#f0dba9] bg-[#fffaf0] px-[26px] py-6">
-          <div className="flex items-center gap-3.5">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[11px] bg-aztec-2 text-saffron">
-              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d={PATHS.bell} />
-              </svg>
-            </div>
-            <div>
-              <div className="text-sm font-bold">Activate mobile notifications</div>
-              <div className="mt-0.5 text-[12.5px] text-ink-soft">
-                Get a real popup on this device the moment a comment, message, or
-                activity update lands.
-              </div>
-            </div>
-          </div>
-          <div className="flex shrink-0 items-center gap-2">
-            <PrimaryBtn
-              onClick={async () => {
-                if (!notifSupported) return;
-                try {
-                  const perm = await Notification.requestPermission();
-                  if (perm === "granted") {
-                    setNotificationsEnabled(true);
-                    showToast(
-                      "Mobile notifications activated",
-                      "You'll get a device popup when something needs your attention.",
-                    );
-                  }
-                } catch {
-                  /* ignore */
-                }
-              }}
+        <div className="mb-[22px] flex items-center justify-between gap-3 rounded-[12px] border border-border bg-surface px-4 py-2 shadow-card">
+          <div className="flex min-w-0 items-center gap-2.5">
+            <svg
+              className="shrink-0 text-primary"
+              width="15"
+              height="15"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
             >
-              Activate
-            </PrimaryBtn>
-            <button
-              type="button"
-              className="flex h-8 w-8 items-center justify-center rounded-full border-none bg-black/6 text-base text-ink-soft"
-              onClick={() => dismissNotifNudge(u.id)}
-              aria-label="Dismiss"
-            >
-              ×
-            </button>
+              <path d={PATHS.bell} />
+            </svg>
+            <span className="truncate text-[12.5px] font-bold text-foreground">
+              Mobile notifications
+            </span>
+            <span className="hidden truncate text-[12px] text-foreground-secondary md:inline">
+              Get device popups when something needs your attention.
+            </span>
           </div>
+          <Switch
+            id="profile-notifications-toggle"
+            checked={notificationsEnabled}
+            onChange={handleNotifToggle}
+            aria-label="Mobile notifications"
+            className="shrink-0"
+          />
         </div>
       )}
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1.5fr_1fr]">
-        <div className="rounded-[18px] border border-line bg-card px-[26px] py-6 text-center shadow-card">
+        <div
+          role="button"
+          tabIndex={0}
+          aria-label="Add a profile photo"
+          onClick={openPicker}
+          onKeyDown={handleCardKeyDown}
+          className="group cursor-pointer rounded-[18px] border border-border bg-surface px-[26px] py-6 text-center shadow-card transition-colors hover:border-primary/60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+        >
           <div
             className="mx-auto mb-5 flex h-[132px] w-[132px] items-center justify-center overflow-hidden rounded-full font-display text-[40px] font-bold text-white shadow-[0_14px_28px_-12px_rgba(13,29,26,0.45)]"
             style={{ background: u.color }}
@@ -158,26 +236,23 @@ export default function ProfilePage() {
             )}
           </div>
           <div className="font-display text-xl leading-tight font-semibold">{u.name}</div>
-          <div className="mt-1 text-[13px] text-ink-soft">
+          <div className="mt-1 text-[13px] text-foreground-secondary">
             {u.designation || roleLabel(u)}
           </div>
-          <GhostBtn
-            className="mt-[18px] justify-center"
-            onClick={() => openCapture()}
-          >
+          <div className="mt-[18px] inline-flex items-center gap-1.5 rounded-[9px] border-[1.5px] border-border px-3.5 py-2 text-xs font-bold text-foreground-secondary transition-colors group-hover:border-primary group-hover:text-foreground">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d={PATHS.camera} />
             </svg>
-            {u.photoUrl ? "Retake photo" : "Take a selfie"}
-          </GhostBtn>
+            {photoBusy ? "Saving…" : "Add a profile photo"}
+          </div>
         </div>
 
-        <div className="rounded-[18px] border border-line bg-card px-[26px] py-6 shadow-card">
-          <div className="mb-6 border-b border-line pb-4">
+        <div className="rounded-[18px] border border-border bg-surface px-[26px] py-6 shadow-card">
+          <div className="mb-6 border-b border-border pb-4">
             <h2 className="m-0 font-display text-[17px] font-semibold">
               Personnel record
             </h2>
-            <p className="mt-1 text-[12.5px] text-ink-soft">
+            <p className="mt-1 text-[12.5px] text-foreground-secondary">
               {u.role === "head"
                 ? "You manage this for the unit"
                 : "Managed by the Unit Head"}
@@ -199,151 +274,34 @@ export default function ProfilePage() {
             ).map(([k, v]) => (
               <div
                 key={k}
-                className="grid grid-cols-1 items-baseline gap-x-6 border-b border-line/60 py-2.5 first:pt-0 last:border-none last:pb-0 sm:grid-cols-[160px_1fr]"
+                className="grid grid-cols-1 items-baseline gap-x-6 border-b border-border/60 py-2.5 first:pt-0 last:border-none last:pb-0 sm:grid-cols-[160px_1fr]"
               >
-                <dt className="text-[12.5px] text-ink-soft">{k}</dt>
+                <dt className="text-[12.5px] text-foreground-secondary">{k}</dt>
                 <dd
-                  className={`text-[13px] font-bold text-ink ${k === "Username" ? "font-mono" : ""}`}
+                  className={`text-[13px] font-bold text-foreground ${k === "Username" ? "font-mono" : ""}`}
                 >
                   {v}
                 </dd>
               </div>
             ))}
           </dl>
-          <div className="mt-5 rounded-[10px] border border-line bg-neutral-bg p-3 text-[12px] leading-relaxed text-ink-soft">
+          <div className="mt-5 rounded-[10px] border border-border bg-surface-muted p-3 text-[12px] leading-relaxed text-foreground-secondary">
             {u.role !== "head" ? (
               <>
                 Spot something out of date? Message the Unit Head via{" "}
-                <b className="text-ink">Connect</b> — these details are kept up
+                <b className="text-foreground">Connect</b> — these details are kept up
                 to date from the Accounting Officer dashboard.
               </>
             ) : (
               <>
                 Edit anyone&apos;s record — including your own — from{" "}
-                <b className="text-ink">Team profiles</b> on your Accounting
+                <b className="text-foreground">Team profiles</b> on your Accounting
                 Officer dashboard.
               </>
             )}
           </div>
         </div>
       </div>
-
-      <ModalBackdrop open={selfieOpen} onClose={closeSelfie}>
-        <ModalPanel className="w-[420px]">
-          <h3 className="m-0 mb-1.5 font-display text-xl">Take a selfie</h3>
-          <p className="mb-5 text-[12.5px] text-ink-soft">
-            Only a live photo from your camera is accepted — you can&apos;t
-            upload one from your gallery.
-          </p>
-          <div className="relative aspect-square overflow-hidden rounded-2xl bg-[#111]">
-            <video
-              ref={videoRef}
-              autoPlay
-              playsInline
-              muted
-              className={`h-full w-full object-cover ${selfiePreview ? "hidden" : "block"} scale-x-[-1]`}
-            />
-            {selfiePreview && (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={selfiePreview}
-                alt="Preview"
-                className="h-full w-full object-cover"
-              />
-            )}
-            <canvas ref={canvasRef} className="hidden" />
-          </div>
-          {selfieError && (
-            <div className="mt-3.5 text-[12.5px] leading-snug text-critical">
-              {selfieError}
-            </div>
-          )}
-          {selfieHint && (
-            <div className="mt-2 text-[11.5px] leading-snug text-ink-faint">
-              {selfieHint}
-            </div>
-          )}
-          <div className="mt-[22px] flex gap-2.5">
-            {selfiePreview ? (
-              <>
-                <button
-                  type="button"
-                  className="flex-1 cursor-pointer rounded-[10px] border-[1.5px] border-line py-3 font-bold"
-                  onClick={retake}
-                >
-                  Retake
-                </button>
-                <button
-                  type="button"
-                  className="flex-[1.3] cursor-pointer rounded-[10px] border-none bg-aztec py-3 font-bold text-white"
-                  onClick={() => {
-                    if (selfiePreview) {
-                      void updateUserProfile(u.id, {
-                        photoUrl: selfiePreview,
-                      })
-                        .then(() => {
-                          closeSelfie();
-                          showToast("Profile photo saved", "Looking good!");
-                        })
-                        .catch(() =>
-                          showToast(
-                            "Could not save photo",
-                            "Please try again.",
-                          ),
-                        );
-                    }
-                  }}
-                >
-                  Use this photo
-                </button>
-              </>
-            ) : selfieError ? (
-              <>
-                <button
-                  type="button"
-                  className="flex-1 cursor-pointer rounded-[10px] border-[1.5px] border-line py-3 font-bold"
-                  onClick={closeSelfie}
-                >
-                  Cancel
-                </button>
-                {offerNewTab && (
-                  <button
-                    type="button"
-                    className="flex-1 cursor-pointer rounded-[10px] border-[1.5px] border-line py-3 font-bold"
-                    onClick={() => window.open(window.location.href, "_blank")}
-                  >
-                    Open in new tab
-                  </button>
-                )}
-                <button
-                  type="button"
-                  className="flex-[1.3] cursor-pointer rounded-[10px] border-none bg-aztec py-3 font-bold text-white"
-                  onClick={() => openCapture()}
-                >
-                  Try again
-                </button>
-              </>
-            ) : (
-              <>
-                <button
-                  type="button"
-                  className="flex-1 cursor-pointer rounded-[10px] border-[1.5px] border-line py-3 font-bold"
-                  onClick={closeSelfie}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  className="flex-[1.3] cursor-pointer rounded-[10px] border-none bg-aztec py-3 font-bold text-white"
-                  onClick={shoot}
-                >
-                  Capture
-                </button>
-              </>
-            )}
-          </div>
-        </ModalPanel>
-      </ModalBackdrop>
     </div>
   );
 }
