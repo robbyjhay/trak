@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTrak } from "@/context/TrakStore";
 import { canComment } from "@/lib/permissions";
-import { fmtDate, fmtTime } from "@/lib/dates";
+import { fmtDate, fmtTime, formatRelativeDate } from "@/lib/dates";
 import { firstName, initials, toBase64Url } from "@/lib/utils";
 import { PATHS } from "@/components/icons";
 import { PrimaryBtn, GhostBtn } from "@/components/ui/Buttons";
@@ -30,6 +30,7 @@ export function ActivityDetail({
     showToast,
     submitDailyLog,
     updateActivityWrapup,
+    updateActivityEndDate,
     setLogRsvpToken,
     refresh,
     users,
@@ -58,7 +59,7 @@ export function ActivityDetail({
   const act = getActivity(activityId);
   if (!act) {
     return (
-      <div className="py-10 text-center text-[13px] text-ink-faint">
+      <div className="py-10 text-center text-[13px] text-foreground-faint">
         Activity not found.
       </div>
     );
@@ -68,22 +69,25 @@ export function ActivityDetail({
   const owner = userMap[act.createdBy];
   const comments = getComments(act.id);
   const isMine = sessionUser.id === act.createdBy;
+  const canEditDates = isMine || sessionUser.role === "head";
   const headCanComment = canComment(sessionUser);
 
   return (
     <div>
       <div className="mb-[22px]">
-        <button
-          type="button"
-          onClick={() => router.back()}
-          className="mb-4 inline-flex items-center gap-1.5 rounded-full border border-line bg-surface px-3 py-1.5 text-[11.5px] font-bold text-ink-soft transition-colors hover:border-saffron-dim hover:text-ink cursor-pointer"
-        >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M15 18l-6-6 6-6" />
-          </svg>
-          Back
-        </button>
-        <div className="mb-2 text-[11.5px] font-bold tracking-[0.12em] text-ink-soft uppercase">
+        <div className="sticky top-0 z-40 -mx-4 -mt-6 mb-4 bg-background/95 backdrop-blur px-4 py-4 sm:-mx-8 sm:-mt-10 sm:px-8 sm:py-6 md:static md:bg-transparent md:backdrop-blur-none md:p-0 md:m-0 md:mb-4 border-b border-border md:border-none">
+          <button
+            type="button"
+            onClick={() => router.back()}
+            className="inline-flex items-center gap-1.5 rounded-full border border-border bg-surface px-3 py-1.5 text-[11.5px] font-bold text-foreground-secondary transition-colors hover:border-primary hover:text-foreground shadow-sm cursor-pointer"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M15 18l-6-6 6-6" />
+            </svg>
+            Back
+          </button>
+        </div>
+        <div className="mb-2 text-[11.5px] font-bold tracking-[0.12em] text-foreground-secondary uppercase">
           {act.type} ·{" "}
           {act.status === "completed"
             ? "Completed"
@@ -92,14 +96,22 @@ export function ActivityDetail({
               : "Pending"}
           {owner && owner.id !== sessionUser.id ? ` · ${owner.name}` : ""}
         </div>
-        <h1 className="m-0 max-w-[640px] text-[30px] font-semibold">
+        <h1 className="m-0 max-w-[640px] text-[30px] font-semibold flex items-center flex-wrap gap-3">
           {act.title}
+          {act.hidden && (
+            <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-surface-muted px-2.5 py-1 text-[13px] font-bold text-foreground-secondary border border-border" title="Hidden from unit feed">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d={PATHS.eyeOff} />
+              </svg>
+              Hidden
+            </span>
+          )}
         </h1>
         <div className="mt-1.5 flex flex-wrap gap-2">
           <span className="rounded-full bg-aztec-2 px-2.5 py-1 text-[11px] font-bold text-saffron">
             {act.type}
           </span>
-          <span className="rounded-full bg-neutral-bg px-2.5 py-1 text-[11px] font-bold text-ink-soft">
+          <span className="rounded-full bg-surface-muted px-2.5 py-1 text-[11px] font-bold text-foreground-secondary">
             {fmtDate(act.startDate)}
             {act.startDate !== act.endDate ? ` – ${fmtDate(act.endDate)}` : ""} ·{" "}
             {fmtTime(act.startTime)}
@@ -107,13 +119,13 @@ export function ActivityDetail({
           {act.responsibilityIds.map((id) => (
             <span
               key={id}
-              className="rounded-full bg-neutral-bg px-2.5 py-1 text-[11px] font-bold text-ink-soft"
+              className="rounded-full bg-surface-muted px-2.5 py-1 text-[11px] font-bold text-foreground-secondary"
             >
               {respMap[id]?.code} — {respMap[id]?.name}
             </span>
           ))}
           {act.delegatedBy && (
-            <span className="rounded-full bg-warning-bg px-2.5 py-1 text-[9.5px] font-bold tracking-wide text-warning-ink uppercase">
+            <span className="rounded-full bg-warning-surface px-2.5 py-1 text-[9.5px] font-bold tracking-wide text-warning-foreground uppercase">
               Delegated by{" "}
               {act.delegatedBy === "babajide"
                 ? "Unit Head"
@@ -121,7 +133,7 @@ export function ActivityDetail({
             </span>
           )}
           {act.location && (
-            <span className="inline-flex items-center gap-1 rounded-full bg-neutral-bg px-2.5 py-1 text-[11px] font-bold text-ink-soft">
+            <span className="inline-flex items-center gap-1 rounded-full bg-surface-muted px-2.5 py-1 text-[11px] font-bold text-foreground-secondary">
               <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                 <path d={PATHS.pin} />
               </svg>
@@ -129,7 +141,7 @@ export function ActivityDetail({
             </span>
           )}
           {act.hasBudget && (
-            <span className="inline-flex items-center gap-1 rounded-full bg-[#fff8e6] px-2.5 py-1 text-[11px] font-bold text-[#9a7b4f]">
+            <span className="inline-flex items-center gap-1 rounded-full bg-warning-surface px-2.5 py-1 text-[11px] font-bold text-warning-foreground">
               <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                 <path d="M12 1v22M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6" />
               </svg>
@@ -142,9 +154,9 @@ export function ActivityDetail({
       </div>
 
       {act.status === "missed" && (
-        <div className="rounded-[18px] border border-line bg-card px-[26px] py-6">
+        <div className="rounded-[18px] border border-border bg-surface px-[26px] py-6">
           <div className="flex items-start gap-3.5">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[11px] bg-critical-bg text-critical">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[11px] bg-critical-surface text-critical-semantic">
               <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d={PATHS.alert} />
               </svg>
@@ -153,7 +165,7 @@ export function ActivityDetail({
               <div className="mb-1 font-bold">
                 This activity passed its date with nothing submitted.
               </div>
-              <div className="text-[13px] text-ink-soft">
+              <div className="text-[13px] text-foreground-secondary">
                 It&apos;s recorded as Missed.{" "}
                 {isMine
                   ? "You can still create a fresh activity to cover this work if needed."
@@ -170,14 +182,14 @@ export function ActivityDetail({
             {logs.map((l) => (
               <div
                 key={l.id}
-                className="mb-6 rounded-[18px] border border-line bg-card px-[26px] py-6 last:mb-0"
+                className="mb-6 rounded-[18px] border border-border bg-surface px-[26px] py-6 last:mb-0"
               >
                 <div className="mb-[18px] flex items-center justify-between">
                   <h2 className="m-0 font-display text-[17px] font-semibold">
                     {logs.length > 1 ? fmtDate(l.date) : "Activity log"}
                   </h2>
-                  <span className="text-[11.5px] text-ink-faint">
-                    Submitted {l.submittedAt ? fmtDate(l.submittedAt) : ""}
+                  <span className="text-[11.5px] text-foreground-faint">
+                    Submitted {l.submittedAt ? formatRelativeDate(l.submittedAt) : ""}
                   </span>
                 </div>
                 <FieldBlock label="Objectives">{l.objectives || "—"}</FieldBlock>
@@ -191,7 +203,7 @@ export function ActivityDetail({
                 )}
                 {l.attendees?.length ? (
                   <div className="mb-3.5">
-                    <div className="mb-1.5 text-[11px] font-bold text-ink-faint uppercase">
+                    <div className="mb-1.5 text-[11px] font-bold text-foreground-faint uppercase">
                       Attendance — {l.attendees.length} present
                     </div>
                     <div className="flex flex-wrap gap-1.5">
@@ -199,10 +211,10 @@ export function ActivityDetail({
                         <span
                           key={i}
                           title={[a.phone, a.email].filter(Boolean).join(" · ")}
-                          className="inline-flex items-center gap-1 rounded-full bg-neutral-bg px-3 py-1.5 text-xs font-semibold"
+                          className="inline-flex items-center gap-1 rounded-full bg-surface-muted px-3 py-1.5 text-xs font-semibold text-foreground"
                         >
                           {a.name}
-                          <span className="text-[9.5px] font-bold text-ink-faint uppercase">
+                          <span className="text-[9.5px] font-bold text-foreground-faint uppercase">
                             {a.source === "link"
                               ? "· via link"
                               : a.source === "manual"
@@ -224,13 +236,13 @@ export function ActivityDetail({
                     l.amountSpentNgn != null ||
                     (l.spendingItems && l.spendingItems.length > 0)) && (
                     <div className="mb-3.5">
-                      <div className="mb-1.5 text-[11px] font-bold text-ink-faint uppercase">
+                      <div className="mb-1.5 text-[11px] font-bold text-foreground-faint uppercase">
                         Budget &amp; spending
                       </div>
-                      <div className="rounded-[11px] bg-[#fcfbf8] border border-[#f0dba9] p-3 text-[12.5px]">
+                      <div className="rounded-[11px] bg-warning-surface/40 border border-warning-semantic/30 p-3 text-[12.5px]">
                         {l.amountReleasedNgn != null && (
                           <div className="mb-1">
-                            <span className="text-ink-faint">Released:</span>{" "}
+                            <span className="text-foreground-faint">Released:</span>{" "}
                             <span className="font-bold">
                               ₦{l.amountReleasedNgn.toLocaleString()}
                             </span>
@@ -238,15 +250,15 @@ export function ActivityDetail({
                         )}
                         {l.amountSpentNgn != null && (
                           <div className="mb-1">
-                            <span className="text-ink-faint">Spent:</span>{" "}
+                            <span className="text-foreground-faint">Spent:</span>{" "}
                             <span className="font-bold">
                               ₦{l.amountSpentNgn.toLocaleString()}
                             </span>
                           </div>
                         )}
                         {l.spendingItems && l.spendingItems.length > 0 && (
-                          <div className="mt-2 border-t border-[#f0dba9] pt-2">
-                            <div className="mb-1 text-[10.5px] font-bold text-ink-faint uppercase">
+                          <div className="mt-2 border-t border-warning-semantic/30 pt-2">
+                            <div className="mb-1 text-[10.5px] font-bold text-foreground-faint uppercase">
                               Items
                             </div>
                             {l.spendingItems.map((s, i) => (
@@ -268,7 +280,7 @@ export function ActivityDetail({
               act.challenges ||
               act.outcomes ||
               act.nextSteps) && (
-              <div className="rounded-[18px] border border-line bg-card px-[26px] py-6">
+              <div className="rounded-[18px] border border-border bg-surface px-[26px] py-6">
                 <h2 className="mb-[18px] font-display text-[17px] font-semibold">
                   Wrap-up notes
                 </h2>
@@ -294,7 +306,7 @@ export function ActivityDetail({
             )}
           </div>
           <div>
-            <div className="mb-6 rounded-[18px] border border-line bg-card px-[26px] py-6">
+            <div className="mb-6 rounded-[18px] border border-border bg-surface px-[26px] py-6">
               <h2 className="mb-[18px] font-display text-[17px] font-semibold">
                 Unit Head&apos;s remarks
               </h2>
@@ -302,16 +314,16 @@ export function ActivityDetail({
                 comments.map((c) => (
                   <div
                     key={c.id}
-                    className="mb-2.5 rounded-[11px] bg-neutral-bg p-3 text-[12.5px] leading-relaxed"
+                    className="mb-2.5 rounded-[11px] bg-surface-muted p-3 text-[12.5px] leading-relaxed"
                   >
                     <b>{firstName(userMap[c.authorId]?.name || "")}:</b> {c.text}
-                    <div className="mt-1 text-[10.5px] text-ink-faint">
-                      {fmtDate(c.createdAt)}
+                    <div className="mt-1 text-[10.5px] text-foreground-faint">
+                      {formatRelativeDate(c.createdAt)}
                     </div>
                   </div>
                 ))
               ) : (
-                <div className="py-4 text-center text-[13px] text-ink-faint">
+                <div className="py-4 text-center text-[13px] text-foreground-faint">
                   No comments yet.
                 </div>
               )}
@@ -332,7 +344,7 @@ export function ActivityDetail({
                 />
               )}
             </div>
-            <div className="rounded-[18px] border border-line bg-card px-[26px] py-6">
+            <div className="rounded-[18px] border border-border bg-surface px-[26px] py-6">
               <h2 className="mb-[18px] text-[17px] font-semibold">
                 Report
               </h2>
@@ -359,6 +371,8 @@ export function ActivityDetail({
           setLogRsvpToken={setLogRsvpToken}
           submitDailyLog={submitDailyLog}
           updateActivityWrapup={updateActivityWrapup}
+          updateActivityEndDate={updateActivityEndDate}
+          canEditDates={canEditDates}
           showToast={showToast}
           onSubmitted={onSubmitted}
         />
@@ -378,11 +392,11 @@ function FieldBlock({
 }) {
   return (
     <div className="mb-3.5">
-      <div className="mb-1.5 text-[11px] font-bold text-ink-faint uppercase">
+      <div className="mb-1.5 text-[11px] font-bold text-foreground-faint uppercase">
         {label}
       </div>
       <div
-        className={`text-[13.5px] leading-relaxed ${soft ? "text-ink-soft" : ""}`}
+        className={`text-[13.5px] leading-relaxed ${soft ? "text-foreground-secondary" : ""}`}
       >
         {children}
       </div>
@@ -399,7 +413,7 @@ function CommentInput({ onSend }: { onSend: (t: string) => void }) {
         value={text}
         onChange={(e) => setText(e.target.value)}
         placeholder="Add a remark — it folds into the report…"
-        className="flex-1 rounded-[9px] border-[1.5px] border-line px-3 py-2 text-[12.5px] outline-none focus:border-aztec-3"
+        className="flex-1 rounded-[9px] border-[1.5px] border-input-border bg-input text-foreground placeholder:text-input-placeholder px-3 py-2 text-[12.5px] outline-none focus:border-border-strong"
         onKeyDown={(e) => {
           if (e.key === "Enter" && text.trim()) {
             onSend(text.trim());
@@ -409,7 +423,7 @@ function CommentInput({ onSend }: { onSend: (t: string) => void }) {
       />
       <button
         type="button"
-        className="cursor-pointer rounded-[9px] border-[1.5px] border-line bg-neutral-bg px-3.5 py-2 text-xs font-bold text-ink-soft hover:bg-line hover:text-ink transition-colors"
+        className="cursor-pointer rounded-[9px] border-[1.5px] border-border bg-surface-muted px-3.5 py-2 text-xs font-bold text-foreground-secondary hover:bg-surface-hover hover:text-foreground transition-colors"
         onClick={() => {
           if (!text.trim()) return;
           onSend(text.trim());
@@ -430,6 +444,8 @@ function PendingForm({
   setLogRsvpToken,
   submitDailyLog,
   updateActivityWrapup,
+  updateActivityEndDate,
+  canEditDates,
   showToast,
   onSubmitted,
 }: {
@@ -440,12 +456,18 @@ function PendingForm({
   setLogRsvpToken: (id: string, t?: string) => Promise<string>;
   submitDailyLog: ReturnType<typeof useTrak>["submitDailyLog"];
   updateActivityWrapup: ReturnType<typeof useTrak>["updateActivityWrapup"];
+  updateActivityEndDate: ReturnType<typeof useTrak>["updateActivityEndDate"];
+  canEditDates: boolean;
   showToast: ReturnType<typeof useTrak>["showToast"];
   onSubmitted?: () => void;
 }) {
   const activeLogIndex = logs.findIndex((l) => l.status === "pending");
   const activeLog = logs[activeLogIndex];
   const speech = useSpeechRecognition();
+
+  const [isEditingDate, setIsEditingDate] = useState(false);
+  const [newEndDate, setNewEndDate] = useState("");
+  const [isSavingDate, setIsSavingDate] = useState(false);
 
   const [objectives, setObjectives] = useState("");
   const [activityDescription, setActivityDescription] = useState("");
@@ -475,8 +497,8 @@ function PendingForm({
 
   if (!activeLog) {
     return (
-      <div className="rounded-[18px] border border-line bg-card px-[26px] py-6">
-        <div className="py-8 text-center text-[13px] text-ink-faint">
+      <div className="rounded-[18px] border border-border bg-surface px-[26px] py-6">
+        <div className="py-8 text-center text-[13px] text-foreground-faint">
           All days for this activity have been submitted.
         </div>
       </div>
@@ -499,31 +521,31 @@ function PendingForm({
                 key={l.id}
                 className={`flex-1 rounded-[14px] border-[1.5px] px-4 py-3.5 ${
                   state === "done"
-                    ? "border-[#bfe3cf] bg-good-bg"
+                    ? "border-success/30 bg-success-surface"
                     : state === "active"
-                      ? "border-saffron bg-saffron/10"
-                      : "border-line bg-surface opacity-50"
+                      ? "border-primary bg-primary/10"
+                      : "border-border bg-surface opacity-50"
                 }`}
               >
                 <div className="mb-1 flex items-center justify-between">
                   <span
                     className={`text-[11px] font-extrabold uppercase ${
                       state === "done"
-                        ? "text-good"
+                        ? "text-success"
                         : state === "active"
-                          ? "text-saffron-dim"
-                          : "text-ink-faint"
+                          ? "text-primary"
+                          : "text-foreground-faint"
                     }`}
                   >
                     Day {i + 1}
                   </span>
                   <div
-                    className={`flex h-5 w-5 items-center justify-center rounded-full text-white ${
+                    className={`flex h-5 w-5 items-center justify-center rounded-full ${
                       state === "done"
-                        ? "bg-good"
+                        ? "bg-success text-success-foreground"
                         : state === "active"
-                          ? "bg-saffron text-aztec"
-                          : "bg-[#e2e2dc]"
+                          ? "bg-primary text-primary-foreground"
+                          : "bg-surface-muted text-foreground-faint"
                     }`}
                   >
                     {state === "done" ? "✓" : state === "active" ? "●" : "🔒"}
@@ -537,7 +559,7 @@ function PendingForm({
                     timeZone: "UTC",
                   })}
                 </div>
-                <div className="mt-0.5 text-[11px] text-ink-faint">
+                <div className="mt-0.5 text-[11px] text-foreground-faint">
                   {state === "done"
                     ? "Submitted"
                     : state === "active"
@@ -552,13 +574,13 @@ function PendingForm({
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1.5fr_1fr]">
         <div>
-          <div className="rounded-[18px] border border-line bg-card px-[26px] py-6">
+          <div className="rounded-[18px] border border-border bg-surface px-[26px] py-6">
             <Section label="Today's objectives" required>
               <textarea
                 value={objectives}
                 onChange={(e) => setObjectives(e.target.value)}
                 placeholder="What are you covering / aiming to achieve today?"
-                className="min-h-[90px] w-full rounded-[11px] border-[1.5px] border-line px-[15px] py-3.5 text-sm outline-none focus:border-aztec-3"
+                className="min-h-[90px] w-full rounded-[11px] border-[1.5px] border-input-border bg-input text-foreground placeholder:text-input-placeholder px-[15px] py-3.5 text-sm outline-none focus:border-border-strong"
               />
             </Section>
             <Section label="Description of activity done" required hint="— explain what was done">
@@ -566,11 +588,11 @@ function PendingForm({
                 value={activityDescription}
                 onChange={(e) => setActivityDescription(e.target.value)}
                 placeholder="Explain what was actually done during this session — this is what shows up in the report's Scope of Work."
-                className="min-h-[100px] w-full rounded-[11px] border-[1.5px] border-line px-[15px] py-3.5 text-sm outline-none focus:border-aztec-3"
+                className="min-h-[100px] w-full rounded-[11px] border-[1.5px] border-input-border bg-input text-foreground placeholder:text-input-placeholder px-[15px] py-3.5 text-sm outline-none focus:border-border-strong"
               />
             </Section>
             <Section label="Record objectives / summary" optional>
-              <div className="rounded-2xl border-[1.5px] border-line bg-[#fcfbf8] p-[22px]">
+              <div className="rounded-2xl border-[1.5px] border-border bg-surface-muted p-[22px]">
                 <div className="flex items-center gap-4">
                   <button
                     type="button"
@@ -589,7 +611,7 @@ function PendingForm({
                           ? "Recording complete"
                           : "Tap to record — optional"}
                     </div>
-                    <div className="font-mono text-xs text-ink-faint">
+                    <div className="font-mono text-xs text-foreground-faint">
                       {speech.timerLabel}
                     </div>
                   </div>
@@ -600,9 +622,9 @@ function PendingForm({
                       <textarea
                         value={speech.transcript}
                         onChange={(e) => speech.setTranscript(e.target.value)}
-                        className="min-h-[90px] w-full rounded-[11px] border-[1.5px] border-[#f0dba9] bg-[#fffaf0] px-[15px] py-3.5 text-sm"
+                        className="min-h-[90px] w-full rounded-[11px] border-[1.5px] border-input-border bg-input text-foreground placeholder:text-input-placeholder px-[15px] py-3.5 text-sm outline-none focus:border-border-strong"
                       />
-                      <div className="mt-2.5 text-[11.5px] text-ink-faint">
+                      <div className="mt-2.5 text-[11.5px] text-foreground-faint">
                         Audio is never stored — only this transcript is kept.
                       </div>
                     </div>
@@ -611,9 +633,9 @@ function PendingForm({
             </Section>
 
             <Section label="Attach images & documents" optional hint="— optional, as evidence">
-              <div className="rounded-2xl border-[1.5px] border-dashed border-line bg-[#fcfbf8] px-[22px] py-[18px]">
+              <div className="rounded-2xl border-[1.5px] border-dashed border-border bg-surface-muted px-[22px] py-[18px]">
                 <label className="flex cursor-pointer items-center gap-3">
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[11px] bg-aztec-2 text-saffron">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[11px] bg-primary/20 text-primary">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                       <path d={PATHS.paperclip} />
                     </svg>
@@ -622,7 +644,7 @@ function PendingForm({
                     <div className="text-[13.5px] font-bold">
                       Attach photos, scans or documents
                     </div>
-                    <div className="mt-0.5 text-[11.5px] text-ink-faint">
+                    <div className="mt-0.5 text-[11.5px] text-foreground-faint">
                       Attendance sheets, session photos, output files — anything
                       as evidence.
                     </div>
@@ -652,12 +674,12 @@ function PendingForm({
                     {attachedFiles.map((f, i) => (
                       <span
                         key={i}
-                        className="inline-flex items-center gap-1.5 rounded-full border-[1.5px] border-line bg-surface py-1.5 pr-2 pl-3 text-xs font-semibold"
+                        className="inline-flex items-center gap-1.5 rounded-full border-[1.5px] border-border bg-surface text-foreground py-1.5 pr-2 pl-3 text-xs font-semibold"
                       >
                         {f.name}
                         <button
                           type="button"
-                          className="flex h-[18px] w-[18px] items-center justify-center rounded-full border-none bg-neutral-bg text-xs text-ink-soft"
+                          className="flex h-[18px] w-[18px] items-center justify-center rounded-full border-none bg-surface-muted text-xs text-foreground-secondary hover:text-foreground"
                           onClick={() =>
                             setAttachedFiles((prev) =>
                               prev.filter((_, j) => j !== i),
@@ -674,8 +696,8 @@ function PendingForm({
             </Section>
 
             <Section label="Attendance" optional>
-              <div className="rounded-2xl border-[1.5px] border-line bg-[#fcfbf8] px-[22px] py-5">
-                <div className="mb-2.5 text-xs font-bold text-ink-soft">
+              <div className="rounded-2xl border-[1.5px] border-border bg-surface-muted px-[22px] py-5">
+                <div className="mb-2.5 text-xs font-bold text-foreground-secondary">
                   Pick unit members who attended
                 </div>
                 <div className="mb-5 flex flex-wrap gap-2">
@@ -693,10 +715,10 @@ function PendingForm({
                             return n;
                           });
                         }}
-                        className={`inline-flex cursor-pointer items-center gap-1.5 rounded-full border-[1.5px] py-2 pr-3.5 pl-2 text-[12.5px] font-semibold ${
+                        className={`inline-flex cursor-pointer items-center gap-1.5 rounded-full border-[1.5px] py-2 pr-3.5 pl-2 text-[12.5px] font-semibold transition-colors ${
                           on
-                            ? "border-aztec-2 bg-aztec-2 text-paper"
-                            : "border-line bg-surface text-ink"
+                            ? "border-primary bg-primary text-primary-foreground"
+                            : "border-border bg-surface text-foreground hover:border-border-strong"
                         }`}
                       >
                         <span
@@ -711,7 +733,7 @@ function PendingForm({
                   })}
                 </div>
 
-                <div className="mb-2.5 text-xs font-bold text-ink-soft">
+                <div className="mb-2.5 text-xs font-bold text-foreground-secondary">
                   Add someone manually
                 </div>
                 <div className="mb-3 grid grid-cols-1 gap-2 sm:grid-cols-[1.2fr_1fr_1.3fr_auto]">
@@ -719,20 +741,20 @@ function PendingForm({
                     value={manName}
                     onChange={(e) => setManName(e.target.value)}
                     placeholder="Name"
-                    className="rounded-[10px] border-[1.5px] border-line px-3 py-2.5 text-[13px]"
+                    className="rounded-[10px] border-[1.5px] border-input-border bg-input text-foreground placeholder:text-input-placeholder px-3 py-2.5 text-[13px] outline-none focus:border-border-strong"
                   />
                   <input
                     value={manPhone}
                     onChange={(e) => setManPhone(e.target.value)}
                     placeholder="Phone"
-                    className="rounded-[10px] border-[1.5px] border-line px-3 py-2.5 text-[13px]"
+                    className="rounded-[10px] border-[1.5px] border-input-border bg-input text-foreground placeholder:text-input-placeholder px-3 py-2.5 text-[13px] outline-none focus:border-border-strong"
                   />
                   <input
                     type="email"
                     value={manEmail}
                     onChange={(e) => setManEmail(e.target.value)}
                     placeholder="Email"
-                    className="rounded-[10px] border-[1.5px] border-line px-3 py-2.5 text-[13px]"
+                    className="rounded-[10px] border-[1.5px] border-input-border bg-input text-foreground placeholder:text-input-placeholder px-3 py-2.5 text-[13px] outline-none focus:border-border-strong"
                   />
                   <GhostBtn
                     onClick={() => {
@@ -759,12 +781,12 @@ function PendingForm({
                     {manualAttendees.map((a, i) => (
                       <span
                         key={i}
-                        className="inline-flex items-center gap-1.5 rounded-full border-[1.5px] border-line bg-surface py-1.5 pr-2 pl-3 text-xs font-semibold"
+                        className="inline-flex items-center gap-1.5 rounded-full border-[1.5px] border-border bg-surface text-foreground py-1.5 pr-2 pl-3 text-xs font-semibold"
                       >
                         {a.name}
                         <button
                           type="button"
-                          className="flex h-[18px] w-[18px] items-center justify-center rounded-full border-none bg-neutral-bg text-xs"
+                          className="flex h-[18px] w-[18px] items-center justify-center rounded-full border-none bg-surface-muted text-xs text-foreground-secondary hover:text-foreground"
                           onClick={() =>
                             setManualAttendees((prev) =>
                               prev.filter((_, j) => j !== i),
@@ -778,8 +800,8 @@ function PendingForm({
                   </div>
                 )}
 
-                <div className="mt-2 flex flex-wrap items-center justify-between gap-3 border-t border-line pt-4">
-                  <div className="max-w-[280px] text-xs leading-snug text-ink-faint">
+                <div className="mt-2 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4">
+                  <div className="max-w-[280px] text-xs leading-snug text-foreground-faint">
                     Or let attendees self-register from their own device
                   </div>
                   <GhostBtn
@@ -795,7 +817,7 @@ function PendingForm({
                           return;
                         }
                         const payload = {
-                          logId: activeLog.id,
+                            logId: activeLog.id,
                           tok: token,
                           title: act.title,
                           date: activeLog.date,
@@ -819,15 +841,15 @@ function PendingForm({
                   </GhostBtn>
                 </div>
                 {showRsvp && (
-                  <div className="mt-3.5 rounded-[11px] border-[1.5px] border-line bg-surface px-4 py-3.5">
-                    <div className="mb-2 text-[11px] font-bold text-ink-faint uppercase">
+                  <div className="mt-3.5 rounded-[11px] border-[1.5px] border-border bg-surface px-4 py-3.5">
+                    <div className="mb-2 text-[11px] font-bold text-foreground-faint uppercase">
                       Shareable link
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
                       <input
                         readOnly
                         value={rsvpLink}
-                        className="min-w-0 flex-1 rounded-[9px] border-[1.5px] border-line bg-neutral-bg px-3 py-2.5 font-mono text-[11.5px]"
+                        className="min-w-0 flex-1 rounded-[9px] border-[1.5px] border-input-border bg-input text-foreground px-3 py-2.5 font-mono text-[11.5px]"
                       />
                       <GhostBtn
                         onClick={() => {
@@ -852,7 +874,7 @@ function PendingForm({
                         Open form
                       </GhostBtn>
                     </div>
-                    <div className="mt-2.5 text-[11.5px] leading-snug text-ink-faint">
+                    <div className="mt-2.5 text-[11.5px] leading-snug text-foreground-faint">
                       The form opens correctly for anyone.{" "}
                       {(activeLog.attendees || []).filter(
                         (a) => a.source === "link",
@@ -866,10 +888,10 @@ function PendingForm({
 
             {act.hasBudget && (
               <Section label="Budget & spending" optional>
-                <div className="rounded-2xl border-[1.5px] border-line bg-[#fcfbf8] px-[22px] py-5">
+                <div className="rounded-2xl border-[1.5px] border-border bg-surface-muted px-[22px] py-5">
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 mb-4">
                     <div>
-                      <div className="mb-2 text-xs font-bold text-ink-soft">
+                      <div className="mb-2 text-xs font-bold text-foreground-secondary">
                         Amount released (NGN)
                       </div>
                       <input
@@ -878,11 +900,11 @@ function PendingForm({
                         value={amountReleased}
                         onChange={(e) => setAmountReleased(e.target.value)}
                         placeholder="0"
-                        className="w-full rounded-[10px] border-[1.5px] border-line px-3 py-2.5 text-[13px]"
+                        className="w-full rounded-[10px] border-[1.5px] border-input-border bg-input text-foreground placeholder:text-input-placeholder px-3 py-2.5 text-[13px] outline-none focus:border-border-strong"
                       />
                     </div>
                     <div>
-                      <div className="mb-2 text-xs font-bold text-ink-soft">
+                      <div className="mb-2 text-xs font-bold text-foreground-secondary">
                         Amount spent (NGN)
                       </div>
                       <input
@@ -891,11 +913,11 @@ function PendingForm({
                         value={amountSpent}
                         onChange={(e) => setAmountSpent(e.target.value)}
                         placeholder="0"
-                        className="w-full rounded-[10px] border-[1.5px] border-line px-3 py-2.5 text-[13px]"
+                        className="w-full rounded-[10px] border-[1.5px] border-input-border bg-input text-foreground placeholder:text-input-placeholder px-3 py-2.5 text-[13px] outline-none focus:border-border-strong"
                       />
                     </div>
                   </div>
-                  <div className="mb-2 text-xs font-bold text-ink-soft">
+                  <div className="mb-2 text-xs font-bold text-foreground-secondary">
                     Spending items
                   </div>
                   <div className="mb-3 grid grid-cols-1 gap-2 sm:grid-cols-[1.5fr_1fr_auto]">
@@ -903,7 +925,7 @@ function PendingForm({
                       value={spendDesc}
                       onChange={(e) => setSpendDesc(e.target.value)}
                       placeholder="Description"
-                      className="rounded-[10px] border-[1.5px] border-line px-3 py-2.5 text-[13px]"
+                      className="rounded-[10px] border-[1.5px] border-input-border bg-input text-foreground placeholder:text-input-placeholder px-3 py-2.5 text-[13px] outline-none focus:border-border-strong"
                     />
                     <input
                       type="number"
@@ -911,7 +933,7 @@ function PendingForm({
                       value={spendAmt}
                       onChange={(e) => setSpendAmt(e.target.value)}
                       placeholder="Amount"
-                      className="rounded-[10px] border-[1.5px] border-line px-3 py-2.5 text-[13px]"
+                      className="rounded-[10px] border-[1.5px] border-input-border bg-input text-foreground placeholder:text-input-placeholder px-3 py-2.5 text-[13px] outline-none focus:border-border-strong"
                     />
                     <GhostBtn
                       onClick={() => {
@@ -932,12 +954,12 @@ function PendingForm({
                       {spendingItems.map((item, i) => (
                         <span
                           key={i}
-                          className="inline-flex items-center gap-1.5 rounded-full border-[1.5px] border-line bg-surface py-1.5 pr-2 pl-3 text-xs font-semibold"
+                          className="inline-flex items-center gap-1.5 rounded-full border-[1.5px] border-border bg-surface text-foreground py-1.5 pr-2 pl-3 text-xs font-semibold"
                         >
                           {item.description} — ₦{Number(item.amount).toLocaleString()}
                           <button
                             type="button"
-                            className="flex h-[18px] w-[18px] items-center justify-center rounded-full border-none bg-neutral-bg text-xs text-ink-soft"
+                            className="flex h-[18px] w-[18px] items-center justify-center rounded-full border-none bg-surface-muted text-xs text-foreground-secondary hover:text-foreground"
                             onClick={() =>
                               setSpendingItems((prev) =>
                                 prev.filter((_, j) => j !== i),
@@ -954,7 +976,7 @@ function PendingForm({
               </Section>
             )}
 
-            <div className="sticky bottom-0 z-10 mt-9 flex justify-end border-t border-line bg-card pt-6 pb-6 shadow-[0_-12px_24px_rgba(255,255,255,0.9)]">
+            <div className="sticky bottom-0 z-10 mt-9 flex justify-end border-t border-border bg-surface pt-6 pb-6">
               <PrimaryBtn
                 disabled={!canSubmit}
                 onClick={() => {
@@ -1024,15 +1046,92 @@ function PendingForm({
         </div>
 
         <div className="flex flex-col gap-6">
-          <div className="h-fit rounded-[18px] border border-line bg-card px-[26px] py-6">
+          <div className="h-fit rounded-[18px] border border-border bg-surface px-[26px] py-6">
             <h2 className="mb-[18px] text-[17px] font-semibold">
               Activity details
             </h2>
             <DetailRow label="Type" value={act.type} />
-            <DetailRow
-              label="Dates"
-              value={`${fmtDate(act.startDate)}${act.startDate !== act.endDate ? ` – ${fmtDate(act.endDate)}` : ""}`}
-            />
+            {canEditDates ? (
+              <div className="mb-3 flex flex-col justify-center sm:flex-row sm:items-center sm:justify-between gap-2 last:mb-0">
+                <span className="text-foreground-faint">Dates</span>
+                {isEditingDate ? (
+                  <div className="flex flex-col items-end gap-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-[12.5px] font-bold text-foreground-secondary">{fmtDate(act.startDate)} –</span>
+                      <input
+                        type="date"
+                        min={act.startDate.substring(0, 10)}
+                        value={newEndDate.substring(0, 10)}
+                        onChange={(e) => {
+                          if (e.target.value) {
+                            setNewEndDate(new Date(e.target.value).toISOString());
+                          }
+                        }}
+                        className="rounded-[6px] border border-input-border bg-input text-foreground px-2 py-1 text-[12.5px] font-bold outline-none focus:border-border-strong disabled:opacity-60"
+                        disabled={isSavingDate}
+                      />
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsEditingDate(false);
+                          setNewEndDate(act.endDate);
+                        }}
+                        className="text-[11.5px] font-bold text-foreground-secondary hover:text-foreground cursor-pointer disabled:opacity-50"
+                        disabled={isSavingDate}
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          setIsSavingDate(true);
+                          try {
+                            await updateActivityEndDate(act.id, newEndDate);
+                            setIsEditingDate(false);
+                            showToast("Dates updated", "The activity end date has been updated.");
+                          } catch (e) {
+                            const err = e as Error;
+                            showToast("Could not update dates", err.message || "Validation failed.");
+                          } finally {
+                            setIsSavingDate(false);
+                          }
+                        }}
+                        className="rounded-[6px] bg-primary px-2.5 py-1 text-[11px] font-bold text-primary-foreground hover:bg-primary-hover cursor-pointer disabled:opacity-50"
+                        disabled={isSavingDate || newEndDate < act.startDate}
+                      >
+                        {isSavingDate ? "Saving..." : "Save"}
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <span className="text-right font-bold">
+                      {`${fmtDate(act.startDate)}${act.startDate !== act.endDate ? ` – ${fmtDate(act.endDate)}` : ""}`}
+                    </span>
+                    <button
+                      type="button"
+                      title="Edit completion date"
+                      onClick={() => {
+                        setNewEndDate(act.endDate);
+                        setIsEditingDate(true);
+                      }}
+                      className="flex h-[22px] w-[22px] items-center justify-center rounded-full bg-surface-muted text-foreground-faint hover:bg-surface-hover hover:text-foreground transition-colors cursor-pointer"
+                    >
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                        <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z" />
+                      </svg>
+                    </button>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <DetailRow
+                label="Dates"
+                value={`${fmtDate(act.startDate)}${act.startDate !== act.endDate ? ` – ${fmtDate(act.endDate)}` : ""}`}
+              />
+            )}
             <DetailRow label="Time" value={fmtTime(act.startTime)} />
             {act.location && (
               <DetailRow label="Location" value={act.location} />
@@ -1040,12 +1139,12 @@ function PendingForm({
           </div>
 
           {isLastDay && (
-            <div className="rounded-[18px] border border-line bg-card px-[26px] py-6">
+            <div className="rounded-[18px] border border-border bg-surface px-[26px] py-6">
               <div className="mb-[18px] flex flex-col gap-1">
                 <h2 className="m-0 text-[17px] font-semibold">
                   Wrap up this activity
                 </h2>
-                <span className="text-[11.5px] text-ink-faint">
+                <span className="text-[11.5px] text-foreground-faint">
                   Optional — feeds straight into the report
                 </span>
               </div>
@@ -1061,7 +1160,7 @@ function PendingForm({
                   <textarea
                     value={val}
                     onChange={(e) => set(e.target.value)}
-                    className="min-h-[70px] w-full rounded-[11px] border-[1.5px] border-line px-[15px] py-3.5 text-sm outline-none focus:border-aztec-3"
+                    className="min-h-[70px] w-full rounded-[11px] border-[1.5px] border-input-border bg-input text-foreground placeholder:text-input-placeholder px-[15px] py-3.5 text-sm outline-none focus:border-border-strong"
                   />
                 </Section>
               ))}
@@ -1088,11 +1187,11 @@ function Section({
 }) {
   return (
     <div className="mb-[30px] last:mb-0">
-      <div className="mb-3 text-[11.5px] font-bold tracking-wider text-ink-soft uppercase">
+      <div className="mb-3 text-[11.5px] font-bold tracking-wider text-foreground-secondary uppercase">
         {label}{" "}
-        {required && <span className="text-critical">*</span>}
+        {required && <span className="text-critical-semantic">*</span>}
         {(optional || hint) && (
-          <span className="font-medium normal-case text-ink-faint">
+          <span className="font-medium normal-case text-foreground-faint">
             {hint || "— optional"}
           </span>
         )}
@@ -1105,7 +1204,7 @@ function Section({
 function DetailRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="mb-3 flex items-center justify-between gap-2 last:mb-0">
-      <span className="text-ink-faint">{label}</span>
+      <span className="text-foreground-faint">{label}</span>
       <span className="text-right font-bold">{value}</span>
     </div>
   );
