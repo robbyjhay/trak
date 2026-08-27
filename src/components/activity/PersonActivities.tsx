@@ -70,7 +70,7 @@ export function PersonActivities({ userId }: { userId: string }) {
       </div>
 
       <div className="rounded-[18px] border border-line bg-card px-[26px] py-6">
-        <div className="mb-[18px] flex w-fit gap-1.5 rounded-[11px] bg-neutral-bg p-1">
+        <div className="mb-[18px] flex w-fit gap-1.5 rounded-[11px] bg-surface-muted p-1">
           {(
             [
               ["pending", "Pending", b.pending.length],
@@ -82,7 +82,7 @@ export function PersonActivities({ userId }: { userId: string }) {
               key={key}
               type="button"
               onClick={() => setTab(key)}
-              className={`cursor-pointer rounded-lg border-none px-4 py-2 text-[12.5px] font-bold ${
+              className={`cursor-pointer rounded-lg border-none px-4 py-2 text-[12.5px] font-bold transition-colors ${
                 tab === key
                   ? key === "pending"
                     ? "bg-warning-surface text-warning-foreground shadow-sm ring-1 ring-warning-semantic/30"
@@ -90,8 +90,8 @@ export function PersonActivities({ userId }: { userId: string }) {
                     ? "bg-success-surface text-success shadow-sm ring-1 ring-success/30"
                     : key === "missed"
                     ? "bg-critical-surface text-critical shadow-sm ring-1 ring-critical/30"
-                    : "bg-card text-ink shadow-sm ring-1 ring-line"
-                  : "bg-transparent text-ink-soft"
+                    : "bg-surface text-foreground shadow-sm ring-1 ring-border"
+                  : "bg-transparent text-foreground-secondary hover:text-foreground hover:bg-surface-hover/50"
               }`}
             >
               {label} <span className="ml-0.5 opacity-60">({cnt})</span>
