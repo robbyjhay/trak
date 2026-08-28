@@ -65,7 +65,7 @@ export async function loginAction(
     }
     redirect("/dashboard");
   } catch (err) {
-    if (err instanceof AuthError) {
+    if (err instanceof Error && err.name === "AuthError") {
       return { ok: false, error: err.message };
     }
     // Next.js redirect()/notFound() must propagate; do not swallow.
@@ -102,7 +102,7 @@ export async function setNewPasswordAction(
     revalidatePath("/", "layout");
     redirect("/dashboard");
   } catch (err) {
-    if (err instanceof AuthError) {
+    if (err instanceof Error && err.name === "AuthError") {
       return { ok: false, error: err.message };
     }
     unstable_rethrow(err);
