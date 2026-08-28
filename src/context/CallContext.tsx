@@ -12,6 +12,7 @@ import {
 } from "react";
 import { useSignaling } from "@/hooks/useSignaling";
 import { useWebRtc } from "@/hooks/useWebRtc";
+import { useTrak } from "@/context/TrakStore";
 import type { IncomingMessage } from "@/lib/signaling-types";
 
 export type CallDirection = "outgoing" | "incoming";
@@ -90,6 +91,7 @@ export function CallProvider({
   const [incomingCallFrom, setIncomingCallFrom] = useState<string | null>(null);
   const { onlineUsers, send, onMessage } = useSignaling(userId);
   const webrtc = useWebRtc();
+  const { showToast } = useTrak();
 
   const ringtoneRef = useRef<AudioContext | null>(null);
   const pendingIceRef = useRef<RTCIceCandidateInit[]>([]);
@@ -97,11 +99,13 @@ export function CallProvider({
   const activeCallRef = useRef<ActiveCall | null>(null);
   const sendRef = useRef(send);
   const webrtcRef = useRef(webrtc);
+  const showToastRef = useRef(showToast);
 
   // Keep refs current
   useEffect(() => { sendRef.current = send; }, [send]);
   useEffect(() => { webrtcRef.current = webrtc; }, [webrtc]);
   useEffect(() => { activeCallRef.current = activeCall; }, [activeCall]);
+  useEffect(() => { showToastRef.current = showToast; }, [showToast]);
 
   // Listen for signaling messages (uses refs to avoid stale closures)
   useEffect(() => {
@@ -168,7 +172,12 @@ export function CallProvider({
             const offer = await w.createOffer(pc);
             s({ type: "call_offer", to: msg.from, sdp: offer });
             setActiveCall((c) => c ? { ...c, status: "ringing" } : null);
-          } catch {
+          } catch (err: any) {
+            console.error("call_accept failed:", err);
+            showToastRef.current(
+              "Call Failed",
+              "Unable to access camera or microphone."
+            );
             setActiveCall(null);
             w.cleanup();
           }
@@ -232,7 +241,12 @@ export function CallProvider({
       w.addLocalTracks(pc, stream);
       const offer = await w.createOffer(pc);
       s({ type: "call_offer", to: partnerId, sdp: offer });
-    } catch {
+    } catch (err: any) {
+      console.error("startCall failed:", err);
+      showToastRef.current(
+        "Call Failed",
+        "Unable to access camera or microphone. Please check your browser permissions or ensure you are using a secure connection (HTTPS)."
+      );
       setActiveCall(null);
       webrtcRef.current.cleanup();
     }
@@ -270,7 +284,12 @@ export function CallProvider({
         await w.addIceCandidate(pc, c);
       }
       pendingIceRef.current = [];
-    } catch {
+    } catch (err: any) {
+      console.error("acceptCall failed:", err);
+      showToastRef.current(
+        "Call Failed",
+        "Unable to access camera or microphone to answer the call."
+      );
       setActiveCall(null);
       webrtcRef.current.cleanup();
     }

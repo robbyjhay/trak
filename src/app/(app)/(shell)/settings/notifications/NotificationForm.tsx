@@ -79,7 +79,12 @@ export function NotificationForm({ initialPrefs }: { initialPrefs: any }) {
           {pushStatus === "granted" ? (
             <span className="text-[13px] font-bold text-green-600 px-3 py-1.5 bg-green-500/10 rounded-md">Enabled</span>
           ) : pushStatus === "denied" ? (
-            <span className="text-[13px] font-bold text-red-600 px-3 py-1.5 bg-red-500/10 rounded-md">Denied</span>
+            <div className="flex flex-col items-end text-right">
+              <span className="text-[13px] font-bold text-red-600 px-3 py-1.5 bg-red-500/10 rounded-md inline-block mb-1">Blocked</span>
+              <p className="text-[10px] text-muted-foreground w-40 leading-tight">
+                Please enable notifications manually in your browser or device settings.
+              </p>
+            </div>
           ) : (
             <button 
               type="button" 
