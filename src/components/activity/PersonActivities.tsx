@@ -3,17 +3,17 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTrak } from "@/context/TrakStore";
+import { iso, addDays } from "@/lib/dates";
 import { roleLabel } from "@/lib/permissions";
 import { initials, firstName } from "@/lib/utils";
 import { ActRow } from "@/components/activity/ActRow";
 import { PrimaryBtn } from "@/components/ui/Buttons";
 import { PATHS } from "@/components/icons";
 import { useReportPreview } from "@/components/reports/ReportPreview";
-import { Kpi } from "@/components/dashboard/MemberDashboard";
 
 export function PersonActivities({ userId }: { userId: string }) {
   const router = useRouter();
-  const { sessionUser, userMap, bucket } = useTrak();
+  const { sessionUser, userMap, bucket, now, activitiesFor } = useTrak();
   const { openReport } = useReportPreview();
   const person = userMap[userId] || sessionUser;
   const isSelf = person.id === sessionUser.id;
@@ -26,47 +26,97 @@ export function PersonActivities({ userId }: { userId: string }) {
   };
   const [tab, setTab] = useState<"pending" | "completed" | "missed">("pending");
 
-  const hour = new Date().getHours();
-  const greeting = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
-
   const items = b[tab];
+
+  const getContextMessage = () => {
+    const name = firstName(person.name);
+    const todayStr = iso(now);
+    const hasToday = activitiesFor(person.id).some((a) => a.createdAt.startsWith(todayStr));
+    
+    if (!hasToday) {
+      const yesterdayStr = iso(addDays(now, -1));
+      const missedYesterday = b.missed.filter((a) => a.createdAt.startsWith(yesterdayStr)).length;
+      if (missedYesterday > 0) {
+        return isSelf
+          ? `You missed ${missedYesterday} ${missedYesterday === 1 ? 'activity' : 'activities'} yesterday. Start today by logging one and keep your progress moving.`
+          : `${name} missed ${missedYesterday} ${missedYesterday === 1 ? 'activity' : 'activities'} yesterday. They haven't logged anything today.`;
+      }
+      return isSelf
+        ? "You haven't logged an activity today. Start by logging one."
+        : `${name} hasn't logged an activity today.`;
+    }
+
+    if (b.pending.length > 0) {
+      return isSelf
+        ? `You have ${b.pending.length} pending ${b.pending.length === 1 ? 'activity' : 'activities'}. Keep them moving.`
+        : `${name} has ${b.pending.length} pending ${b.pending.length === 1 ? 'activity' : 'activities'}.`;
+    }
+    
+    return isSelf
+      ? "Nice work. You've completed your activity today. Keep it going."
+      : `${name} has completed their activity today.`;
+  };
+
+  const summaryHeading = (() => {
+    if (b.missed.length > 0) return <><strong className="font-extrabold">{b.missed.length}</strong> {b.missed.length === 1 ? "Missed Activity" : "Missed Activities"}</>;
+    if (b.pending.length > 0) return <><strong className="font-extrabold">{b.pending.length}</strong> {b.pending.length === 1 ? "Pending Activity" : "Pending Activities"}</>;
+    return <><strong className="font-extrabold">{b.completed.length}</strong> {b.completed.length === 1 ? "Completed Activity" : "Completed Activities"}</>;
+  })();
 
   return (
     <div>
       <div className="mb-[22px] flex flex-wrap items-end justify-between gap-5">
-        <div className="flex items-center gap-3.5">
-          <div
-            className="flex h-[50px] w-[50px] shrink-0 items-center justify-center rounded-full font-display text-lg font-bold text-white"
-            style={{ background: person.color }}
-          >
-            {initials(person.name)}
-          </div>
-          <div>
+        <div>
+          {!isSelf && (
             <div className="mb-1 text-[11.5px] font-bold tracking-[0.12em] text-ink-soft uppercase">
-              {isSelf ? "My Activities" : "Viewing as Unit Head — read only"}
+              Viewing as Unit Head — read only
             </div>
-            <h1 className="m-0 mb-1 text-[30px] font-semibold">
-              {isSelf ? `${greeting}, ${firstName(person.name)}` : `${person.name}'s activities`}
-            </h1>
-            <p className="m-0 text-[13.5px] text-ink-soft">
-              {roleLabel(person)} · {person.username}
-            </p>
-          </div>
+          )}
+          <h1 className="m-0 mb-1 text-[30px] font-semibold tracking-tight text-foreground">
+            {summaryHeading}
+          </h1>
+          <p className="m-0 text-[14.5px] text-foreground-secondary">
+            {getContextMessage()}
+          </p>
         </div>
         {isSelf && (
-          <PrimaryBtn onClick={() => router.push("/new-activity")}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d={PATHS.plus} />
-            </svg>
-            Create Activity
-          </PrimaryBtn>
+          <div className="hidden md:block">
+            <PrimaryBtn onClick={() => router.push("/new-activity")}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d={PATHS.plus} />
+              </svg>
+              Create Activity
+            </PrimaryBtn>
+          </div>
         )}
       </div>
 
-      <div className="mb-[26px] grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <Kpi kind="pending" value={b.pending.length} label="Pending Activities" path={PATHS.clock} />
-        <Kpi kind="completed" value={b.completed.length} label="Completed Activities" path={PATHS.check} />
-        <Kpi kind="missed" value={b.missed.length} label="Missed Activities" path={PATHS.alert} />
+      <div className="mb-[26px] grid w-full shrink-0 grid-cols-2 gap-3 lg:w-auto lg:min-w-[420px]">
+        {/* Pending — hero spanning both rows */}
+        <div className="row-span-2 flex flex-col justify-center rounded-2xl border border-warning-surface bg-warning-surface/40 p-6 shadow-sm">
+          <div className="mb-2 text-[36px] leading-none font-extrabold text-foreground">
+            {b.pending.length}
+          </div>
+          <div className="text-[14px] font-semibold text-warning-foreground">Pending</div>
+        </div>
+
+        {/* Completed / Missed — smaller cards */}
+        <div className="flex min-w-0 items-center justify-between gap-3 rounded-2xl border border-success-surface bg-success-surface/40 px-5 py-3.5">
+          <span className="text-[14px] font-semibold whitespace-nowrap text-success">
+            Completed
+          </span>
+          <span className="text-[22px] font-bold text-success" aria-label={`${b.completed.length} completed`}>
+            {b.completed.length}
+          </span>
+        </div>
+        <div className="flex min-w-0 items-center justify-between gap-3 rounded-2xl border border-critical-surface bg-critical-surface/40 px-5 py-3.5">
+          <span className="text-[14px] font-semibold whitespace-nowrap text-critical">
+            Missed
+          </span>
+          <span className="text-[22px] font-bold text-critical" aria-label={`${b.missed.length} missed`}>
+            {b.missed.length}
+          </span>
+        </div>
       </div>
 
       <div className="rounded-[18px] border border-line bg-card px-[26px] py-6">
@@ -101,12 +151,17 @@ export function PersonActivities({ userId }: { userId: string }) {
 
         <div className="flex flex-col gap-2.5">
           {!items.length ? (
-            <div className="py-8 text-center text-[13px] text-ink-faint">
+            <div className="flex flex-col gap-1 py-8 text-center text-[13px] text-ink-faint">
               {tab === "missed"
-                ? "Nothing missed — nice work."
+                ? <span>Nothing missed — nice work.</span>
                 : tab === "pending"
-                  ? "Nothing pending right now."
-                  : "Nothing completed yet."}
+                  ? (
+                    <>
+                      <span>Nothing pending right now.</span>
+                      {isSelf && <span className="md:hidden">Tap the + button to create your first activity.</span>}
+                    </>
+                  )
+                  : <span>Nothing completed yet.</span>}
             </div>
           ) : tab === "pending" ? (
             <>

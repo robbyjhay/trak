@@ -30,6 +30,7 @@ export function Topbar() {
 
   const isConnect = pathname === "/messages" || pathname === "/contacts";
   const isSettings = pathname.startsWith("/settings");
+  const isActivities = pathname === "/activities" || pathname.startsWith("/member/");
 
   useEffect(() => {
     function onDoc(e: MouseEvent) {
@@ -56,7 +57,7 @@ export function Topbar() {
     <header className="sticky top-0 z-40 flex h-[88px] shrink-0 items-center justify-between gap-4 bg-background px-6 sm:px-10 relative">
       <div className="flex flex-col justify-center">
         <h1 className="text-[22px] font-extrabold tracking-tight text-foreground">
-          {isSettings ? "Settings" : isConnect ? "Connect" : greeting}
+          {isSettings ? "Settings" : isConnect ? "Connect" : isActivities ? "Activities" : greeting}
         </h1>
       </div>
 

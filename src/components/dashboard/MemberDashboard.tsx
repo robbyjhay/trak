@@ -161,11 +161,6 @@ function Kpi({
 
   return (
     <div className={`relative h-full min-w-0 rounded-2xl border p-5 ${cardColors}`}>
-      <div className={`mb-3.5 flex h-[34px] w-[34px] items-center justify-center rounded-[9px] ${iconColors}`}>
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-          <path d={path} />
-        </svg>
-      </div>
       <div className={`mb-1.5 text-[30px] leading-none font-extrabold tabular-nums ${valueColors}`}>{value}</div>
       <div className={`text-xs font-semibold ${isPending || isCompleted || isMissed ? "opacity-80 " + valueColors : "text-foreground-secondary"}`}>{label}</div>
     </div>
