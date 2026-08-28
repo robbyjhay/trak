@@ -46,8 +46,8 @@ export function ReportPreviewProvider({ children }: { children: React.ReactNode 
   return (
     <Ctx.Provider value={{ openReport }}>
       {children}
-      <ModalBackdrop open={open && !!act} onClose={() => setOpen(false)} labelledBy="report-preview-title">
-        <ModalPanel className="flex flex-col overflow-hidden p-0 relative">
+      <ModalBackdrop open={open && !!act} onClose={() => setOpen(false)} labelledBy="report-preview-title" bottomSheetOnMobile>
+        <ModalPanel wide bottomSheetOnMobile className="flex flex-col overflow-hidden p-0 relative h-[90vh] sm:h-[94vh]">
           <div className="flex shrink-0 items-center justify-between border-b border-border bg-modal px-5 py-4">
             <div>
               <div id="report-preview-title" className="text-[10.5px] font-bold tracking-widest text-foreground-faint uppercase">
@@ -80,7 +80,10 @@ export function ReportPreviewProvider({ children }: { children: React.ReactNode 
             aria-label="Download Report"
             onClick={() => {
               if (act) {
-                downloadReportDoc(html, act.title);
+                const memberName = userMap[act.createdBy]?.name || "Unknown";
+                const dateStr = now.toISOString().split("T")[0];
+                const filename = `${memberName} - Activity Report - ${dateStr}.doc`;
+                downloadReportDoc(html, filename);
                 showToast(
                   "Report downloaded",
                   "Saved as a Word-ready document — open it, review, and fill in anything flagged for manual entry.",

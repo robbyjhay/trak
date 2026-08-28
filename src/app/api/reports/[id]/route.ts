@@ -80,16 +80,18 @@ export async function GET(
       });
     }
 
-    const safeName = act.title
+    const memberName = userMap[act.createdBy]?.name || "Unknown";
+    const dateStr = new Date().toISOString().split("T")[0];
+    const safeName = `${memberName} - Activity Report - ${dateStr}`
       .replace(/[\\/:*?"<>|]+/g, "")
       .trim()
-      .slice(0, 80);
+      .slice(0, 100);
     const blob = `\ufeff${html}`;
     return new Response(blob, {
       status: 200,
       headers: {
         "Content-Type": "application/msword; charset=utf-8",
-        "Content-Disposition": `attachment; filename="Trak Activity Report — ${safeName}.doc"`,
+        "Content-Disposition": `attachment; filename="${safeName}.doc"`,
         "Cache-Control": "no-store",
         "X-Content-Type-Options": "nosniff",
       },

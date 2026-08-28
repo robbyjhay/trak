@@ -143,8 +143,8 @@ export function buildActivityReportHTML(
   @page{ margin:2cm 2.2cm; }
   *{ font-family:Calibri, "Segoe UI", Arial, sans-serif; box-sizing:border-box; }
   body{ color:#1a1a1a; font-size:11.5pt; line-height:1.6; margin:0; padding:0; background:#f2f1ec; }
-  .letterhead{ background:#0d1d1a; color:#fbfaf6; padding:22px 44px; }
-  .letterhead .top{ display:flex; align-items:center; justify-content:space-between; }
+  .letterhead{ background:#0d1d1a; color:#fbfaf6; padding:22px 44px; width: 100%; border-collapse: collapse; }
+  .letterhead td { border: none; padding: 0; }
   .letterhead .org{ font-size:9pt; letter-spacing:.14em; text-transform:uppercase; color:#f6c642; margin-bottom:3px; }
   .letterhead .unit{ font-size:15pt; font-weight:700; color:#fbfaf6; }
   .letterhead .meta{ text-align:right; font-size:8.5pt; color:rgba(251,250,246,.7); line-height:1.5; }
@@ -157,15 +157,15 @@ export function buildActivityReportHTML(
   hr.rule{ border:none; border-top:2.5px solid #0d1d1a; margin:0 0 28px; }
   h2{ font-size:12pt; text-transform:uppercase; letter-spacing:.04em; border-bottom:1.5px solid #0d1d1a; padding-bottom:5px; margin:24px 0 10px 0; color:#0d1d1a; }
   p{ margin:0 0 8px 0; }
-  table{ border-collapse:collapse; width:100%; margin-top:6px; }
-  th,td{ border:1px solid #ccc; padding:7px 10px; text-align:left; font-size:10.5pt; vertical-align:top; }
-  th{ background:#f4f2ec; font-weight:700; }
+  table.data-table{ border-collapse:collapse; width:100%; margin-top:6px; }
+  table.data-table th, table.data-table td{ border:1px solid #ccc; padding:7px 10px; text-align:left; font-size:10.5pt; vertical-align:top; }
+  table.data-table th{ background:#f4f2ec; font-weight:700; }
   ul{ margin:6px 0; padding-left:22px; }
   li{ margin-bottom:5px; }
   .field{ margin-bottom:10px; }
   .field b{ display:inline-block; min-width:150px; }
   .note{ color:#8a6a1f; font-style:italic; font-size:10pt; }
-  .sign-table{ border:none; margin-top:46px; }
+  .sign-table{ border-collapse:collapse; width:100%; margin-top:46px; }
   .sign-table td{ border:none; width:50%; vertical-align:top; padding:0 14px 0 0; }
   .sign-line{ border-top:1px solid #333; width:230px; margin-top:38px; padding-top:6px; font-size:10pt; line-height:1.5; }
   .remarks-block{ margin-top:64px; padding-top:22px; border-top:1px dashed #ccc; }
@@ -174,15 +174,17 @@ export function buildActivityReportHTML(
   .footer{ margin-top:40px; padding-top:12px; border-top:1px solid #ddd; font-size:8.5pt; color:#888; text-align:center; }
 </style></head>
 <body>
-  <div class="letterhead">
-    <div class="top">
-      <div>
+  <table class="letterhead">
+    <tr>
+      <td align="left" valign="middle">
         <div class="org">Lagos State Government</div>
         <div class="unit">PSSDC — Digital Learning Unit</div>
-      </div>
-      <div class="meta">Generated via Trak<br>${fmtDateFull(iso(now))}</div>
-    </div>
-  </div>
+      </td>
+      <td align="right" valign="middle" class="meta">
+        Generated via Trak<br>${fmtDateFull(iso(now))}
+      </td>
+    </tr>
+  </table>
   <div class="doc-wrap">
     <div class="titleblock">
       <h1>ACTIVITY REPORT</h1>
@@ -210,7 +212,7 @@ export function buildActivityReportHTML(
     <p>${act.location ? escapeHtml(act.location) : `PSSDC — Digital Learning Unit. <span class="note">(Not provided for this activity — add manually if needed.)</span>`}</p>
 
     <h2>6. Person(s) Involved</h2>
-    <table><tr><th>Name</th><th>Role</th><th>Specific Responsibility</th></tr>${personsRows.join("")}</table>
+    <table class="data-table"><tr><th>Name</th><th>Role</th><th>Specific Responsibility</th></tr>${personsRows.join("")}</table>
 
     <h2>7. Activities Carried Out / Scope of Work</h2>
     <ul>${scopeBullets}</ul>
@@ -225,7 +227,7 @@ export function buildActivityReportHTML(
     <div class="field"><b>Total amount spent:</b> ${totalSpent > 0 ? "₦" + totalSpent.toLocaleString() : "—"}</div>
     ${totalReleased > 0 && totalSpent > 0 ? `<div class="field"><b>Balance:</b> ₦${(totalReleased - totalSpent).toLocaleString()}</div>` : ""}
     ${allSpendingItems.length > 0 ? `
-    <table><tr><th>Description</th><th>Amount (₦)</th></tr>
+    <table class="data-table"><tr><th>Description</th><th>Amount (₦)</th></tr>
     ${allSpendingItems.map((s) => `<tr><td>${escapeHtml(s.description)}</td><td>${s.amount.toLocaleString()}</td></tr>`).join("")}
     </table>` : ""}
     ` : ""}
@@ -250,7 +252,7 @@ export function buildActivityReportHTML(
       <h2>Attendance</h2>
       ${
         attendanceRows
-          ? `<p>${totalAttendance} attendee${totalAttendance !== 1 ? "s" : ""} recorded${days > 1 ? " across the logged day(s) of this activity" : ""}.</p><table><tr><th>Date</th><th>Name</th><th>Phone</th><th>Email</th><th>Source</th></tr>${attendanceRows}</table>`
+          ? `<p>${totalAttendance} attendee${totalAttendance !== 1 ? "s" : ""} recorded${days > 1 ? " across the logged day(s) of this activity" : ""}.</p><table class="data-table"><tr><th>Date</th><th>Name</th><th>Phone</th><th>Email</th><th>Source</th></tr>${attendanceRows}</table>`
           : totalAttendance > 0
             ? `<p>${totalAttendance} present. <span class="note">(Only an aggregate headcount was captured for this activity — no individual attendee list is on file in Trak.)</span></p>`
             : `<p class="note">No attendance was captured for this activity.</p>`
@@ -281,13 +283,13 @@ export function buildActivityReportHTML(
 </html>`;
 }
 
-export function downloadReportDoc(html: string, title: string) {
+export function downloadReportDoc(html: string, filename: string) {
   const blob = new Blob(["\ufeff", html], { type: "application/msword" });
   const url = URL.createObjectURL(blob);
-  const safeName = title.replace(/[\\/:*?"<>|]/g, "").slice(0, 80);
+  const safeName = filename.replace(/[\\/:*?"<>|]/g, "").slice(0, 100);
   const link = document.createElement("a");
   link.href = url;
-  link.download = `Trak Activity Report — ${safeName}.doc`;
+  link.download = safeName.endsWith(".doc") ? safeName : `${safeName}.doc`;
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);

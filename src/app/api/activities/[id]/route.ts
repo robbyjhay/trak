@@ -9,7 +9,6 @@ import {
   getActivity,
   getActivityComments,
   getActivityLogs,
-  softDeleteActivity,
   toggleActivityHidden,
   updateActivityWrapup,
 } from "@/lib/db/service";
@@ -51,10 +50,6 @@ export async function PATCH(
 
     if (body.action === "toggleHidden") {
       const activity = await toggleActivityHidden(session, id);
-      return jsonOk({ activity });
-    }
-    if (body.action === "softDelete") {
-      const activity = await softDeleteActivity(session, id);
       return jsonOk({ activity });
     }
 

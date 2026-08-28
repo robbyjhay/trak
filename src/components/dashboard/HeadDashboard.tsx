@@ -78,7 +78,6 @@ function AccountingOfficer() {
     showToast,
     responsibilities,
     toggleActivityHidden,
-    softDeleteActivity,
     sessionUser,
   } = useTrak();
   const { openReport } = useReportPreview();
@@ -120,6 +119,7 @@ function AccountingOfficer() {
   );
   const [taskDue, setTaskDue] = useState(iso(addDays(now, 5)));
   const [feedFilter, setFeedFilter] = useState<"all" | "week" | "month" | "quarter">("all");
+  const [statusFilter, setStatusFilter] = useState<"all" | "pending" | "completed" | "missed">("all");
   const [showHidden, setShowHidden] = useState(false);
 
   const activeUsers = users.filter((u) => u.isActive);
@@ -137,6 +137,7 @@ function AccountingOfficer() {
     ? [...allActive]
     : allActive.filter((a) => !a.hidden);
   const unitFiltered = unitAll.filter((a) => {
+    if (statusFilter !== "all" && a.status !== statusFilter) return false;
     if (feedFilter === "all") return true;
     const d = new Date(a.createdAt);
     const diffMs = now.getTime() - d.getTime();
@@ -268,11 +269,34 @@ function AccountingOfficer() {
             }
             large
             action={
-              <div className="flex items-center gap-2">
+              <div className="flex flex-col sm:flex-row items-end sm:items-center gap-2">
                 <div className="flex gap-1 rounded-lg bg-surface-muted p-0.5">
                   {(
                     [
                       ["all", "All"],
+                      ["pending", "Pending"],
+                      ["completed", "Completed"],
+                      ["missed", "Missed"],
+                    ] as const
+                  ).map(([key, label]) => (
+                    <button
+                      key={key}
+                      type="button"
+                      onClick={() => setStatusFilter(key)}
+                      className={`cursor-pointer rounded-md border-none px-2.5 py-1 text-[10.5px] font-bold transition-colors ${
+                        statusFilter === key
+                          ? "bg-surface text-foreground shadow-sm"
+                          : "bg-transparent text-foreground-muted hover:text-foreground"
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                <div className="flex gap-1 rounded-lg bg-surface-muted p-0.5">
+                  {(
+                    [
+                      ["all", "All Time"],
                       ["week", "Week"],
                       ["month", "Month"],
                       ["quarter", "Quarter"],
@@ -425,25 +449,7 @@ function AccountingOfficer() {
                           <path d={a.hidden ? PATHS.eye : PATHS.eyeOff} />
                         </svg>
                       </UaBtn>
-                      <UaBtn
-                        title="Delete"
-                        className="text-critical-semantic hover:border-critical-semantic hover:bg-critical-surface hover:text-critical-semantic"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          if (!confirm(`Soft delete "${a.title}"? It can be restored later.`)) return;
-                          void softDeleteActivity(a.id)
-                            .then(() =>
-                              showToast("Activity deleted", `"${a.title}" has been removed from view.`),
-                            )
-                            .catch(() =>
-                              showToast("Could not delete activity", "Please try again."),
-                            );
-                        }}
-                      >
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                          <path d={PATHS.trash} />
-                        </svg>
-                      </UaBtn>
+
                     </div>
                   </div>
                 );
