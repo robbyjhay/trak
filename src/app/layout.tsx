@@ -39,7 +39,7 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Trak — Digital Learning Unit",
+  title: "Trak",
   description:
     "The Digital Learning Unit's activity & operations register — PSSDC, Lagos State Government.",
   applicationName: "Trak",

@@ -2,7 +2,7 @@ import { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "Trak \u2014 Digital Learning Unit",
+    name: "Trak",
     short_name: "Trak",
     description: "The Digital Learning Unit's activity & operations register \u2014 PSSDC, Lagos State Government.",
     start_url: "/",

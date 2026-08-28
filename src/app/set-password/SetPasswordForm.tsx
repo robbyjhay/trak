@@ -37,7 +37,7 @@ export function SetPasswordForm({
             </svg>
           </div>
           <div className="text-[12.5px] leading-snug tracking-[0.16em] text-foreground-secondary uppercase">
-            Trak — Digital Learning Unit
+            Trak
           </div>
         </div>
 

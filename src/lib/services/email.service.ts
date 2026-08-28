@@ -36,7 +36,7 @@ export async function sendInviteEmail(
   const mailOptions = {
     from,
     to,
-    subject: "You are invited to Trak — Digital Learning Unit",
+    subject: "You are invited to Trak",
     text: `${greet}\n\nYou have been added to Trak (Digital Learning Unit activity register).\n${userLine}Set your password here (link expires in 7 days):\n${inviteLink}\n\nIf you did not expect this, ignore this email.`,
     html: `<p>${greet}</p><p>You have been added to <strong>Trak</strong> (Digital Learning Unit activity register).</p>${
       opts?.username
