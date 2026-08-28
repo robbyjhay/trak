@@ -66,6 +66,12 @@ const envSchema = z.object({
   S3_SECRET_ACCESS_KEY: z.string().optional(),
   S3_PUBLIC_BASE_URL: z.string().optional(),
   RATE_LIMIT_REDIS_PREFIX: z.string().optional(),
+
+  // Push Notifications
+  NEXT_PUBLIC_VAPID_PUBLIC_KEY: z.string().optional(),
+  VAPID_PUBLIC_KEY: z.string().optional(), // Fallback if not using NEXT_PUBLIC_
+  VAPID_PRIVATE_KEY: z.string().optional(),
+  VAPID_SUBJECT: z.string().optional().default("mailto:admin@trak.local"),
 });
 
 export type AppEnv = z.infer<typeof envSchema> & {

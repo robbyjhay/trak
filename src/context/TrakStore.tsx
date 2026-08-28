@@ -170,6 +170,8 @@ function emptyDb(): TrakDb {
   return createEmptyDb();
 }
 
+import { usePushNotifications } from "@/hooks/usePushNotifications";
+
 export function TrakStoreProvider({
   session,
   initialBootstrap = null,
@@ -251,6 +253,8 @@ export function TrakStoreProvider({
       if (!Number.isNaN(t.getTime())) nowRef.current = t;
     }
   }, [applySnapshot]);
+
+  usePushNotifications();
 
   const refreshRef = useRef(refresh);
   refreshRef.current = refresh;

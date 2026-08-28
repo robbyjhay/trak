@@ -114,22 +114,23 @@ model User {
   authTokens  AuthToken[]
   preferences UserPreferences?
 
-  activitiesCreated   Activity[]               @relation("ActivityCreatedBy")
-  activitiesDelegated Activity[]               @relation("ActivityDelegatedBy")
-  comments            Comment[]                @relation("CommentAuthor")
-  responsibilities    Responsibility[]         @relation("ResponsibilityCreatedBy")
-  directMessagesAsA   DirectMessage[]          @relation("DirectMessageParticipantA")
-  directMessagesAsB   DirectMessage[]          @relation("DirectMessageParticipantB")
-  directMessagesSent  DirectMessage[]          @relation("DirectMessageSender")
-  communityMessages   CommunityMessage[]       @relation("CommunityMessageSender")
+  activitiesCreated   Activity[]                @relation("ActivityCreatedBy")
+  activitiesDelegated Activity[]                @relation("ActivityDelegatedBy")
+  comments            Comment[]                 @relation("CommentAuthor")
+  responsibilities    Responsibility[]          @relation("ResponsibilityCreatedBy")
+  directMessagesAsA   DirectMessage[]           @relation("DirectMessageParticipantA")
+  directMessagesAsB   DirectMessage[]           @relation("DirectMessageParticipantB")
+  directMessagesSent  DirectMessage[]           @relation("DirectMessageSender")
+  communityMessages   CommunityMessage[]        @relation("CommunityMessageSender")
   communityMentions   CommunityMessageMention[] @relation("CommunityMessageMentionUser")
-  broadcasts          Broadcast[]              @relation("BroadcastSender")
-  callRecordsAsA      CallRecord[]             @relation("CallParticipantA")
-  callRecordsAsB      CallRecord[]             @relation("CallParticipantB")
-  callRecordsFrom     CallRecord[]             @relation("CallFrom")
-  notifications       Notification[]           @relation("UserNotification")
+  broadcasts          Broadcast[]               @relation("BroadcastSender")
+  callRecordsAsA      CallRecord[]              @relation("CallParticipantA")
+  callRecordsAsB      CallRecord[]              @relation("CallParticipantB")
+  callRecordsFrom     CallRecord[]              @relation("CallFrom")
+  notifications       Notification[]            @relation("UserNotification")
   auditEvents         AuditEvent[]
   deletedMessages     DeletedMessage[]
+  pushSubscriptions   PushSubscription[]        @relation("UserPushSubscriptions")
 
   @@index([role])
   @@index([isActive])
@@ -216,15 +217,15 @@ model UserPreferences {
 // ---------------------------------------------------------------------------
 
 model Responsibility {
-  id          String   @id @default(uuid()) @db.Uuid
-  code        String   @unique @db.VarChar(16)
-  name        String   @db.VarChar(200)
-  description String   @db.Text
-  deliverables Json    @default("[]")
-  isActive    Boolean  @default(true) @map("is_active")
-  createdById String?  @map("created_by_id") @db.Uuid
-  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+  id           String   @id @default(uuid()) @db.Uuid
+  code         String   @unique @db.VarChar(16)
+  name         String   @db.VarChar(200)
+  description  String   @db.Text
+  deliverables Json     @default("[]")
+  isActive     Boolean  @default(true) @map("is_active")
+  createdById  String?  @map("created_by_id") @db.Uuid
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   createdBy  User?                    @relation("ResponsibilityCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
   activities ActivityResponsibility[]
@@ -233,34 +234,34 @@ model Responsibility {
 }
 
 model Activity {
-  id                  String         @id @default(uuid()) @db.Uuid
-  title               String         @db.VarChar(300)
-  type                ActivityType
-  description         String         @default("") @db.Text
-  createdById         String         @map("created_by_id") @db.Uuid
-  delegatedById       String?        @map("delegated_by_id") @db.Uuid
-  startDate           DateTime       @map("start_date") @db.Date
-  endDate             DateTime       @map("end_date") @db.Date
-  startTime           String         @map("start_time") @db.VarChar(8)
-  endTime             String         @default("") @map("end_time") @db.VarChar(8)
-  location            String         @default("") @db.VarChar(300)
-  status              ActivityStatus @default(pending)
-  hidden              Boolean        @default(false)
-  hasBudget           Boolean        @default(false) @map("has_budget")
-  estimatedAmountNgn  Decimal?       @map("estimated_amount_ngn") @db.Decimal(14, 2)
-  initiativeTeamwork  String         @default("") @map("initiative_teamwork") @db.Text
-  challenges          String         @default("") @db.Text
-  outcomes            String         @default("") @db.Text
-  nextSteps           String         @default("") @map("next_steps") @db.Text
-  createdAt           DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt           DateTime       @updatedAt @map("updated_at") @db.Timestamptz(3)
-  softDeletedAt       DateTime?      @map("soft_deleted_at") @db.Timestamptz(3)
+  id                 String         @id @default(uuid()) @db.Uuid
+  title              String         @db.VarChar(300)
+  type               ActivityType
+  description        String         @default("") @db.Text
+  createdById        String         @map("created_by_id") @db.Uuid
+  delegatedById      String?        @map("delegated_by_id") @db.Uuid
+  startDate          DateTime       @map("start_date") @db.Date
+  endDate            DateTime       @map("end_date") @db.Date
+  startTime          String         @map("start_time") @db.VarChar(8)
+  endTime            String         @default("") @map("end_time") @db.VarChar(8)
+  location           String         @default("") @db.VarChar(300)
+  status             ActivityStatus @default(pending)
+  hidden             Boolean        @default(false)
+  hasBudget          Boolean        @default(false) @map("has_budget")
+  estimatedAmountNgn Decimal?       @map("estimated_amount_ngn") @db.Decimal(14, 2)
+  initiativeTeamwork String         @default("") @map("initiative_teamwork") @db.Text
+  challenges         String         @default("") @db.Text
+  outcomes           String         @default("") @db.Text
+  nextSteps          String         @default("") @map("next_steps") @db.Text
+  createdAt          DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt          DateTime       @updatedAt @map("updated_at") @db.Timestamptz(3)
+  softDeletedAt      DateTime?      @map("soft_deleted_at") @db.Timestamptz(3)
 
-  createdBy       User                     @relation("ActivityCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
-  delegatedBy     User?                    @relation("ActivityDelegatedBy", fields: [delegatedById], references: [id], onDelete: SetNull)
+  createdBy        User                     @relation("ActivityCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  delegatedBy      User?                    @relation("ActivityDelegatedBy", fields: [delegatedById], references: [id], onDelete: SetNull)
   responsibilities ActivityResponsibility[]
-  dailyLogs       DailyLog[]
-  comments        Comment[]
+  dailyLogs        DailyLog[]
+  comments         Comment[]
 
   @@index([createdById, status])
   @@index([startDate, endDate])
@@ -281,22 +282,22 @@ model ActivityResponsibility {
 }
 
 model DailyLog {
-  id                 String         @id @default(uuid()) @db.Uuid
-  activityId         String         @map("activity_id") @db.Uuid
-  date               DateTime       @db.Date
-  objectives         String         @default("") @db.Text
-  activityDescription String        @default("") @map("activity_description") @db.Text
-  transcript         String         @default("") @db.Text
-  attendanceCount    String         @default("") @map("attendance_count") @db.VarChar(64)
-  attendanceNotes    String         @default("") @map("attendance_notes") @db.Text
-  rsvpTokenHash      String?        @unique @map("rsvp_token_hash") @db.VarChar(128)
-  status             DailyLogStatus @default(pending)
-  amountReleasedNgn  Decimal?       @map("amount_released_ngn") @db.Decimal(14, 2)
-  amountSpentNgn     Decimal?       @map("amount_spent_ngn") @db.Decimal(14, 2)
-  spendingItems      Json           @default("[]") @map("spending_items")
-  submittedAt        DateTime?      @map("submitted_at") @db.Timestamptz(3)
-  createdAt          DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt          DateTime       @updatedAt @map("updated_at") @db.Timestamptz(3)
+  id                  String         @id @default(uuid()) @db.Uuid
+  activityId          String         @map("activity_id") @db.Uuid
+  date                DateTime       @db.Date
+  objectives          String         @default("") @db.Text
+  activityDescription String         @default("") @map("activity_description") @db.Text
+  transcript          String         @default("") @db.Text
+  attendanceCount     String         @default("") @map("attendance_count") @db.VarChar(64)
+  attendanceNotes     String         @default("") @map("attendance_notes") @db.Text
+  rsvpTokenHash       String?        @unique @map("rsvp_token_hash") @db.VarChar(128)
+  status              DailyLogStatus @default(pending)
+  amountReleasedNgn   Decimal?       @map("amount_released_ngn") @db.Decimal(14, 2)
+  amountSpentNgn      Decimal?       @map("amount_spent_ngn") @db.Decimal(14, 2)
+  spendingItems       Json           @default("[]") @map("spending_items")
+  submittedAt         DateTime?      @map("submitted_at") @db.Timestamptz(3)
+  createdAt           DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt           DateTime       @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   activity    Activity     @relation(fields: [activityId], references: [id], onDelete: Cascade)
   attendees   Attendee[]
@@ -371,28 +372,28 @@ model DirectMessage {
   sender User @relation("DirectMessageSender", fields: [fromUserId], references: [id], onDelete: Cascade)
 
   attachments MessageAttachment[]
-  deletedBy  DeletedMessage[]
+  deletedBy   DeletedMessage[]
 
   @@index([participantA, participantB, createdAt])
   @@map("direct_messages")
 }
 
 model MessageAttachment {
-  id                 String   @id @default(uuid()) @db.Uuid
-  directMessageId    String?  @map("direct_message_id") @db.Uuid
-  communityMessageId String?  @map("community_message_id") @db.Uuid
+  id                 String  @id @default(uuid()) @db.Uuid
+  directMessageId    String? @map("direct_message_id") @db.Uuid
+  communityMessageId String? @map("community_message_id") @db.Uuid
 
-  name               String   @db.VarChar(300)
-  size               Int      @default(0)
-  contentType        String   @default("application/octet-stream") @map("content_type") @db.VarChar(128)
-  storageKey         String   @map("storage_key") @db.VarChar(512)
-  width              Int?
-  height             Int?
+  name        String @db.VarChar(300)
+  size        Int    @default(0)
+  contentType String @default("application/octet-stream") @map("content_type") @db.VarChar(128)
+  storageKey  String @map("storage_key") @db.VarChar(512)
+  width       Int?
+  height      Int?
 
-  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
 
-  directMessage      DirectMessage?    @relation(fields: [directMessageId], references: [id], onDelete: Cascade)
-  communityMessage   CommunityMessage? @relation(fields: [communityMessageId], references: [id], onDelete: Cascade)
+  directMessage    DirectMessage?    @relation(fields: [directMessageId], references: [id], onDelete: Cascade)
+  communityMessage CommunityMessage? @relation(fields: [communityMessageId], references: [id], onDelete: Cascade)
 
   @@index([directMessageId])
   @@index([communityMessageId])
@@ -407,12 +408,12 @@ model CommunityMessage {
   deletedAt  DateTime? @map("deleted_at") @db.Timestamptz(3)
   createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
 
-  sender   User                       @relation("CommunityMessageSender", fields: [fromUserId], references: [id], onDelete: Cascade)
-  replyTo  CommunityMessage?          @relation("CommunityMessageReply", fields: [replyToId], references: [id], onDelete: SetNull)
-  replies  CommunityMessage[]         @relation("CommunityMessageReply")
-  mentions CommunityMessageMention[]
+  sender      User                      @relation("CommunityMessageSender", fields: [fromUserId], references: [id], onDelete: Cascade)
+  replyTo     CommunityMessage?         @relation("CommunityMessageReply", fields: [replyToId], references: [id], onDelete: SetNull)
+  replies     CommunityMessage[]        @relation("CommunityMessageReply")
+  mentions    CommunityMessageMention[]
   attachments MessageAttachment[]
-  deletedBy DeletedMessage[]
+  deletedBy   DeletedMessage[]
 
   @@index([createdAt])
   @@map("community_messages")
@@ -430,11 +431,11 @@ model CommunityMessageMention {
 }
 
 model DeletedMessage {
-  id                 String    @id @default(uuid()) @db.Uuid
-  userId             String    @map("user_id") @db.Uuid
-  directMessageId    String?   @map("direct_message_id") @db.Uuid
-  communityMessageId String?   @map("community_message_id") @db.Uuid
-  createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  id                 String   @id @default(uuid()) @db.Uuid
+  userId             String   @map("user_id") @db.Uuid
+  directMessageId    String?  @map("direct_message_id") @db.Uuid
+  communityMessageId String?  @map("community_message_id") @db.Uuid
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
 
   user             User              @relation(fields: [userId], references: [id], onDelete: Cascade)
   directMessage    DirectMessage?    @relation(fields: [directMessageId], references: [id], onDelete: Cascade)
@@ -460,12 +461,12 @@ model Broadcast {
 }
 
 model CallRecord {
-  id            String   @id @default(uuid()) @db.Uuid
-  participantA  String   @map("participant_a") @db.Uuid
-  participantB  String   @map("participant_b") @db.Uuid
-  fromUserId    String   @map("from_user_id") @db.Uuid
-  durationSec   Int      @default(0) @map("duration_sec")
-  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  id           String   @id @default(uuid()) @db.Uuid
+  participantA String   @map("participant_a") @db.Uuid
+  participantB String   @map("participant_b") @db.Uuid
+  fromUserId   String   @map("from_user_id") @db.Uuid
+  durationSec  Int      @default(0) @map("duration_sec")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
 
   userA  User @relation("CallParticipantA", fields: [participantA], references: [id], onDelete: Cascade)
   userB  User @relation("CallParticipantB", fields: [participantB], references: [id], onDelete: Cascade)
@@ -522,4 +523,35 @@ model UnitSettings {
   updatedAt             DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   @@map("unit_settings")
+}
+
+// ---------------------------------------------------------------------------
+// Push Notifications (Phase 2)
+// ---------------------------------------------------------------------------
+
+model PushSubscription {
+  id         String   @id @default(uuid()) @db.Uuid
+  userId     String   @map("user_id") @db.Uuid
+  endpoint   String   @db.Text
+  p256dh     String   @db.VarChar(255)
+  auth       String   @db.VarChar(255)
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  lastUsedAt DateTime @default(now()) @map("last_used_at") @db.Timestamptz(3)
+
+  user User @relation("UserPushSubscriptions", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([endpoint])
+  @@index([userId])
+  @@map("push_subscriptions")
+}
+
+model PendingCall {
+  id         String   @id @default(uuid()) @db.Uuid
+  fromUserId String   @map("from_user_id") @db.Uuid
+  toUserId   String   @map("to_user_id") @db.Uuid
+  sdp        Json
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@index([toUserId])
+  @@map("pending_calls")
 }

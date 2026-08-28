@@ -3,6 +3,8 @@ import { parse } from "url";
 import next from "next";
 import { WebSocketServer, WebSocket } from "ws";
 import { getSessionUserIdFromCookieHeader } from "./src/lib/auth/ws-session";
+import { prisma } from "./src/lib/prisma";
+import { sendPushNotification } from "./src/lib/pushServer";
 import Redis from "ioredis";
 
 const dev = process.env.NODE_ENV !== "production";
@@ -139,6 +141,17 @@ async function attachAuthenticatedClient(ws: WebSocket, userId: string) {
     users: online,
   });
   broadcast({ type: "user_online", userId }, userId);
+
+  // Send any pending calls
+  prisma.pendingCall.findMany({ where: { toUserId: userId } }).then(calls => {
+    calls.forEach(call => {
+      sendTo(userId, {
+        type: "call_offer",
+        from: call.fromUserId,
+        sdp: call.sdp,
+      });
+    });
+  }).catch(console.error);
 }
 
 app.prepare().then(() => {
@@ -215,6 +228,14 @@ app.prepare().then(() => {
             from: userId,
             sdp: msg.sdp,
           });
+          prisma.pendingCall.create({
+            data: { fromUserId: userId, toUserId: msg.to as string, sdp: msg.sdp as any }
+          }).catch(console.error);
+          prisma.user.findUnique({ where: { id: userId } }).then(u => {
+            if (u) {
+              sendPushNotification(msg.to as string, `📞 ${u.name || u.username} is calling you`, "Open TRAK to answer the call.", { url: "/dashboard" }).catch(console.error);
+            }
+          });
           break;
 
         case "call_answer":
@@ -238,6 +259,9 @@ app.prepare().then(() => {
             type: "call_accept",
             from: userId,
           });
+          prisma.pendingCall.deleteMany({
+            where: { fromUserId: msg.to as string, toUserId: userId }
+          }).catch(console.error);
           break;
 
         case "call_reject":
@@ -245,12 +269,26 @@ app.prepare().then(() => {
             type: "call_reject",
             from: userId,
           });
+          prisma.pendingCall.deleteMany({
+            where: { fromUserId: msg.to as string, toUserId: userId }
+          }).catch(console.error);
           break;
 
         case "call_end":
           sendTo(msg.to as string, {
             type: "call_end",
             from: userId,
+          });
+          prisma.pendingCall.deleteMany({
+            where: { fromUserId: userId, toUserId: msg.to as string }
+          }).then(deleted => {
+            if (deleted.count > 0) {
+              prisma.user.findUnique({ where: { id: userId } }).then(u => {
+                if (u) {
+                  sendPushNotification(msg.to as string, `📞 Missed call from ${u.name || u.username}`, "Tap to return the call.", { url: "/dashboard" }).catch(console.error);
+                }
+              });
+            }
           });
           break;
 

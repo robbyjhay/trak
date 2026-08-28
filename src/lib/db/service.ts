@@ -1,3 +1,4 @@
+import { sendPushNotification } from "@/lib/pushServer";
 /**
  * Domain service layer — PostgreSQL via Prisma (Phase 1+).
  * Replaces the legacy JSON file store for all product data.
@@ -164,6 +165,25 @@ async function pushNotification(
       messageId: messageId ?? null,
     },
   });
+
+  let title = "TRAK";
+  let url = "/dashboard";
+
+  if (type === "dm") {
+    title = "New Message";
+    url = "/messages";
+  } else if (type === "broadcast") {
+    title = "📢 Unit Announcement";
+    url = "/messages";
+  } else if (type === "mention") {
+    title = "You were mentioned";
+    url = "/messages";
+  } else if (type.startsWith("activity_") || type === "comment") {
+    title = "Activity Update";
+    url = activityId ? `/activities/${activityId}` : "/activities";
+  }
+
+  sendPushNotification(userId, title, text, { url }).catch(console.error);
 }
 
 function publicStorageUrl(key: string | null | undefined): string | null {
@@ -1223,14 +1243,19 @@ export async function sendBroadcast(
     select: { id: true },
   });
   if (others.length) {
+    const textPreview = `Broadcast from ${mapUser(actor).name}: ${trimmed}`;
     await prisma.notification.createMany({
-        data: others.map((u) => ({
-          userId: u.id,
-          type: "broadcast" as const,
-          text: `Broadcast from ${mapUser(actor).name}: ${trimmed}`,
-        })),
-      });
+      data: others.map((u) => ({
+        userId: u.id,
+        type: "broadcast" as const,
+        text: textPreview,
+      })),
+    });
+
+    for (const u of others) {
+      sendPushNotification(u.id, "📢 Unit Announcement", textPreview, { url: "/messages" }).catch(console.error);
     }
+  }
 
   return { id: msg.id };
 }
