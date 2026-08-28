@@ -3,11 +3,13 @@
 import { useActionState, useEffect, useState } from "react";
 import { updatePreferencesAction } from "./actions";
 import { Switch } from "@/components/ui/Switch";
+import { requestPushPermissionAndSubscribe } from "@/hooks/usePushNotifications";
 
 export function NotificationForm({ initialPrefs }: { initialPrefs: any }) {
   const [state, formAction, pending] = useActionState(updatePreferencesAction, null);
   const [success, setSuccess] = useState(false);
   const [masterEnabled, setMasterEnabled] = useState(initialPrefs.notificationsEnabled ?? true);
+  const [pushStatus, setPushStatus] = useState<string>("unsupported");
 
   useEffect(() => {
     if (state?.ok) {
@@ -16,6 +18,25 @@ export function NotificationForm({ initialPrefs }: { initialPrefs: any }) {
       return () => clearTimeout(timer);
     }
   }, [state]);
+
+  useEffect(() => {
+    if (typeof window !== "undefined" && "Notification" in window) {
+      setPushStatus(Notification.permission);
+    }
+  }, []);
+
+  const handlePushEnable = async () => {
+    try {
+      await requestPushPermissionAndSubscribe();
+      setPushStatus(Notification.permission);
+      alert("Push notifications successfully enabled!");
+    } catch (e: any) {
+      if (typeof window !== "undefined" && "Notification" in window) {
+        setPushStatus(Notification.permission);
+      }
+      alert(e.message === "Permission not granted for Notification" ? "Permission denied. Please enable notifications in your browser settings." : "Failed to enable push notifications: " + e.message);
+    }
+  };
 
   return (
     <form action={formAction} className="flex flex-col gap-6">
@@ -46,6 +67,30 @@ export function NotificationForm({ initialPrefs }: { initialPrefs: any }) {
           onChange={(checked) => setMasterEnabled(checked)}
         />
       </div>
+      
+      {pushStatus !== "unsupported" && (
+        <div className="flex items-center justify-between bg-primary/5 p-4 rounded-xl border border-border">
+          <div className="pr-4">
+            <div className="font-medium text-[14px]">Browser Push Notifications</div>
+            <p className="text-[12px] text-muted-foreground mt-0.5">
+              Receive background notifications for calls and messages even when TRAK is closed.
+            </p>
+          </div>
+          {pushStatus === "granted" ? (
+            <span className="text-[13px] font-bold text-green-600 px-3 py-1.5 bg-green-500/10 rounded-md">Enabled</span>
+          ) : pushStatus === "denied" ? (
+            <span className="text-[13px] font-bold text-red-600 px-3 py-1.5 bg-red-500/10 rounded-md">Denied</span>
+          ) : (
+            <button 
+              type="button" 
+              onClick={handlePushEnable}
+              className="whitespace-nowrap rounded-lg border-none bg-black px-4 py-2 text-[13px] font-bold text-white transition-colors hover:bg-neutral-800 dark:bg-white dark:text-black dark:hover:bg-neutral-200"
+            >
+              Enable Push
+            </button>
+          )}
+        </div>
+      )}
 
       <hr className="border-border" />
 

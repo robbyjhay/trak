@@ -203,7 +203,15 @@ export function Topbar() {
               >
                 Settings
               </MenuBtn>
-              <form action={logoutAction}>
+              <form action={logoutAction} onSubmit={async () => {
+                if (typeof window !== "undefined" && "serviceWorker" in navigator) {
+                  try {
+                    const reg = await navigator.serviceWorker.ready;
+                    const sub = await reg.pushManager.getSubscription();
+                    if (sub) await sub.unsubscribe();
+                  } catch (e) {}
+                }
+              }}>
                 <button
                   type="submit"
                   className="flex w-full items-center gap-2 rounded-lg border-none bg-transparent px-3 py-2.5 text-left text-[12.5px] font-semibold text-critical hover:bg-critical-bg"

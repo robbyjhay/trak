@@ -1,16 +1,25 @@
+// Bypass server-only error when running via raw tsx
+const _Module = require("module");
+try {
+  _Module._cache[require.resolve("server-only")] = { exports: {} };
+} catch (e) {}
+
 import { createServer, type IncomingMessage } from "http";
 import { parse } from "url";
 import next from "next";
 import { WebSocketServer, WebSocket } from "ws";
 import { getSessionUserIdFromCookieHeader } from "./src/lib/auth/ws-session";
-import { prisma } from "./src/lib/prisma";
-import { sendPushNotification } from "./src/lib/pushServer";
+
+
 import Redis from "ioredis";
 
 const dev = process.env.NODE_ENV !== "production";
 const hostname = "localhost";
 const PORT = parseInt(process.env.PORT || "3000", 10);
 const isMulti = process.env.TRAK_RUNTIME_MODE === "multi";
+
+let prisma: any;
+let sendPushNotification: any;
 
 const app = next({ dev, hostname, port: PORT });
 const handle = app.getRequestHandler();
@@ -143,18 +152,26 @@ async function attachAuthenticatedClient(ws: WebSocket, userId: string) {
   broadcast({ type: "user_online", userId }, userId);
 
   // Send any pending calls
-  prisma.pendingCall.findMany({ where: { toUserId: userId } }).then(calls => {
-    calls.forEach(call => {
+  const expirationThreshold = new Date(Date.now() - 60000); // 60 seconds ago
+  prisma.pendingCall.findMany({ where: { toUserId: userId } }).then((calls: any[]) => {
+    const validCalls = calls.filter((c: any) => c.createdAt >= expirationThreshold);
+    validCalls.forEach((call: any) => {
       sendTo(userId, {
         type: "call_offer",
         from: call.fromUserId,
         sdp: call.sdp,
       });
     });
+    // Delete all processed or expired calls for this user
+    if (calls.length > 0) {
+      prisma.pendingCall.deleteMany({ where: { toUserId: userId } }).catch(console.error);
+    }
   }).catch(console.error);
 }
 
-app.prepare().then(() => {
+app.prepare().then(async () => {
+  prisma = (await import("./src/lib/db/prisma")).prisma;
+  sendPushNotification = (await import("./src/lib/pushServer")).sendPushNotification;
   const httpServer = createServer(async (req, res) => {
     try {
       const parsedUrl = parse(req.url!, true);
@@ -222,21 +239,27 @@ app.prepare().then(() => {
       }
 
       switch (msg.type) {
-        case "call_offer":
+        case "call_offer": {
           sendTo(msg.to as string, {
             type: "call_offer",
             from: userId,
             sdp: msg.sdp,
           });
-          prisma.pendingCall.create({
-            data: { fromUserId: userId, toUserId: msg.to as string, sdp: msg.sdp as any }
-          }).catch(console.error);
-          prisma.user.findUnique({ where: { id: userId } }).then(u => {
-            if (u) {
-              sendPushNotification(msg.to as string, `📞 ${u.name || u.username} is calling you`, "Open TRAK to answer the call.", { url: "/dashboard" }).catch(console.error);
+          
+          getOnlineUsers().then(online => {
+            if (!online.includes(msg.to as string)) {
+              prisma.pendingCall.create({
+                data: { fromUserId: userId!, toUserId: msg.to as string, sdp: msg.sdp as any }
+              }).catch(console.error);
+              prisma.user.findUnique({ where: { id: userId } }).then((u: any) => {
+                if (u) {
+                  sendPushNotification(msg.to as string, `📞 ${u.name || u.username} is calling you`, "Open TRAK to answer the call.", { url: "/dashboard" }).catch(console.error);
+                }
+              });
             }
           });
           break;
+        }
 
         case "call_answer":
           sendTo(msg.to as string, {

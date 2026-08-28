@@ -21,14 +21,27 @@ self.addEventListener("push", (event) => {
         tag: data.tag || undefined,
       };
 
+      const targetUrl = options.data.url || "/dashboard";
+
       event.waitUntil(
         clients.matchAll({ type: "window", includeUncontrolled: true }).then((clientList) => {
-          // If any client is focused, we assume the user is actively using the app.
-          // In that case, we might not want to show a system notification (or maybe a softer one).
-          // For now, let's skip the push notification if a client is focused.
-          const isFocused = clientList.some((client) => client.focused);
-          if (isFocused) {
-            console.log("Client is focused, skipping system notification.");
+          // If any client is focused on the exact target location, suppress the system notification.
+          const isFocusedOnTarget = clientList.some((client) => {
+            if (!client.focused) return false;
+            try {
+              const clientPath = new URL(client.url).pathname;
+              // If they are on the specific target route (e.g., /messages), don't send a push.
+              // Note: for /messages we might want to notify them if they are in a different thread, 
+              // but we don't have thread granularity in the push payload right now, so suppressing 
+              // on the top-level route is a reasonable start.
+              return clientPath === targetUrl || clientPath.startsWith(targetUrl + "/");
+            } catch {
+              return false;
+            }
+          });
+
+          if (isFocusedOnTarget) {
+            console.log("Client is actively focused on the target route, skipping system notification.");
             return;
           }
           return self.registration.showNotification(title, options);

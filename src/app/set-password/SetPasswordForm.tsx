@@ -129,7 +129,15 @@ export function SetPasswordForm({
             </form>
           )}
 
-          <form action={logoutAction} className="mt-3">
+          <form action={logoutAction} className="mt-3" onSubmit={async () => {
+            if (typeof window !== "undefined" && "serviceWorker" in navigator) {
+              try {
+                const reg = await navigator.serviceWorker.ready;
+                const sub = await reg.pushManager.getSubscription();
+                if (sub) await sub.unsubscribe();
+              } catch (e) {}
+            }
+          }}>
             <button
               type="submit"
               className="w-full cursor-pointer rounded-xl border-[1.5px] border-border bg-surface-interactive py-3 text-[13px] font-bold text-foreground-secondary transition-colors hover:border-critical/30 hover:text-critical focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:opacity-60"
