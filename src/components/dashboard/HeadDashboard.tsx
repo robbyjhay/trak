@@ -136,14 +136,24 @@ function AccountingOfficer() {
   const unitAll = showHidden
     ? [...allActive]
     : allActive.filter((a) => !a.hidden);
-  const unitFiltered = unitAll.filter((a) => {
-    if (statusFilter !== "all" && a.status !== statusFilter) return false;
+  const unitFilteredByDate = unitAll.filter((a) => {
     if (feedFilter === "all") return true;
     const d = new Date(a.createdAt);
     const diffMs = now.getTime() - d.getTime();
     if (feedFilter === "week") return diffMs <= 7 * 86400_000;
     if (feedFilter === "month") return diffMs <= 30 * 86400_000;
     if (feedFilter === "quarter") return diffMs <= 90 * 86400_000;
+    return true;
+  });
+
+  const b = {
+    pending: unitFilteredByDate.filter((a) => a.status === "pending"),
+    completed: unitFilteredByDate.filter((a) => a.status === "completed"),
+    missed: unitFilteredByDate.filter((a) => a.status === "missed"),
+  };
+
+  const unitFiltered = unitFilteredByDate.filter((a) => {
+    if (statusFilter !== "all" && a.status !== statusFilter) return false;
     return true;
   });
   const unitSorted = [...unitFiltered].sort((a, b) =>
@@ -269,34 +279,11 @@ function AccountingOfficer() {
             }
             large
             action={
-              <div className="flex flex-col sm:flex-row items-end sm:items-center gap-2">
+              <div className="flex items-center gap-2">
                 <div className="flex gap-1 rounded-lg bg-surface-muted p-0.5">
                   {(
                     [
                       ["all", "All"],
-                      ["pending", "Pending"],
-                      ["completed", "Completed"],
-                      ["missed", "Missed"],
-                    ] as const
-                  ).map(([key, label]) => (
-                    <button
-                      key={key}
-                      type="button"
-                      onClick={() => setStatusFilter(key)}
-                      className={`cursor-pointer rounded-md border-none px-2.5 py-1 text-[10.5px] font-bold transition-colors ${
-                        statusFilter === key
-                          ? "bg-surface text-foreground shadow-sm"
-                          : "bg-transparent text-foreground-muted hover:text-foreground"
-                      }`}
-                    >
-                      {label}
-                    </button>
-                  ))}
-                </div>
-                <div className="flex gap-1 rounded-lg bg-surface-muted p-0.5">
-                  {(
-                    [
-                      ["all", "All Time"],
                       ["week", "Week"],
                       ["month", "Month"],
                       ["quarter", "Quarter"],
@@ -337,6 +324,36 @@ function AccountingOfficer() {
               </div>
             }
           >
+            <div className="mb-6 flex flex-wrap gap-2 border-b border-border pb-4">
+              {(
+                [
+                  ["all", "All", unitFilteredByDate.length],
+                  ["pending", "Pending", b.pending.length],
+                  ["completed", "Completed", b.completed.length],
+                  ["missed", "Missed", b.missed.length],
+                ] as const
+              ).map(([key, label, cnt]) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => setStatusFilter(key)}
+                  className={`cursor-pointer rounded-lg border-none px-4 py-2 text-[12.5px] font-bold transition-colors ${
+                    statusFilter === key
+                      ? key === "pending"
+                        ? "bg-warning-surface text-warning-foreground shadow-sm ring-1 ring-warning-semantic/30"
+                        : key === "completed"
+                        ? "bg-success-surface text-success shadow-sm ring-1 ring-success/30"
+                        : key === "missed"
+                        ? "bg-critical-surface text-critical shadow-sm ring-1 ring-critical/30"
+                        : "bg-surface text-foreground shadow-sm ring-1 ring-border"
+                      : "bg-transparent text-foreground-secondary hover:text-foreground hover:bg-surface-hover/50"
+                  }`}
+                >
+                  {label} <span className="ml-0.5 opacity-60">({cnt})</span>
+                </button>
+              ))}
+            </div>
+
             {unitShown.length === 0 ? (
               <div className="py-8 text-center text-[13px] text-foreground-faint">
                 No activities logged yet.
@@ -408,12 +425,13 @@ function AccountingOfficer() {
                         disabled={!isDone}
                         onClick={(e) => { e.stopPropagation(); if (isDone) openReport(a.id); }}
                       >
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
                           <path d={PATHS.download} />
                         </svg>
+                        <span className="hidden sm:inline">Download</span>
                       </UaBtn>
                       <UaBtn
-                        title="Comment"
+                        title="Add comment"
                         disabled={!isDone}
                         onClick={(e) => {
                           e.stopPropagation();
@@ -423,9 +441,10 @@ function AccountingOfficer() {
                           setCommentOpen(true);
                         }}
                       >
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
                           <path d={PATHS.messages} />
                         </svg>
+                        <span className="hidden sm:inline">Comment</span>
                       </UaBtn>
                       <UaBtn
                         title={a.hidden ? "Unhide in feed" : "Hide from feed"}
@@ -445,9 +464,10 @@ function AccountingOfficer() {
                             );
                         }}
                       >
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
                           <path d={a.hidden ? PATHS.eye : PATHS.eyeOff} />
                         </svg>
+                        <span className="hidden sm:inline">{a.hidden ? "Unhide" : "Hide"}</span>
                       </UaBtn>
 
                     </div>

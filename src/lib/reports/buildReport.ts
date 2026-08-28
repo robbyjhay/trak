@@ -142,13 +142,14 @@ export function buildActivityReportHTML(
 <style>
   @page{ margin:2cm 2.2cm; }
   *{ font-family:Calibri, "Segoe UI", Arial, sans-serif; box-sizing:border-box; }
-  body{ color:#1a1a1a; font-size:11.5pt; line-height:1.6; margin:0; padding:0; background:#f2f1ec; }
+  body{ color:#1a1a1a; font-size:11.5pt; line-height:1.6; margin:0; padding:32px 16px; background:#f2f1ec; }
+  @media (max-width: 600px) { body { padding: 16px 0; } }
   .letterhead{ background:#0d1d1a; color:#fbfaf6; padding:22px 44px; width: 100%; border-collapse: collapse; }
   .letterhead td { border: none; padding: 0; }
   .letterhead .org{ font-size:9pt; letter-spacing:.14em; text-transform:uppercase; color:#f6c642; margin-bottom:3px; }
   .letterhead .unit{ font-size:15pt; font-weight:700; color:#fbfaf6; }
   .letterhead .meta{ text-align:right; font-size:8.5pt; color:rgba(251,250,246,.7); line-height:1.5; }
-  .doc-wrap{ max-width:740px; margin:0 auto; background:#fff; padding:0 44px 46px; }
+  .doc-wrap{ max-width:210mm; min-height:297mm; margin:0 auto; background:#fff; padding:0 44px 46px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); }
   .titleblock{ text-align:center; padding:30px 0 18px; }
   .titleblock h1{ font-size:19pt; letter-spacing:.06em; margin:0 0 8px 0; color:#0d1d1a; }
   .titleblock .ref{ font-size:9.5pt; color:#666; font-family:"Courier New",monospace; }
