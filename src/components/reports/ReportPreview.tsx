@@ -47,7 +47,7 @@ export function ReportPreviewProvider({ children }: { children: React.ReactNode 
     <Ctx.Provider value={{ openReport }}>
       {children}
       <ModalBackdrop open={open && !!act} onClose={() => setOpen(false)} labelledBy="report-preview-title" bottomSheetOnMobile>
-        <ModalPanel wide bottomSheetOnMobile className="flex flex-col overflow-hidden p-0 relative h-[90vh] sm:h-[94vh]">
+        <ModalPanel wide bottomSheetOnMobile className="flex flex-col overflow-hidden p-0 relative h-[90vh] sm:h-[94vh] sm:w-[1000px] sm:max-w-[95vw]">
           <div className="flex shrink-0 items-center justify-between border-b border-border bg-modal px-5 py-4">
             <div>
               <div id="report-preview-title" className="text-[10.5px] font-bold tracking-widest text-foreground-faint uppercase">

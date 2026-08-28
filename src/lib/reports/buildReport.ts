@@ -149,7 +149,7 @@ export function buildActivityReportHTML(
   .letterhead .org{ font-size:9pt; letter-spacing:.14em; text-transform:uppercase; color:#f6c642; margin-bottom:3px; }
   .letterhead .unit{ font-size:15pt; font-weight:700; color:#fbfaf6; }
   .letterhead .meta{ text-align:right; font-size:8.5pt; color:rgba(251,250,246,.7); line-height:1.5; }
-  .doc-wrap{ max-width:210mm; min-height:297mm; margin:0 auto; background:#fff; padding:0 44px 46px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); }
+  .doc-wrap{ width:100%; max-width:820px; min-height:1160px; margin:0 auto; background:#fff; padding:0 44px 46px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); }
   .titleblock{ text-align:center; padding:30px 0 18px; }
   .titleblock h1{ font-size:19pt; letter-spacing:.06em; margin:0 0 8px 0; color:#0d1d1a; }
   .titleblock .ref{ font-size:9.5pt; color:#666; font-family:"Courier New",monospace; }
