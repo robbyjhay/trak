@@ -103,6 +103,10 @@ interface TrakStoreValue {
     activityId: string,
     endDate: string,
   ) => Promise<void>;
+  updateActivityMetadata: (
+    activityId: string,
+    data: any,
+  ) => Promise<void>;
   pushNotification: (
     userId: string,
     type: NotifType,
@@ -479,6 +483,18 @@ export function TrakStoreProvider({
           .filter((l) => l.activityId !== activityId)
           .concat(logsRes.dailyLogs);
       }
+      bump();
+    },
+    updateActivityMetadata: async (activityId, data) => {
+      const res = await apiSend<{ activity: Activity }>(
+        `/api/activities/${activityId}`,
+        "PATCH",
+        { action: "updateMetadata", ...data },
+      );
+      const actIdx = stateRef.current.db.activities.findIndex(
+        (a) => a.id === activityId,
+      );
+      if (actIdx >= 0) stateRef.current.db.activities[actIdx] = res.activity;
       bump();
     },
     // Server owns notifications; client no-op kept for interface stability

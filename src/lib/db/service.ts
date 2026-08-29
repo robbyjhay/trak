@@ -837,6 +837,65 @@ export async function updateActivityEndDate(
   return mapActivity(refreshed);
 }
 
+export async function updateActivityMetadata(
+  session: SessionUser,
+  activityId: string,
+  data: {
+    title?: string;
+    type?: any;
+    description?: string;
+    startTime?: string;
+    location?: string;
+    hasBudget?: boolean;
+    estimatedAmountNgn?: number | null;
+    responsibilityIds?: string[];
+  }
+): Promise<Activity> {
+  const actor = await requireActor(session);
+  const act = await prisma.activity.findUnique({ where: { id: activityId } });
+  if (!act || act.softDeletedAt) throw new ServiceError(404, "Activity not found.");
+  if (act.createdById !== session.id && actor.role !== "head") {
+    throw new ServiceError(403, "Not allowed to update this activity.");
+  }
+
+  const updateData: any = {};
+  if (data.title !== undefined) updateData.title = data.title;
+  if (data.type !== undefined) updateData.type = data.type;
+  if (data.description !== undefined) updateData.description = data.description;
+  if (data.startTime !== undefined) updateData.startTime = data.startTime;
+  if (data.location !== undefined) updateData.location = data.location;
+  if (data.hasBudget !== undefined) updateData.hasBudget = data.hasBudget;
+  if (data.estimatedAmountNgn !== undefined) updateData.estimatedAmountNgn = data.estimatedAmountNgn;
+
+  const updatedAct = await prisma.$transaction(async (tx) => {
+    if (data.responsibilityIds) {
+      await tx.activityResponsibility.deleteMany({ where: { activityId } });
+      if (data.responsibilityIds.length > 0) {
+        await tx.activityResponsibility.createMany({
+          data: data.responsibilityIds.map((rid: string) => ({
+            activityId,
+            responsibilityId: rid,
+          }))
+        });
+      }
+    }
+    return await tx.activity.update({
+      where: { id: activityId },
+      data: updateData,
+      include: activityInclude,
+    });
+  });
+
+  await recordAuditEvent({
+    userId: session.authUserId,
+    action: "activity_update",
+    targetId: activityId,
+    targetType: "activity",
+  });
+
+  return mapActivity(updatedAct);
+}
+
 
 export async function updateActivityWrapup(
   session: SessionUser,
