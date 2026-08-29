@@ -11,6 +11,7 @@ import { PrimaryBtn, GhostBtn } from "@/components/ui/Buttons";
 import { useReportPreview } from "@/components/reports/ReportPreview";
 import { useSpeechRecognition } from "@/hooks/useSpeechRecognition";
 import type { Attendee, Attachment } from "@/lib/types";
+import { ActivityEditModal } from "./ActivityEditModal";
 
 export function ActivityDetail({
   activityId,
@@ -40,6 +41,8 @@ export function ActivityDetail({
     responsibilities.map((r) => [r.id, r]),
   );
   const { openReport } = useReportPreview();
+  const [editOpen, setEditOpen] = useState(false);
+
 
   // Refresh so public RSVP submissions appear while this page is open.
   useEffect(() => {
@@ -151,24 +154,43 @@ export function ActivityDetail({
             </span>
           )}
         </div>
+        
+        {canEditDates && (
+          <div className="mt-4 flex flex-wrap gap-2">
+            <GhostBtn onClick={() => setEditOpen(true)} className="px-3 py-1.5 text-xs">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="mr-1.5">
+                <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z" />
+              </svg>
+              Edit Activity
+            </GhostBtn>
+          </div>
+        )}
       </div>
 
+      {editOpen && (
+        <ActivityEditModal
+          activity={act}
+          open={editOpen}
+          onClose={() => setEditOpen(false)}
+        />
+      )}
+
       {act.status === "missed" && (
-        <div className="rounded-[18px] border border-border bg-surface px-[26px] py-6">
+        <div className="rounded-[18px] border border-border bg-surface px-[26px] py-6 mb-6">
           <div className="flex items-start gap-3.5">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[11px] bg-critical-surface text-critical-semantic">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[11px] bg-warning-surface text-warning-semantic">
               <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d={PATHS.alert} />
               </svg>
             </div>
             <div>
               <div className="mb-1 font-bold">
-                This activity passed its date with nothing submitted.
+                Activity Needs Attention
               </div>
               <div className="text-[13px] text-foreground-secondary">
-                It&apos;s recorded as Missed.{" "}
+                This activity passed its date with unsubmitted daily updates.{" "}
                 {isMine
-                  ? "You can still create a fresh activity to cover this work if needed."
+                  ? "You can still submit missed updates below, or extend the activity if you need more time."
                   : ""}
               </div>
             </div>
@@ -362,7 +384,7 @@ export function ActivityDetail({
         </div>
       )}
 
-      {act.status === "pending" && (
+      {(act.status === "pending" || act.status === "missed") && (
         <PendingForm
           act={act}
           logs={logs}
