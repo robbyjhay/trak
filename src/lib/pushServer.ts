@@ -3,7 +3,7 @@ import { prisma } from "@/lib/db/prisma";
 
 const vapidPublicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || process.env.VAPID_PUBLIC_KEY;
 const vapidPrivateKey = process.env.VAPID_PRIVATE_KEY;
-const vapidSubject = process.env.VAPID_SUBJECT || "mailto:admin@trak.local";
+const vapidSubject = process.env.VAPID_SUBJECT || "mailto:admin@trak-dlu.onrender.com";
 
 let isConfigured = false;
 if (vapidPublicKey && vapidPrivateKey) {
@@ -50,7 +50,11 @@ export async function sendPushNotification(
       if (err.statusCode === 404 || err.statusCode === 410) {
         staleEndpoints.push(sub.endpoint);
       } else {
-        console.error("Failed to send push notification:", err);
+        console.error("Failed to send push notification:");
+        console.error("Status:", err.statusCode);
+        console.error("Headers:", err.headers);
+        console.error("Body:", err.body);
+        console.error("Error details:", err);
       }
     }
   });

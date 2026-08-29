@@ -16,7 +16,8 @@ let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 function getWsUrl(): string {
   if (typeof window === "undefined") return "";
   const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
-  return `${proto}//${window.location.hostname}:${window.location.port}/ws`;
+  const portStr = window.location.port ? `:${window.location.port}` : "";
+  return `${proto}//${window.location.hostname}${portStr}/ws`;
 }
 
 function clearReconnectTimer() {
