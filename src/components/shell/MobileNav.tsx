@@ -100,7 +100,7 @@ export function MobileNav() {
                     aria-current={active ? "page" : undefined}
                     className={cn(
                         "flex h-full w-14 flex-col items-center justify-center gap-1 bg-transparent transition-colors hover:bg-transparent",
-                        active ? "text-aztec dark:text-saffron" : "text-aztec/70 hover:text-aztec dark:text-white/70 dark:hover:text-white"
+                        active ? "text-saffron" : "text-aztec/70 hover:text-aztec dark:text-white/70 dark:hover:text-white"
                     )}
                   >
                     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.25">
@@ -130,7 +130,7 @@ export function MobileNav() {
                     aria-current={active ? "page" : undefined}
                     className={cn(
                         "flex h-full w-14 flex-col items-center justify-center gap-1 bg-transparent transition-colors hover:bg-transparent",
-                        active ? "text-aztec dark:text-saffron" : "text-aztec/70 hover:text-aztec dark:text-white/70 dark:hover:text-white"
+                        active ? "text-saffron" : "text-aztec/70 hover:text-aztec dark:text-white/70 dark:hover:text-white"
                     )}
                   >
                     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.25">

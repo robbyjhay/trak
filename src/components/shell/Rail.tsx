@@ -73,7 +73,7 @@ function RailItem({
       className={cn(
         "group relative flex h-12 w-12 items-center justify-center rounded-rail transition-colors focus-visible:ring-2 focus-visible:ring-saffron focus-visible:outline-none",
         active
-          ? "bg-aztec/10 text-aztec dark:bg-saffron dark:text-aztec"
+          ? "bg-saffron text-aztec"
           : "text-aztec/70 hover:bg-aztec/5 hover:text-aztec dark:text-white/70 dark:hover:bg-white/5 dark:hover:text-white",
       )}
       aria-label={label}
