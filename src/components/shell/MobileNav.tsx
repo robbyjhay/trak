@@ -31,7 +31,7 @@ function ScoopBackground() {
           width="1200" 
           height="88" 
           viewBox="0 0 1200 88" 
-          className="absolute left-1/2 bottom-0 -translate-x-1/2 drop-shadow-[0_-8px_24px_rgba(0,0,0,0.06)]"
+          className="absolute left-1/2 bottom-0 -translate-x-1/2 drop-shadow-[0_-8px_24px_rgba(0,0,0,0.06)] text-[#F8F9FA] dark:text-[color:var(--aztec)]"
         >
           <defs>
             <radialGradient id="mobile-nav-scoop-gradient" cx="600" cy="40" r="140" gradientUnits="userSpaceOnUse">
@@ -41,12 +41,12 @@ function ScoopBackground() {
           </defs>
           {/* Base solid fill to prevent WebKit transparency bug outside gradient radius */}
           <path
-            fill="var(--aztec)"
+            fill="currentColor"
             d="M 0 40 L 530 40 C 550 40 555 88 600 88 C 645 88 650 40 670 40 L 1200 40 V 88 H 0 Z"
           />
           {/* Gradient glow over the center */}
           <path
-            fill="url(#mobile-nav-scoop-gradient)"
+            fill="currentColor"
             d="M 0 40 L 530 40 C 550 40 555 88 600 88 C 645 88 650 40 670 40 L 1200 40 V 88 H 0 Z"
           />
           {/* Top edge highlight stroke */}
@@ -60,7 +60,7 @@ function ScoopBackground() {
         </svg>
       </div>
       {/* BOTTOM PART: Solid rectangle filling the rest of the height and safe area */}
-      <div className="flex-1 w-full bg-[color:var(--aztec)] mt-[-1px]" />
+      <div className="flex-1 w-full bg-[#F8F9FA] dark:bg-[color:var(--aztec)] mt-[-1px]" />
     </div>
   );
 }
@@ -99,10 +99,11 @@ export function MobileNav() {
                     href={item.href}
                     aria-current={active ? "page" : undefined}
                     className={cn(
+                        active ? "text-aztec dark:text-white" : "text-aztec/70 dark:text-white/70",
                         "flex h-full w-14 flex-col items-center justify-center gap-1 bg-transparent transition-colors hover:bg-transparent",
-                        "text-white hover:text-white"
+                        "text-aztec/70 hover:text-aztec dark:text-white/70 dark:hover:text-white"
                     )}
-                      style={{ color: active ? "var(--saffron)" : "#ffffff" }}
+                      style={{ color: active ? "var(--foreground)" : undefined }}
                   >
                     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.25">
                       <path d={item.path} />
@@ -130,10 +131,11 @@ export function MobileNav() {
                     href={pathname.startsWith("/contacts") && item.href === "/messages" ? "/contacts" : item.href}
                     aria-current={active ? "page" : undefined}
                     className={cn(
+                        active ? "text-aztec dark:text-white" : "text-aztec/70 dark:text-white/70",
                         "flex h-full w-14 flex-col items-center justify-center gap-1 bg-transparent transition-colors hover:bg-transparent",
-                        "text-white hover:text-white"
+                        "text-aztec/70 hover:text-aztec dark:text-white/70 dark:hover:text-white"
                     )}
-                      style={{ color: active ? "var(--saffron)" : "#ffffff" }}
+                      style={{ color: active ? "var(--foreground)" : undefined }}
                   >
                     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.25">
                       <path d={item.path} />
