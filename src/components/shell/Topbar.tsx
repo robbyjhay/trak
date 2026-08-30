@@ -55,16 +55,10 @@ export function Topbar() {
 
   return (
     <header className="sticky top-0 z-40 flex h-[88px] shrink-0 items-center justify-between gap-4 bg-[#F8F9FA] dark:bg-[color:var(--aztec)] border-b border-border/50 dark:border-transparent px-6 sm:px-10 relative">
-      <div className="flex items-center gap-3">
-        <Link href="/dashboard" className="md:hidden flex h-8 w-8 items-center justify-center shrink-0 transition-opacity hover:opacity-80">
-          <img src="/logo-black.png" alt="Trak Logo" className="h-full w-full object-contain dark:hidden" />
-          <img src="/logo-white.png" alt="Trak Logo" className="h-full w-full object-contain hidden dark:block" />
-        </Link>
-        <div className="flex flex-col justify-center">
-          <h1 className="text-[22px] font-extrabold tracking-tight text-foreground">
+      <div className="flex flex-col justify-center">
+        <h1 className="text-[22px] font-extrabold tracking-tight text-foreground">
           {isSettings ? "Settings" : isConnect ? "Connect" : isActivities ? "Activities" : greeting}
         </h1>
-        </div>
       </div>
 
       {isConnect && (
