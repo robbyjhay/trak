@@ -296,3 +296,93 @@ export function downloadReportDoc(html: string, filename: string) {
   document.body.removeChild(link);
   setTimeout(() => URL.revokeObjectURL(url), 3000);
 }
+
+export function buildUnitReportHTML(
+  title: string,
+  activities: Activity[],
+  relevantLogs: DailyLog[],
+  db: TrakDb,
+  userMap: Record<string, User>,
+  responsibilities: Responsibility[],
+  now: Date,
+  memberStats: { user: User, total: number, completed: number, rate: number, attendance: number }[],
+  insights: string[],
+  attentionItems: { id: string, title: string, desc: string, by: string }[]
+): string {
+  const completed = activities.filter(a => a.status === "completed").length;
+  const missed = activities.filter(a => a.status === "missed").length;
+  
+  const totalReleased = relevantLogs.reduce((sum, l) => sum + (Number(l.amountReleasedNgn) || 0), 0);
+  const totalSpent = relevantLogs.reduce((sum, l) => sum + (Number(l.amountSpentNgn) || 0), 0);
+  const totalAttendance = relevantLogs.reduce((sum, l) => sum + (l.attendees?.length || parseInt(l.attendanceCount) || 0), 0);
+
+  const actRows = activities.map(a => {
+    const ownerName = escapeHtml(userMap[a.createdBy]?.name || "Unknown");
+    return `<tr>
+      <td>${escapeHtml(a.title)}</td>
+      <td>${ownerName}</td>
+      <td>${escapeHtml(a.status)}</td>
+      <td>${fmtDate(a.startDate)}</td>
+    </tr>`;
+  }).join("");
+
+  const memberRows = memberStats.map(m => `<tr>
+    <td>${escapeHtml(m.user.name)}</td>
+    <td>${m.total}</td>
+    <td>${m.completed}</td>
+    <td>${m.rate}%</td>
+    <td>${m.attendance}</td>
+  </tr>`).join("");
+
+  return `<!DOCTYPE html>
+<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+<head><meta charset="utf-8"><title>Unit Report - ${escapeHtml(title)}</title>
+<style>
+  @page{ margin:2cm 2.2cm; }
+  *{ font-family:Calibri, "Segoe UI", Arial, sans-serif; box-sizing:border-box; }
+  body{ color:#1a1a1a; font-size:11.5pt; line-height:1.6; margin:0; background:#fff; }
+  table { border-collapse:collapse; width:100%; margin-top:6px; margin-bottom: 24px; }
+  th, td { border:1px solid #ccc; padding:7px 10px; text-align:left; font-size:10.5pt; }
+  th { background:#f4f2ec; font-weight:700; }
+  h1 { font-size: 19pt; color: #0d1d1a; border-bottom: 2px solid #0d1d1a; padding-bottom: 8px; }
+  h2 { font-size: 14pt; margin-top: 24px; color: #0d1d1a; border-bottom: 1px solid #ccc; }
+  .metric { margin-bottom: 8px; }
+  ul { padding-left: 20px; }
+</style>
+</head>
+<body>
+  <h1>Unit Report: ${escapeHtml(title)}</h1>
+  <p>Generated on ${fmtDateFull(iso(now))}</p>
+
+  <h2>Overview</h2>
+  <div class="metric"><b>Total Activities:</b> ${activities.length}</div>
+  <div class="metric"><b>Completed:</b> ${completed}</div>
+  <div class="metric"><b>Missed:</b> ${missed}</div>
+  <div class="metric"><b>Attendance:</b> ${totalAttendance}</div>
+  <div class="metric"><b>Total Released:</b> ₦${totalReleased.toLocaleString()}</div>
+  <div class="metric"><b>Total Spent:</b> ₦${totalSpent.toLocaleString()}</div>
+
+  <h2>Insights</h2>
+  <ul>
+    ${insights.map(ins => `<li>${escapeHtml(ins)}</li>`).join("")}
+  </ul>
+
+  <h2>Attention Required</h2>
+  <ul>
+    ${attentionItems.length ? attentionItems.map(item => `<li><b>${escapeHtml(item.desc)}:</b> ${escapeHtml(item.title)} (${escapeHtml(userMap[item.by]?.name || "Unknown")})</li>`).join("") : "<li>None</li>"}
+  </ul>
+
+  <h2>Member Performance</h2>
+  <table>
+    <tr><th>Member</th><th>Assigned</th><th>Completed</th><th>Rate</th><th>Attendance Logged</th></tr>
+    ${memberRows}
+  </table>
+
+  <h2>Activities</h2>
+  <table>
+    <tr><th>Title</th><th>Owner</th><th>Status</th><th>Date</th></tr>
+    ${actRows}
+  </table>
+</body>
+</html>`;
+}

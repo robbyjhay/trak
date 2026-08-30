@@ -18,18 +18,8 @@ export default async function AcceptInvitePage({
     <main id="main" className="flex min-h-screen items-center justify-center bg-background p-6 text-foreground">
       <div className="w-full max-w-[440px]">
         <div className="mb-6 flex items-center gap-3.5">
-          <div
-            className="flex h-[44px] w-[44px] items-center justify-center rounded-[11px] bg-linear-to-br from-saffron to-[#d9a72c] shadow-[0_6px_18px_rgba(0,0,0,0.35)]"
-            aria-hidden
-          >
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-              <path d="M12 2L3 7v2h18V7L12 2z" fill="currentColor" />
-              <path
-                d="M4 10v9h2v-9H4zm14 0v9h2v-9h-2zM9 10v9h2v-9H9zm4 0v9h2v-9h-2z"
-                fill="currentColor"
-              />
-              <path d="M2 21h20v1.6H2z" fill="currentColor" />
-            </svg>
+          <div className="flex h-[44px] w-[44px] items-center justify-center" aria-hidden>
+            <img src="/logo.jpg" alt="Trak Logo" className="h-full w-full object-contain" />
           </div>
           <div className="text-[12.5px] leading-snug tracking-[0.16em] text-foreground-secondary uppercase">
             Trak

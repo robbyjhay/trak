@@ -52,19 +52,12 @@ export function LoginForm({
       <section className="relative flex min-w-0 flex-col justify-between border-b border-white/10 bg-linear-to-br from-aztec via-aztec-2 to-aztec-3 px-8 py-6 text-white md:flex-[1.05] md:border-r md:border-b-0 md:px-16 md:py-14">
         <div>
           <div className="flex items-center gap-3.5">
-            <div className="flex h-[46px] w-[46px] items-center justify-center rounded-[11px] bg-linear-to-br from-saffron to-[#d9a72c] shadow-[0_6px_18px_rgba(0,0,0,0.35)]">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-                <path d="M12 2L3 7v2h18V7L12 2z" fill="currentColor" />
-                <path
-                  d="M4 10v9h2v-9H4zm14 0v9h2v-9h-2zM9 10v9h2v-9H9zm4 0v9h2v-9h-2z"
-                  fill="currentColor"
-                />
-                <path d="M2 21h20v1.6H2z" fill="currentColor" />
-              </svg>
+            <div className="flex h-[46px] w-[46px] items-center justify-center">
+              <img src="/logo.jpg" alt="Trak Logo" className="h-full w-full object-contain" />
             </div>
             <div className="text-[12.5px] leading-snug tracking-[0.16em] text-white/70 uppercase">
               Lagos State Government · PSSDC
-              <b className="block text-[12.5px] tracking-[0.14em] text-saffron">
+              <b className="block text-[12.5px] tracking-[0.14em]">
                 Digital Learning Unit
               </b>
             </div>
@@ -72,7 +65,7 @@ export function LoginForm({
           <div className="mt-6 md:mt-16">
             <h1 className="m-0 mb-[18px] font-display text-[clamp(36px,6vw,76px)] leading-[0.92] font-semibold">
               Trak
-              <em className="font-medium text-saffron not-italic italic">.</em>
+              
             </h1>
             <p className="max-w-[420px] text-base leading-relaxed text-white/70">
               The Digital Learning Unit&apos;s activity &amp; operations register
@@ -142,7 +135,7 @@ export function LoginForm({
           <form action={formAction}>
             {passwordResetNotice && (
               <div
-                className="mb-4 rounded-[12px] border border-success/30 bg-success-surface px-3.5 py-3 text-[13px] font-semibold text-success"
+                className="mb-4 border border-success/30 bg-success-surface px-3.5 py-3 text-[13px] font-semibold text-success"
                 role="status"
                 aria-live="polite"
               >

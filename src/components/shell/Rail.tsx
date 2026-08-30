@@ -24,10 +24,10 @@ export function Rail() {
     >
       <Link
         href="/dashboard"
-        className="mb-[26px] flex h-[38px] w-[38px] items-center justify-center rounded-[10px] bg-linear-to-br from-saffron to-[#d9a72c] font-display text-base font-bold text-aztec shadow-rail"
+        className="mb-[26px] flex h-[38px] w-[38px] items-center justify-center"
         aria-label="Trak home"
       >
-        T
+        <img src="/logo.jpg" alt="Trak Logo" className="h-full w-full object-contain" />
       </Link>
 
       {NAV.filter((n) => !n.bottom).map((item) => (
@@ -78,7 +78,7 @@ function RailItem({
       aria-label={label}
       aria-current={active ? "page" : undefined}
     >
-      <span className="pointer-events-none absolute left-16 z-20 rounded-[7px] bg-aztec px-2.5 py-1.5 text-[11px] whitespace-nowrap text-white opacity-0 shadow-[0_6px_16px_rgba(0,0,0,0.3)] transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100 group-focus-within:opacity-100">
+      <span className="pointer-events-none absolute left-16 z-20 bg-aztec px-2.5 py-1.5 text-[11px] whitespace-nowrap text-white opacity-0 shadow-[0_6px_16px_rgba(0,0,0,0.3)] transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100 group-focus-within:opacity-100">
         {label}
       </span>
       <svg

@@ -6,7 +6,7 @@ import { addDays, iso } from "@/lib/dates";
 import { firstName } from "@/lib/utils";
 import { rampColor } from "@/lib/constants";
 import { PATHS } from "@/components/icons";
-import type { User } from "@/lib/types";
+import type { User, Activity } from "@/lib/types";
 import { useEffect, useState } from "react";
 
 export function MemberDashboard({ user }: { user: User }) {
@@ -292,12 +292,12 @@ function WeeklyChart({ userId }: { userId: string | null }) {
   );
 }
 
-function TypeBars({ userId }: { userId: string | null }) {
+function TypeBars({ userId, activities }: { userId: string | null; activities?: Activity[] }) {
   const { now, activitiesFor, db } = useTrak();
-  const acts = (userId ? activitiesFor(userId) : db.activities).filter(
+  const acts = activities || (userId ? activitiesFor(userId) : db.activities).filter(
     (a) => a.createdAt >= iso(addDays(now, -90)),
   );
-  const counts = { Task: 0, Meeting: 0, Program: 0, Project: 0 };
+  const counts: Record<string, number> = { Task: 0, Meeting: 0, Program: 0, Project: 0 };
   acts.forEach((a) => {
     counts[a.type] = (counts[a.type] || 0) + 1;
   });
@@ -344,9 +344,9 @@ function TypeBars({ userId }: { userId: string | null }) {
   );
 }
 
-function RespBars({ userId }: { userId: string | null }) {
+function RespBars({ userId, activities }: { userId: string | null; activities?: Activity[] }) {
   const { now, activitiesFor, db, responsibilities } = useTrak();
-  const acts = (userId ? activitiesFor(userId) : db.activities).filter(
+  const acts = activities || (userId ? activitiesFor(userId) : db.activities).filter(
     (a) => a.createdAt >= iso(addDays(now, -90)),
   );
   const counts: Record<string, number> = {};

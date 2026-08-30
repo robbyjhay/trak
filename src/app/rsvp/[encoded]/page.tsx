@@ -39,17 +39,10 @@ export default function RsvpPage({
   function shell(inner: React.ReactNode) {
     return (
       <div className="flex min-h-screen w-full items-center justify-center bg-background p-8 text-foreground">
-        <div className="w-full max-w-[480px] rounded-[18px] border-[1.5px] border-border bg-surface px-9 py-[38px] shadow-card">
+        <div className="w-full max-w-[480px] border-[1.5px] border-border bg-surface px-9 py-[38px] shadow-card">
           <div className="mb-[26px] flex items-center gap-2.5">
-            <div className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-[9px] bg-linear-to-br from-saffron to-[#d9a72c]">
-              <svg width="17" height="17" viewBox="0 0 24 24" fill="none">
-                <path d="M12 2L3 7v2h18V7L12 2z" fill="currentColor" />
-                <path
-                  d="M4 10v9h2v-9H4zm14 0v9h2v-9h-2zM9 10v9h2v-9H9zm4 0v9h2v-9h-2z"
-                  fill="currentColor"
-                />
-                <path d="M2 21h20v1.6H2z" fill="currentColor" />
-              </svg>
+            <div className="flex h-[34px] w-[34px] shrink-0 items-center justify-center">
+              <img src="/logo.jpg" alt="Trak Logo" className="h-full w-full object-contain" />
             </div>
             <div className="text-[11px] font-bold tracking-[0.14em] text-foreground-faint uppercase">
               Trak · Attendance
@@ -118,7 +111,7 @@ export default function RsvpPage({
           value={name}
           onChange={(e) => setName(e.target.value)}
           placeholder="Your name"
-          className="w-full rounded-[11px] border-[1.5px] border-input-border bg-input px-4 py-3.5 text-[14.5px] text-foreground placeholder:text-input-placeholder outline-none focus:border-border-strong focus:ring-1 focus:ring-border"
+          className="w-full border-[1.5px] border-input-border bg-input px-4 py-3.5 text-[14.5px] text-foreground placeholder:text-input-placeholder outline-none focus:border-border-strong focus:ring-1 focus:ring-border"
         />
       </div>
       <div className="mb-3.5">
@@ -134,7 +127,7 @@ export default function RsvpPage({
           value={phone}
           onChange={(e) => setPhone(e.target.value)}
           placeholder="080..."
-          className="w-full rounded-[11px] border-[1.5px] border-input-border bg-input px-4 py-3.5 text-[14.5px] text-foreground placeholder:text-input-placeholder outline-none focus:border-border-strong focus:ring-1 focus:ring-border"
+          className="w-full border-[1.5px] border-input-border bg-input px-4 py-3.5 text-[14.5px] text-foreground placeholder:text-input-placeholder outline-none focus:border-border-strong focus:ring-1 focus:ring-border"
         />
       </div>
       <div className="mb-2">
@@ -150,7 +143,7 @@ export default function RsvpPage({
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           placeholder="you@example.com"
-          className="w-full rounded-[11px] border-[1.5px] border-input-border bg-input px-4 py-3.5 text-[14.5px] text-foreground placeholder:text-input-placeholder outline-none focus:border-border-strong focus:ring-1 focus:ring-border"
+          className="w-full border-[1.5px] border-input-border bg-input px-4 py-3.5 text-[14.5px] text-foreground placeholder:text-input-placeholder outline-none focus:border-border-strong focus:ring-1 focus:ring-border"
         />
       </div>
       {error && (
