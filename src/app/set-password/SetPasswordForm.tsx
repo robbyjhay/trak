@@ -27,7 +27,8 @@ export function SetPasswordForm({
       <div className="w-full max-w-[440px]">
         <div className="mb-6 flex items-center gap-3.5">
           <div className="flex h-[44px] w-[44px] items-center justify-center">
-            <img src="/logo.jpg" alt="Trak Logo" className="h-full w-full object-contain" />
+            <img src="/logo-black.png" alt="Trak Logo" className="h-full w-full object-contain dark:hidden" />
+              <img src="/logo-white.png" alt="Trak Logo" className="h-full w-full object-contain hidden dark:block" />
           </div>
           <div className="text-[12.5px] leading-snug tracking-[0.16em] text-foreground-secondary uppercase">
             Trak

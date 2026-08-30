@@ -42,7 +42,8 @@ export default function RsvpPage({
         <div className="w-full max-w-[480px] border-[1.5px] border-border bg-surface px-9 py-[38px] shadow-card">
           <div className="mb-[26px] flex items-center gap-2.5">
             <div className="flex h-[34px] w-[34px] shrink-0 items-center justify-center">
-              <img src="/logo.jpg" alt="Trak Logo" className="h-full w-full object-contain" />
+              <img src="/logo-black.png" alt="Trak Logo" className="h-full w-full object-contain dark:hidden" />
+              <img src="/logo-white.png" alt="Trak Logo" className="h-full w-full object-contain hidden dark:block" />
             </div>
             <div className="text-[11px] font-bold tracking-[0.14em] text-foreground-faint uppercase">
               Trak · Attendance

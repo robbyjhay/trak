@@ -27,7 +27,7 @@ export function Rail() {
         className="mb-[26px] flex h-[38px] w-[38px] items-center justify-center"
         aria-label="Trak home"
       >
-        <img src="/logo.jpg" alt="Trak Logo" className="h-full w-full object-contain" />
+        <img src="/logo-white.png" alt="Trak Logo" className="h-full w-full object-contain" />
       </Link>
 
       {NAV.filter((n) => !n.bottom).map((item) => (

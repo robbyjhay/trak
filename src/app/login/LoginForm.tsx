@@ -53,7 +53,7 @@ export function LoginForm({
         <div>
           <div className="flex items-center gap-3.5">
             <div className="flex h-[46px] w-[46px] items-center justify-center">
-              <img src="/logo.jpg" alt="Trak Logo" className="h-full w-full object-contain" />
+              <img src="/logo-white.png" alt="Trak Logo" className="h-full w-full object-contain" />
             </div>
             <div className="text-[12.5px] leading-snug tracking-[0.16em] text-white/70 uppercase">
               Lagos State Government · PSSDC
