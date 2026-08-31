@@ -17,7 +17,7 @@
   --color-saffron: #f6c642;
   --color-saffron-dim: #8a6a1f;
   --color-paper: #fbfaf6;
-  --color-card: #ffffff;
+  --color-card: var(--card);
   --color-ink: #12211d;
   --color-ink-soft: #5f7069;
   /* ~4.6:1 on paper (#fbfaf6) — WCAG AA for normal text */
