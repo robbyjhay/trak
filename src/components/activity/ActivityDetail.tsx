@@ -155,7 +155,7 @@ export function ActivityDetail({
           )}
         </div>
         
-        {canEditDates && (
+        {canEditDates && act.status !== "completed" && (
           <div className="mt-4 flex flex-wrap gap-2">
             <GhostBtn onClick={() => setEditOpen(true)} className="px-3 py-1.5 text-xs">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="mr-1.5">

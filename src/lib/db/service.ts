@@ -762,6 +762,9 @@ export async function updateActivityEndDate(
   if (act.createdById !== session.id && actor.role !== "head") {
     throw new ServiceError(403, "Not allowed to update this activity.");
   }
+  if (act.status === "completed") {
+    throw new ServiceError(400, "Cannot edit an activity after its report has been submitted.");
+  }
   
   const newEnd = dateFromIso(endDate);
   if (newEnd < act.startDate) {
@@ -856,6 +859,9 @@ export async function updateActivityMetadata(
   if (!act || act.softDeletedAt) throw new ServiceError(404, "Activity not found.");
   if (act.createdById !== session.id && actor.role !== "head") {
     throw new ServiceError(403, "Not allowed to update this activity.");
+  }
+  if (act.status === "completed") {
+    throw new ServiceError(400, "Cannot edit an activity after its report has been submitted.");
   }
 
   const updateData: any = {};
