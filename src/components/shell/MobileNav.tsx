@@ -100,13 +100,13 @@ export function MobileNav() {
                     aria-current={active ? "page" : undefined}
                     className={cn(
                         "flex h-full w-14 flex-col items-center justify-center gap-1 bg-transparent transition-colors hover:bg-transparent",
-                        active ? "text-saffron" : "text-aztec/70 hover:text-aztec dark:text-white/70 dark:hover:text-white"
+                        active ? "text-saffron" : "text-aztec dark:text-white hover:text-aztec dark:hover:text-white"
                     )}
                   >
-                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.25">
+                    <svg className={cn(active && "text-saffron")} width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.25">
                       <path d={item.path} />
                     </svg>
-                    <span className="text-[10px] font-bold truncate w-full text-center">{label}</span>
+                    <span className={cn("w-full truncate text-center text-[10px] font-bold", active ? "text-saffron" : "text-aztec dark:text-white")}>{label}</span>
                   </Link>
                 );
               })}
@@ -130,13 +130,13 @@ export function MobileNav() {
                     aria-current={active ? "page" : undefined}
                     className={cn(
                         "flex h-full w-14 flex-col items-center justify-center gap-1 bg-transparent transition-colors hover:bg-transparent",
-                        active ? "text-saffron" : "text-aztec/70 hover:text-aztec dark:text-white/70 dark:hover:text-white"
+                        active ? "text-saffron" : "text-aztec dark:text-white hover:text-aztec dark:hover:text-white"
                     )}
                   >
-                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.25">
+                    <svg className={cn(active && "text-saffron")} width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.25">
                       <path d={item.path} />
                     </svg>
-                    <span className="text-[10px] font-bold truncate w-full text-center">{label}</span>
+                    <span className={cn("w-full truncate text-center text-[10px] font-bold", active ? "text-saffron" : "text-aztec dark:text-white")}>{label}</span>
                   </Link>
                 );
               })}

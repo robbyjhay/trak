@@ -73,8 +73,8 @@ function RailItem({
       className={cn(
         "group relative flex h-12 w-12 items-center justify-center rounded-rail transition-colors focus-visible:ring-2 focus-visible:ring-saffron focus-visible:outline-none",
         active
-          ? "bg-saffron text-aztec"
-          : "text-aztec/70 hover:bg-aztec/5 hover:text-aztec dark:text-white/70 dark:hover:bg-white/5 dark:hover:text-white",
+          ? "bg-saffron text-white dark:text-aztec"
+          : "text-aztec hover:bg-aztec/5 hover:text-aztec dark:text-white dark:hover:bg-white/5 dark:hover:text-white",
       )}
       aria-label={label}
       aria-current={active ? "page" : undefined}
@@ -83,6 +83,7 @@ function RailItem({
         {label}
       </span>
       <svg
+        className={cn(active ? "text-white dark:text-aztec" : "dark:text-white")}
         width="19"
         height="19"
         viewBox="0 0 24 24"
