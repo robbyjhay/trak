@@ -14,17 +14,18 @@ interface ThemeContextType {
 
 const ThemeContext = createContext<ThemeContextType | null>(null);
 
-export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [theme, setThemeState] = useState<Theme>("system");
-  const [preview, setPreview] = useState<Theme>("system");
+function getInitialTheme(): Theme {
+  if (typeof window === "undefined") return "system";
+  try {
+    return (localStorage.getItem("trak-theme") as Theme) || "system";
+  } catch {
+    return "system";
+  }
+}
 
-  useEffect(() => {
-    const saved = localStorage.getItem("trak-theme") as Theme | null;
-    if (saved) {
-      setThemeState(saved);
-      setPreview(saved);
-    }
-  }, []);
+export function ThemeProvider({ children }: { children: React.ReactNode }) {
+  const [theme, setThemeState] = useState<Theme>(getInitialTheme);
+  const [preview, setPreview] = useState<Theme>(getInitialTheme);
 
   useEffect(() => {
     const root = window.document.documentElement;
