@@ -19,15 +19,16 @@ export function Rail() {
 
   return (
     <nav
-      className="sticky top-0 z-50 flex h-screen w-rail shrink-0 flex-col items-center gap-1.5 bg-linear-to-b from-aztec to-aztec-2 py-[22px]"
+      className="sticky top-0 z-50 flex h-screen w-rail shrink-0 flex-col items-center gap-1.5 bg-[#F8F9FA] dark:bg-linear-to-b dark:from-aztec dark:to-aztec-2 border-r border-border/50 dark:border-transparent py-[22px]"
       aria-label="Main"
     >
       <Link
         href="/dashboard"
-        className="mb-[26px] flex h-[38px] w-[38px] items-center justify-center"
+        className="mb-[26px] flex h-[38px] w-[38px] items-center justify-center transition-opacity hover:opacity-80 focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none"
         aria-label="Trak home"
       >
-        <img src="/logo-white.png" alt="Trak Logo" className="h-full w-full object-contain" />
+        <img src="/logo-black.png" alt="Trak" className="h-full w-full object-contain dark:hidden" />
+        <img src="/logo-white.png" alt="Trak" className="h-full w-full object-contain hidden dark:block" />
       </Link>
 
       {NAV.filter((n) => !n.bottom).map((item) => (
@@ -72,21 +73,22 @@ function RailItem({
       className={cn(
         "group relative flex h-12 w-12 items-center justify-center rounded-rail transition-colors focus-visible:ring-2 focus-visible:ring-saffron focus-visible:outline-none",
         active
-          ? "bg-saffron text-aztec"
-          : "text-white hover:bg-paper/8 hover:text-white",
+          ? "bg-saffron text-white dark:text-aztec"
+          : "text-aztec hover:bg-aztec/5 hover:text-aztec dark:text-white dark:hover:bg-white/5 dark:hover:text-white",
       )}
       aria-label={label}
       aria-current={active ? "page" : undefined}
     >
-      <span className="pointer-events-none absolute left-16 z-20 bg-aztec px-2.5 py-1.5 text-[11px] whitespace-nowrap text-white opacity-0 shadow-[0_6px_16px_rgba(0,0,0,0.3)] transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100 group-focus-within:opacity-100">
+      <span className="pointer-events-none absolute left-16 z-20 rounded-[7px] bg-aztec px-2.5 py-1.5 text-[11px] whitespace-nowrap text-white dark:bg-white dark:text-aztec opacity-0 shadow-[0_6px_16px_rgba(0,0,0,0.3)] transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100 group-focus-within:opacity-100">
         {label}
       </span>
       <svg
+        className={cn(active ? "text-white dark:text-aztec" : "dark:text-white")}
         width="19"
         height="19"
         viewBox="0 0 24 24"
         fill="none"
-        stroke={active ? "#0d1d1a" : "#ffffff"}
+        stroke="currentColor"
         strokeWidth="2"
       >
         <path d={path} />

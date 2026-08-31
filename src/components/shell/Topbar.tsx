@@ -54,7 +54,7 @@ export function Topbar() {
   const greeting = `${getGreeting()}, ${firstName(sessionUser.name)}`;
 
   return (
-    <header className="sticky top-0 z-40 flex h-[88px] shrink-0 items-center justify-between gap-4 bg-background px-6 sm:px-10 relative">
+    <header className="sticky top-0 z-40 flex h-[88px] shrink-0 items-center justify-between gap-4 bg-[#F8F9FA] dark:bg-[color:var(--aztec)] border-b border-border/50 dark:border-transparent px-6 sm:px-10 relative">
       <div className="flex flex-col justify-center">
         <h1 className="text-[22px] font-extrabold tracking-tight text-foreground">
           {isSettings ? "Settings" : isConnect ? "Connect" : isActivities ? "Activities" : greeting}
