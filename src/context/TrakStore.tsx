@@ -149,7 +149,7 @@ interface TrakStoreValue {
     },
   ) => Promise<Responsibility>;
   sendDm: (toId: string, text: string, attachments?: SendMessageAttachmentInput[]) => Promise<void>;
-  sendCommunity: (text: string, attachments?: SendMessageAttachmentInput[]) => Promise<void>;
+  sendCommunity: (text: string, attachments?: SendMessageAttachmentInput[], mentions?: { userId: string; position: number }[]) => Promise<void>;
   wipeCommunity: () => Promise<void>;
   deleteDmMessage: (messageId: string, forEveryone: boolean) => Promise<void>;
   deleteCommunityMessage: (messageId: string, forEveryone: boolean) => Promise<void>;
@@ -617,7 +617,7 @@ export function TrakStoreProvider({
         bump();
       }
     },
-    sendCommunity: async (text, attachments) => {
+    sendCommunity: async (text, attachments, mentions) => {
       const tempId = `temp_${Date.now()}`;
       stateRef.current.db.community.push({
         id: tempId,
@@ -632,7 +632,7 @@ export function TrakStoreProvider({
         const res = await apiSend<{ community: typeof db.community }>(
           "/api/messages/community",
           "POST",
-          { text, attachments },
+          { text, attachments, mentions },
         );
         stateRef.current.db.community = res.community;
       } finally {

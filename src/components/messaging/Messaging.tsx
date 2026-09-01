@@ -209,10 +209,11 @@ export function Messaging({
                 )}
                 
                 <ChatThread 
-                  items={[...db.community].sort((a, b) => new Date(a.at).getTime() - new Date(b.at).getTime()).map(m => ({ kind: "dm", id: m.id, dm: m as unknown as Dm }))} 
+                  items={[...db.community].sort((a, b) => new Date(a.at).getTime() - new Date(b.at).getTime()).map(m => ({ kind: "dm", id: m.id, dm: m as unknown as Dm, mentions: m.mentions }))} 
                   me={me} 
                   userMap={userMap} 
                   isGroup={true}
+                  onMentionClick={openThread}
                   onDeleteMessage={(messageId, forEveryone) => {
                     void deleteCommunityMessage(messageId, forEveryone).catch(() =>
                       showToast("Could not delete message", "Please try again."),
@@ -225,11 +226,14 @@ export function Messaging({
                   value={input}
                   onChange={setInput}
                   placeholder="Message the whole unit…"
-                  onSend={(attachments) => {
+                  users={users}
+                  currentUserId={me}
+                  showMentions={true}
+                  onSend={(attachments, mentions) => {
                     if (!input.trim() && (!attachments || attachments.length === 0)) return;
                     const text = input.trim();
                     setInput("");
-                    void sendCommunity(text, attachments).catch(() =>
+                    void sendCommunity(text, attachments, mentions).catch(() =>
                       showToast("Could not send message", "Please try again."),
                     );
                   }}
@@ -358,6 +362,7 @@ export function Messaging({
                           items={items} 
                           me={me} 
                           userMap={userMap}
+                          onMentionClick={openThread}
                           onDeleteMessage={(messageId, forEveryone) => {
                             void deleteDmMessage(messageId, forEveryone).catch(() =>
                               showToast("Could not delete message", "Please try again."),

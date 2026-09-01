@@ -420,8 +420,9 @@ model CommunityMessage {
 }
 
 model CommunityMessageMention {
-  messageId String @map("message_id") @db.Uuid
-  userId    String @map("user_id") @db.Uuid
+  messageId  String @map("message_id") @db.Uuid
+  userId     String @map("user_id") @db.Uuid
+  position   Int    @default(0)
 
   message CommunityMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
   user    User             @relation("CommunityMessageMentionUser", fields: [userId], references: [id], onDelete: Cascade)
