@@ -626,6 +626,11 @@ export function TrakStoreProvider({
         attachments: (attachments || []).map((a, i) => ({ ...a, id: `${tempId}_${i}`, messageId: tempId })),
         at: new Date().toISOString(),
         replyToId: null,
+        mentions: (mentions || []).map(m => ({
+          userId: m.userId,
+          position: m.position,
+          displayName: userMap[m.userId]?.name || "Unknown",
+        })),
       });
       bump();
       try {
