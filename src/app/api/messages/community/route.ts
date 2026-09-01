@@ -38,10 +38,10 @@ export async function POST(req: Request) {
       throw new ServiceError(429, "Message rate limit exceeded.");
     }
 
-    const body = await parseJsonBody<{ text?: string; replyToId?: string; attachments?: any[] }>(
+    const body = await parseJsonBody<{ text?: string; replyToId?: string; attachments?: any[]; mentions?: { userId: string; position: number }[] }>(
       req,
     );
-    await sendCommunity(session, body.text || "", body.replyToId, body.attachments);
+    await sendCommunity(session, body.text || "", body.replyToId, body.attachments, body.mentions);
     const { community } = await listCommunity({ limit: 100, userId: session.id });
     return jsonOk({ community });
   } catch (err) {

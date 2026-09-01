@@ -1,12 +1,12 @@
 import React, { useRef, useEffect } from "react";
 import { Bubble } from "./Bubble";
-import { CallRecord, Dm } from "@/lib/types";
+import { CallRecord, Dm, MessageMention } from "@/lib/types";
 import { PATHS } from "@/components/icons";
 import { formatDuration } from "@/lib/utils";
 import { formatRelativeDate } from "@/lib/dates";
 
 type ThreadItem =
-  | { kind: "dm"; id: string; dm: Dm }
+  | { kind: "dm"; id: string; dm: Dm; mentions?: MessageMention[] }
   | { kind: "call"; id: string; call: CallRecord };
 
 function formatMessageTime(isoString: string): string {
@@ -34,6 +34,7 @@ export function ChatThread({
   isGroup,
   onDeleteMessage,
   canDeleteAny = false,
+  onMentionClick,
 }: {
   items: ThreadItem[];
   me: string;
@@ -41,6 +42,7 @@ export function ChatThread({
   isGroup?: boolean;
   onDeleteMessage?: (messageId: string, forEveryone: boolean) => void;
   canDeleteAny?: boolean;
+  onMentionClick?: (userId: string) => void;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -123,6 +125,8 @@ export function ChatThread({
           onDelete={onDeleteMessage ? (forEveryone) => onDeleteMessage(item.id, forEveryone) : undefined}
           canDeleteAny={canDeleteAny}
           isDeleted={(item.dm as any).isDeleted}
+          mentions={item.mentions}
+          onMentionClick={onMentionClick}
         />
       );
     }

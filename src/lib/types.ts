@@ -162,6 +162,12 @@ export interface CallRecord {
   at: string;
 }
 
+export interface MessageMention {
+  userId: string;
+  displayName: string;
+  position: number;
+}
+
 export interface CommunityMessage {
   isDeleted?: boolean;
   id: string;
@@ -170,6 +176,7 @@ export interface CommunityMessage {
   at: string;
   replyToId?: string | null;
   attachments?: MessageAttachment[];
+  mentions?: MessageMention[];
 }
 
 export interface Broadcast {

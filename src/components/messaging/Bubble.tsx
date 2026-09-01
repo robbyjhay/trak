@@ -2,7 +2,8 @@
 
 import React, { useState, useRef, useEffect } from "react";
 import { initials, firstName, cn } from "@/lib/utils";
-import type { MessageAttachment } from "@/lib/types";
+import { parseSegments } from "@/lib/mention-utils";
+import type { MessageAttachment, MessageMention } from "@/lib/types";
 
 function formatMessageTime(isoString: string): string {
   if (!isoString) return "";
@@ -26,6 +27,8 @@ export function Bubble({
   onDelete,
   canDeleteAny = false,
   isDeleted = false,
+  mentions,
+  onMentionClick,
 }: {
   fromId: string;
   text: string;
@@ -79,6 +82,8 @@ export function Bubble({
     setMenuOpen(false);
     onDelete?.(forEveryone);
   }
+
+  const segments = parseSegments(text, isDeleted ? undefined : mentions);
 
   return (
     <div
@@ -167,7 +172,29 @@ export function Bubble({
             </div>
           ) : text && (
             <div className="text-[14px] leading-[1.4] break-words whitespace-pre-wrap">
-              {text}
+              {segments.map((seg, i) => {
+                if (seg.type === "text") {
+                  return <span key={i}>{seg.value}</span>;
+                }
+                return (
+                  <button
+                    key={`mention-${i}-${seg.userId}`}
+                    type="button"
+                    className={cn(
+                      "inline font-bold rounded-[4px] px-0.5 -mx-0.5 border-none bg-transparent cursor-pointer transition-colors align-baseline text-[14px] leading-[1.4]",
+                      isMe
+                        ? "text-primary-foreground bg-white/20 hover:bg-white/30"
+                        : "text-primary bg-primary/10 hover:bg-primary/20"
+                    )}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onMentionClick?.(seg.userId);
+                    }}
+                  >
+                    @{seg.displayName}
+                  </button>
+                );
+              })}
             </div>
           )}
           

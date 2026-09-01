@@ -54,6 +54,73 @@ export function Composer({
     }
   }, [value]);
 
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (mentionOpen && containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setMentionOpen(false);
+        mentionStartRef.current = -1;
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [mentionOpen]);
+
+  const handleTextChange = useCallback(
+    (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+      const newValue = e.target.value;
+      const cursorPos = e.target.selectionStart;
+      onChange(newValue);
+
+      if (showMentions) {
+        const mention = parseMentionQuery(newValue, cursorPos);
+        if (mention) {
+          setMentionOpen(true);
+          setMentionQuery(mention.query);
+          mentionStartRef.current = mention.start;
+        } else {
+          setMentionOpen(false);
+        }
+      }
+    },
+    [onChange, showMentions],
+  );
+
+  const handleMentionSelect = useCallback(
+    (mention: MentionSelect) => {
+      if (mentionStartRef.current === -1) return;
+      const cursorPos = textareaRef.current?.selectionStart ?? value.length;
+      const mentionInsertPos = mentionStartRef.current;
+      const mentionData = { userId: mention.userId, displayName: mention.displayName, position: mentionInsertPos };
+      const result = insertMention(value, mentionInsertPos, cursorPos, mentionData);
+      const mentionText = `@${mention.displayName}`;
+      const mentionLen = mentionText.length + 1;
+      setPendingMentions((prev) => {
+        if (prev.some((m) => m.userId === mention.userId)) return prev;
+        const updated = prev.map((m) => ({
+          ...m,
+          position: m.position >= mentionInsertPos ? m.position + mentionLen : m.position,
+        }));
+        return [...updated, { userId: mention.userId, displayName: mention.displayName, position: mentionInsertPos }];
+      });
+      onChange(result.text);
+      setMentionOpen(false);
+      mentionStartRef.current = -1;
+      requestAnimationFrame(() => {
+        if (textareaRef.current) {
+          textareaRef.current.focus();
+          textareaRef.current.setSelectionRange(result.cursorPos, result.cursorPos);
+        }
+      });
+    },
+    [value, onChange],
+  );
+
+  const handleMentionClose = useCallback(() => {
+    setMentionOpen(false);
+    mentionStartRef.current = -1;
+    textareaRef.current?.focus();
+  }, []);
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
     if (!f) return;
@@ -82,8 +149,13 @@ export function Composer({
     if (!trimmed && !file) return;
     if (uploading) return;
 
+    if (mentionOpen) return;
+
+    const mentionsToSend = pendingMentions.length > 0 ? [...pendingMentions] : undefined;
+
     if (!file) {
-      onSend();
+      onSend(undefined, mentionsToSend);
+      setPendingMentions([]);
       return;
     }
 
@@ -122,7 +194,8 @@ export function Composer({
         storageKey: key,
       };
 
-      onSend([att]);
+      onSend([att], mentionsToSend);
+      setPendingMentions([]);
       removeFile();
     } catch (err: any) {
       setUploadError(err.message || "Upload failed");
@@ -158,12 +231,23 @@ export function Composer({
   };
 
   return (
-    <div 
-      className={`flex flex-col z-10 ${isDragging ? 'bg-primary/5 border-primary border-dashed border-t-2' : 'bg-background transition-colors'}`}
+    <div
+      ref={containerRef}
+      className={`flex flex-col z-10 relative ${isDragging ? 'bg-primary/5 border-primary border-dashed border-t-2' : 'bg-background transition-colors'}`}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
     >
+      {showMentions && users && currentUserId && (
+        <MentionAutocomplete
+          query={mentionQuery}
+          users={users}
+          currentUserId={currentUserId}
+          onSelect={handleMentionSelect}
+          onClose={handleMentionClose}
+          isOpen={mentionOpen}
+        />
+      )}
       {file && (
         <div className="px-4 pt-4 sm:px-6 md:px-8">
           <div className="relative inline-flex flex-col items-center justify-center rounded-xl border border-border bg-surface p-2 shadow-sm max-w-[200px]">
@@ -231,13 +315,14 @@ export function Composer({
           <textarea
             ref={textareaRef}
             value={value}
-            onChange={(e) => onChange(e.target.value)}
+            onChange={handleTextChange}
             placeholder={file ? "Add a caption..." : placeholder}
             className="w-full resize-none border-none outline-none ring-0 bg-transparent text-[15px] leading-[20px] text-foreground placeholder-input-placeholder scrollbar-thin self-center max-h-[120px] py-[9.5px] px-1"
             rows={1}
             disabled={uploading}
             onKeyDown={(e) => {
               if (e.key === "Enter" && !e.shiftKey) {
+                if (mentionOpen) return;
                 e.preventDefault();
                 handleSend();
               }
@@ -249,12 +334,12 @@ export function Composer({
             type="button"
             onClick={handleSend}
             className={`flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-full border-none transition-all duration-200 mb-0.5 ${
-              canSend && !uploading
+              canSend && !uploading && !mentionOpen
                 ? "cursor-pointer bg-primary text-primary-foreground shadow-sm hover:scale-105 active:scale-95 hover:bg-primary-hover" 
                 : "bg-transparent text-foreground-faint cursor-default"
             }`}
             aria-label="Send message"
-            disabled={!canSend || uploading}
+            disabled={!canSend || uploading || mentionOpen}
           >
             {uploading ? (
               <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary-foreground border-t-transparent"></div>
