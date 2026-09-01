@@ -8,6 +8,7 @@ export interface MentionData {
   userId: string;
   displayName: string;
   position: number;
+  length: number;
 }
 
 export interface MentionSelect {
@@ -151,4 +152,40 @@ export function MentionAutocomplete({
       </div>
     </div>
   );
+}
+
+export function reconcileMentions(oldText: string, newText: string, prevMentions: MentionData[]): MentionData[] {
+  if (prevMentions.length === 0) return prevMentions;
+  
+  let prefixLen = 0;
+  while (prefixLen < oldText.length && prefixLen < newText.length && oldText[prefixLen] === newText[prefixLen]) {
+    prefixLen++;
+  }
+  let suffixLen = 0;
+  while (suffixLen < oldText.length - prefixLen && suffixLen < newText.length - prefixLen && oldText[oldText.length - 1 - suffixLen] === newText[newText.length - 1 - suffixLen]) {
+    suffixLen++;
+  }
+  
+  const editStart = prefixLen;
+  const oldEditEnd = oldText.length - suffixLen;
+  const delta = newText.length - oldText.length;
+  
+  const nextMentions: MentionData[] = [];
+  let changed = false;
+  
+  for (const m of prevMentions) {
+    const mStart = m.position;
+    const mEnd = m.position + m.length;
+    
+    if (oldEditEnd <= mStart) {
+      nextMentions.push({ ...m, position: m.position + delta });
+      changed = true;
+    } else if (editStart >= mEnd) {
+      nextMentions.push(m);
+    } else {
+      changed = true;
+    }
+  }
+  
+  return changed ? nextMentions : prevMentions;
 }

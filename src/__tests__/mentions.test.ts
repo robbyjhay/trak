@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { parseMentionQuery, insertMention } from "@/components/messaging/MentionAutocomplete";
+import { parseMentionQuery, insertMention, reconcileMentions } from "@/components/messaging/MentionAutocomplete";
 import { parseSegments } from "@/lib/mention-utils";
 import type { MessageMention } from "@/lib/types";
 
@@ -53,31 +53,31 @@ describe("parseMentionQuery", () => {
 
 describe("insertMention", () => {
   test("inserts mention at start of text", () => {
-    const result = insertMention("hello", 0, 0, { userId: "1", displayName: "John", position: 0 });
+    const result = insertMention("hello", 0, 0, { userId: "1", displayName: "John", position: 0, length: 5 });
     expect(result.text).toBe("@John hello");
     expect(result.cursorPos).toBe(6);
   });
 
   test("inserts mention in middle of text replacing query", () => {
-    const result = insertMention("hello @jo world", 6, 9, { userId: "1", displayName: "Jane", position: 6 });
+    const result = insertMention("hello @jo world", 6, 9, { userId: "1", displayName: "Jane", position: 6, length: 5 });
     expect(result.text).toBe("hello @Jane  world");
     expect(result.cursorPos).toBe(12);
   });
 
   test("inserts mention at end of text", () => {
-    const result = insertMention("hello ", 6, 6, { userId: "1", displayName: "John", position: 6 });
+    const result = insertMention("hello ", 6, 6, { userId: "1", displayName: "John", position: 6, length: 5 });
     expect(result.text).toBe("hello @John ");
     expect(result.cursorPos).toBe(12);
   });
 
   test("replaces partial query with mention", () => {
-    const result = insertMention("hello @jo", 6, 9, { userId: "1", displayName: "John Doe", position: 6 });
+    const result = insertMention("hello @jo", 6, 9, { userId: "1", displayName: "John Doe", position: 6, length: 9 });
     expect(result.text).toBe("hello @John Doe ");
     expect(result.cursorPos).toBe(16);
   });
 
   test("preserves text after cursor", () => {
-    const result = insertMention("hello @jo world", 6, 9, { userId: "1", displayName: "John", position: 6 });
+    const result = insertMention("hello @jo world", 6, 9, { userId: "1", displayName: "John", position: 6, length: 5 });
     expect(result.text).toBe("hello @John  world");
     expect(result.cursorPos).toBe(12);
   });
@@ -96,7 +96,7 @@ describe("parseSegments - position-based mention rendering", () => {
 
   test("renders a single mention at start of text", () => {
     const mentions: MessageMention[] = [
-      { userId: "user-1", displayName: "John", position: 0 },
+      { userId: "user-1", displayName: "John", position: 0, length: 5 },
     ];
     const segments = parseSegments("@John hello", mentions);
     expect(segments).toEqual([
@@ -107,7 +107,7 @@ describe("parseSegments - position-based mention rendering", () => {
 
   test("renders a single mention in middle of text", () => {
     const mentions: MessageMention[] = [
-      { userId: "user-1", displayName: "John", position: 6 },
+      { userId: "user-1", displayName: "John", position: 6, length: 5 },
     ];
     const segments = parseSegments("hello @John world", mentions);
     expect(segments).toEqual([
@@ -119,7 +119,7 @@ describe("parseSegments - position-based mention rendering", () => {
 
   test("renders a single mention at end of text", () => {
     const mentions: MessageMention[] = [
-      { userId: "user-1", displayName: "John", position: 6 },
+      { userId: "user-1", displayName: "John", position: 6, length: 5 },
     ];
     const segments = parseSegments("hello @John", mentions);
     expect(segments).toEqual([
@@ -130,8 +130,8 @@ describe("parseSegments - position-based mention rendering", () => {
 
   test("renders multiple mentions with correct user IDs", () => {
     const mentions: MessageMention[] = [
-      { userId: "user-1", displayName: "John Doe", position: 0 },
-      { userId: "user-2", displayName: "Jane Smith", position: 10 },
+      { userId: "user-1", displayName: "John Doe", position: 0, length: 9 },
+      { userId: "user-2", displayName: "Jane Smith", position: 10, length: 11 },
     ];
     const segments = parseSegments("@John Doe @Jane Smith please review", mentions);
     expect(segments).toEqual([
@@ -144,8 +144,8 @@ describe("parseSegments - position-based mention rendering", () => {
 
   test("different users with same display name get different user IDs", () => {
     const mentions: MessageMention[] = [
-      { userId: "user-aaa", displayName: "John", position: 0 },
-      { userId: "user-bbb", displayName: "John", position: 6 },
+      { userId: "user-aaa", displayName: "John", position: 0, length: 5 },
+      { userId: "user-bbb", displayName: "John", position: 6, length: 5 },
     ];
     const segments = parseSegments("@John @John", mentions);
     expect(segments).toEqual([
@@ -157,7 +157,7 @@ describe("parseSegments - position-based mention rendering", () => {
 
   test("name change does not break navigation - userId is preserved", () => {
     const mentions: MessageMention[] = [
-      { userId: "user-xyz", displayName: "Old Name", position: 0 },
+      { userId: "user-xyz", displayName: "Old Name", position: 0, length: 9 },
     ];
     const segments = parseSegments("@Old Name was here", mentions);
     expect(segments[0]).toEqual({
@@ -176,7 +176,7 @@ describe("parseSegments - position-based mention rendering", () => {
 
   test("only stored mentions are rendered as links", () => {
     const mentions: MessageMention[] = [
-      { userId: "user-1", displayName: "John", position: 0 },
+      { userId: "user-1", displayName: "John", position: 0, length: 5 },
     ];
     const segments = parseSegments("@John and @Jane", mentions);
     expect(segments).toEqual([
@@ -187,7 +187,7 @@ describe("parseSegments - position-based mention rendering", () => {
 
   test("handles mention with empty text after it", () => {
     const mentions: MessageMention[] = [
-      { userId: "user-1", displayName: "John", position: 0 },
+      { userId: "user-1", displayName: "John", position: 0, length: 5 },
     ];
     const segments = parseSegments("@John", mentions);
     expect(segments).toEqual([
@@ -197,7 +197,7 @@ describe("parseSegments - position-based mention rendering", () => {
 
   test("skips mentions with invalid positions", () => {
     const mentions: MessageMention[] = [
-      { userId: "user-1", displayName: "John", position: 999 },
+      { userId: "user-1", displayName: "John", position: 999, length: 5 },
     ];
     const segments = parseSegments("hello", mentions);
     expect(segments).toEqual([{ type: "text", value: "hello" }]);
@@ -205,7 +205,7 @@ describe("parseSegments - position-based mention rendering", () => {
 
   test("skips mentions with negative positions", () => {
     const mentions: MessageMention[] = [
-      { userId: "user-1", displayName: "John", position: -1 },
+      { userId: "user-1", displayName: "John", position: -1, length: 5 },
     ];
     const segments = parseSegments("hello", mentions);
     expect(segments).toEqual([{ type: "text", value: "hello" }]);
@@ -213,8 +213,8 @@ describe("parseSegments - position-based mention rendering", () => {
 
   test("skips overlapping mention positions (second one ignored)", () => {
     const mentions: MessageMention[] = [
-      { userId: "user-1", displayName: "John", position: 6 },
-      { userId: "user-2", displayName: "Jane", position: 6 },
+      { userId: "user-1", displayName: "John", position: 6, length: 5 },
+      { userId: "user-2", displayName: "Jane", position: 6, length: 5 },
     ];
     const segments = parseSegments("hello @John @Jane", mentions);
     expect(segments[0]).toEqual({ type: "text", value: "hello " });
@@ -225,8 +225,8 @@ describe("parseSegments - position-based mention rendering", () => {
 
   test("preserves text between mentions", () => {
     const mentions: MessageMention[] = [
-      { userId: "user-1", displayName: "John", position: 0 },
-      { userId: "user-2", displayName: "Jane", position: 18 },
+      { userId: "user-1", displayName: "John", position: 0, length: 5 },
+      { userId: "user-2", displayName: "Jane", position: 18, length: 5 },
     ];
     const segments = parseSegments("@John please tell @Jane", mentions);
     expect(segments).toEqual([
@@ -246,8 +246,8 @@ describe("parseSegments - position-based mention rendering", () => {
 describe("Mention navigation targets", () => {
   test("each mention segment carries the correct userId for DM opening", () => {
     const mentions: MessageMention[] = [
-      { userId: "abc-123", displayName: "John Doe", position: 0 },
-      { userId: "def-456", displayName: "Jane Smith", position: 10 },
+      { userId: "abc-123", displayName: "John Doe", position: 0, length: 9 },
+      { userId: "def-456", displayName: "Jane Smith", position: 10, length: 11 },
     ];
     const segments = parseSegments("@John Doe @Jane Smith", mentions);
     const mentionSegments = segments.filter((s) => s.type === "mention");
@@ -258,7 +258,7 @@ describe("Mention navigation targets", () => {
 
   test("mention userId is stable regardless of display name", () => {
     const mentions: MessageMention[] = [
-      { userId: "stable-id-999", displayName: "Whatever Name", position: 0 },
+      { userId: "stable-id-999", displayName: "Whatever Name", position: 0, length: 14 },
     ];
     const segments = parseSegments("@Whatever Name", mentions);
     expect((segments[0] as any).userId).toBe("stable-id-999");
@@ -266,7 +266,7 @@ describe("Mention navigation targets", () => {
 
   test("clicking @John invokes DM handler with John's userId, not /member/ route", () => {
     const mentions: MessageMention[] = [
-      { userId: "john-user-id", displayName: "John", position: 20 },
+      { userId: "john-user-id", displayName: "John", position: 20, length: 5 },
     ];
     const segments = parseSegments("Please review this. @John", mentions);
     const mentionSeg = segments.find((s) => s.type === "mention");
@@ -278,8 +278,8 @@ describe("Mention navigation targets", () => {
 
   test("two mentions open different DMs based on userId", () => {
     const mentions: MessageMention[] = [
-      { userId: "john-id", displayName: "John", position: 0 },
-      { userId: "jane-id", displayName: "Jane", position: 6 },
+      { userId: "john-id", displayName: "John", position: 0, length: 5 },
+      { userId: "jane-id", displayName: "Jane", position: 6, length: 5 },
     ];
     const segments = parseSegments("@John @Jane", mentions);
     const mentionSegs = segments.filter((s) => s.type === "mention");
@@ -289,8 +289,8 @@ describe("Mention navigation targets", () => {
 
   test("similar display names resolve to different user IDs", () => {
     const mentions: MessageMention[] = [
-      { userId: "user-aaa", displayName: "John Smith", position: 0 },
-      { userId: "user-bbb", displayName: "John Smith", position: 11 },
+      { userId: "user-aaa", displayName: "John Smith", position: 0, length: 11 },
+      { userId: "user-bbb", displayName: "John Smith", position: 11, length: 11 },
     ];
     const segments = parseSegments("@John Smith @John Smith", mentions);
     const mentionSegs = segments.filter((s) => s.type === "mention");
@@ -300,9 +300,75 @@ describe("Mention navigation targets", () => {
 
   test("name change does not break DM navigation - userId is stable", () => {
     const mentions: MessageMention[] = [
-      { userId: "user-xyz", displayName: "Old Name", position: 0 },
+      { userId: "user-xyz", displayName: "Old Name", position: 0, length: 9 },
     ];
     const segments = parseSegments("@Old Name was here", mentions);
     expect((segments[0] as any).userId).toBe("user-xyz");
+  });
+});
+
+describe("reconcileMentions", () => {
+  test("insertion before mention shifts position forward", () => {
+    const mentions = [{ userId: "1", displayName: "MemberA", position: 6, length: 8 }];
+    const result = reconcileMentions("Hello @MemberA", "Wow Hello @MemberA", mentions);
+    expect(result[0].position).toBe(10);
+    expect(result[0].length).toBe(8);
+  });
+
+  test("deletion before mention shifts position backward", () => {
+    const mentions = [{ userId: "1", displayName: "MemberA", position: 6, length: 8 }];
+    const result = reconcileMentions("Hello @MemberA", "@MemberA", mentions);
+    expect(result[0].position).toBe(0);
+    expect(result[0].length).toBe(8);
+  });
+
+  test("insertion after mention leaves position unchanged", () => {
+    const mentions = [{ userId: "1", displayName: "MemberA", position: 6, length: 8 }];
+    const result = reconcileMentions("Hello @MemberA", "Hello @MemberA Wow", mentions);
+    expect(result[0].position).toBe(6);
+    expect(result[0].length).toBe(8);
+  });
+
+  test("deletion after mention leaves position unchanged", () => {
+    const mentions = [{ userId: "1", displayName: "MemberA", position: 6, length: 8 }];
+    const result = reconcileMentions("Hello @MemberA Wow", "Hello @MemberA", mentions);
+    expect(result[0].position).toBe(6);
+  });
+
+  test("editing inside mention removes it", () => {
+    const mentions = [{ userId: "1", displayName: "MemberA", position: 6, length: 8 }];
+    const result = reconcileMentions("Hello @MemberA", "Hello @MmberA", mentions);
+    expect(result).toHaveLength(0);
+  });
+
+  test("deleting entire mention removes it", () => {
+    const mentions = [{ userId: "1", displayName: "MemberA", position: 6, length: 8 }];
+    const result = reconcileMentions("Hello @MemberA", "Hello ", mentions);
+    expect(result).toHaveLength(0);
+  });
+
+  test("multiple mentions: edit between them shifts only the latter", () => {
+    const mentions = [
+      { userId: "1", displayName: "MemberA", position: 0, length: 8 },
+      { userId: "2", displayName: "MemberB", position: 13, length: 8 }
+    ];
+    // Original: "@MemberA and @MemberB"
+    // New: "@MemberA  and @MemberB" (added space before 'and')
+    const result = reconcileMentions("@MemberA and @MemberB", "@MemberA  and @MemberB", mentions);
+    expect(result).toHaveLength(2);
+    expect(result[0].position).toBe(0);
+    expect(result[1].position).toBe(14);
+  });
+
+  test("duplicate display names are handled purely by offsets", () => {
+    const mentions = [
+      { userId: "1", displayName: "John", position: 0, length: 5 },
+      { userId: "2", displayName: "John", position: 6, length: 5 }
+    ];
+    // "@John @John" -> "Hi @John @John"
+    const result = reconcileMentions("@John @John", "Hi @John @John", mentions);
+    expect(result).toHaveLength(2);
+    expect(result[0].position).toBe(3);
+    expect(result[1].position).toBe(9);
   });
 });

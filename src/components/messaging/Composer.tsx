@@ -5,6 +5,7 @@ import {
   MentionAutocomplete,
   parseMentionQuery,
   insertMention,
+  reconcileMentions,
   type MentionData,
   type MentionSelect,
 } from "./MentionAutocomplete";
@@ -137,20 +138,27 @@ export function Composer({
     (e: React.ChangeEvent<HTMLTextAreaElement>) => {
       const newValue = e.target.value;
       const cursorPos = e.target.selectionStart;
+      
+      setPendingMentions(prev => reconcileMentions(value, newValue, prev));
+
       onChange(newValue);
 
       if (showMentions) {
         const mention = parseMentionQuery(newValue, cursorPos);
-        if (mention) {
+        // Do not open autocomplete if the @ belongs to an already resolved mention
+        const isInsidePending = mention && pendingMentions.some(m => mention.start >= m.position && mention.start < m.position + m.length);
+        
+        if (mention && !isInsidePending) {
           setMentionOpen(true);
           setMentionQuery(mention.query);
           mentionStartRef.current = mention.start;
         } else {
           setMentionOpen(false);
+          mentionStartRef.current = -1;
         }
       }
     },
-    [onChange, showMentions],
+    [value, onChange, showMentions, pendingMentions],
   );
 
   const handleMentionSelect = useCallback(
@@ -158,17 +166,17 @@ export function Composer({
       if (mentionStartRef.current === -1) return;
       const cursorPos = textareaRef.current?.selectionStart ?? value.length;
       const mentionInsertPos = mentionStartRef.current;
-      const mentionData: MentionData = { userId: mention.userId, displayName: mention.displayName, position: mentionInsertPos };
-      const result = insertMention(value, mentionInsertPos, cursorPos, mentionData);
       const mentionText = `@${mention.displayName}`;
-      const mentionLen = mentionText.length + 1;
+      const mentionData: MentionData = { userId: mention.userId, displayName: mention.displayName, position: mentionInsertPos, length: mentionText.length };
+      const result = insertMention(value, mentionInsertPos, cursorPos, mentionData);
+      const mentionLen = mentionText.length + 1; // +1 for the space added after
       setPendingMentions((prev) => {
-        if (prev.some((m) => m.userId === mention.userId)) return prev;
+        
         const updated = prev.map((m) => ({
           ...m,
           position: m.position >= mentionInsertPos ? m.position + mentionLen : m.position,
         }));
-        return [...updated, { userId: mention.userId, displayName: mention.displayName, position: mentionInsertPos }];
+        return [...updated, { userId: mention.userId, displayName: mention.displayName, position: mentionInsertPos, length: mentionText.length }];
       });
       onChange(result.text);
       setMentionOpen(false);
@@ -432,6 +440,7 @@ export function Composer({
             }`}
             aria-label="Send message"
             disabled={!canSend || uploading || mentionOpen}
+            
           >
             {uploading ? (
               <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary-foreground border-t-transparent"></div>
