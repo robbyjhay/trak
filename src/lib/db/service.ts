@@ -1992,6 +1992,7 @@ export async function getScopedBootstrap(session: SessionUser): Promise<{
       take: 100,
       include: {
         attachments: true,
+        mentions: { include: { user: { include: { profile: true } } } },
         deletedBy: { where: { userId: session.id }, select: { id: true } }
       }
     }),
