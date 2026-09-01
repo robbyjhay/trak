@@ -224,7 +224,10 @@ export function mapDm(
 }
 
 export function mapCommunity(
-  row: DbCommunity & { attachments?: DbMessageAttachment[] },
+  row: DbCommunity & { 
+    attachments?: DbMessageAttachment[];
+    mentions?: (DbMention & { user?: { id: string; profile?: { name: string } | null } })[];
+  },
   deletedForMeIds?: Set<string>,
 ): CommunityMessage {
   const isDeleted = Boolean(row.deletedAt) || Boolean(deletedForMeIds?.has(row.id));
@@ -235,6 +238,11 @@ export function mapCommunity(
     at: row.createdAt.toISOString(),
     replyToId: row.replyToId,
     attachments: isDeleted ? undefined : row.attachments?.map(mapMessageAttachment),
+    mentions: isDeleted ? undefined : row.mentions?.map((m) => ({
+      userId: m.userId,
+      displayName: m.user?.profile?.name ?? m.user?.id ?? "Unknown",
+      position: m.position,
+    })),
     isDeleted,
   };
 }
