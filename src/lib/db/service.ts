@@ -1173,6 +1173,7 @@ export async function listCommunity(
       take: limit,
       include: {
         attachments: true,
+        mentions: { include: { user: { include: { profile: true } } } },
         ...(opts?.userId ? { deletedBy: { where: { userId: opts.userId }, select: { id: true } } } : {})
       }
     }),
