@@ -288,6 +288,7 @@ export function mapCommunity(
       userId: m.userId,
       displayName: m.user?.profile?.name ?? m.user?.id ?? "Unknown",
       position: m.position,
+      length: (m as any).length,
     })),
     isDeleted,
   };

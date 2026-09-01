@@ -149,7 +149,7 @@ interface TrakStoreValue {
     },
   ) => Promise<Responsibility>;
   sendDm: (toId: string, text: string, attachments?: SendMessageAttachmentInput[], replyToId?: string | null) => Promise<void>;
-  sendCommunity: (text: string, attachments?: SendMessageAttachmentInput[], mentions?: { userId: string; position: number }[], replyToId?: string | null) => Promise<void>;
+  sendCommunity: (text: string, attachments?: SendMessageAttachmentInput[], mentions?: { userId: string; position: number; length: number }[], replyToId?: string | null) => Promise<void>;
   wipeCommunity: () => Promise<void>;
   deleteDmMessage: (messageId: string, forEveryone: boolean) => Promise<void>;
   deleteCommunityMessage: (messageId: string, forEveryone: boolean) => Promise<void>;
@@ -632,6 +632,7 @@ export function TrakStoreProvider({
         mentions: (mentions || []).map(m => ({
           userId: m.userId,
           position: m.position,
+          length: m.length,
           displayName: userMap[m.userId]?.name || "Unknown",
         })),
         replyTo: replyToId ? (() => {

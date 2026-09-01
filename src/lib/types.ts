@@ -184,6 +184,7 @@ export interface MessageMention {
   userId: string;
   displayName: string;
   position: number;
+  length: number;
 }
 
 export interface CommunityMessage {
