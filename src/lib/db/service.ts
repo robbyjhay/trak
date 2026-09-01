@@ -1189,7 +1189,8 @@ export async function sendCommunity(
   session: SessionUser,
   text: string,
   replyToId?: string | null,
-  attachments?: any[]
+  attachments?: any[],
+  mentions?: { userId: string; position: number }[]
 ): Promise<{ id: string }> {
   await requireActor(session);
   const trimmed = text.trim();
