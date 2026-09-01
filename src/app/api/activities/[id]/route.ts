@@ -14,6 +14,9 @@ import {
   updateActivityEndDate,
   updateActivityMetadata,
   softDeleteActivity,
+  requestException,
+  approveException,
+  rejectException,
 } from "@/lib/db/service";
 import type { WrapupData } from "@/lib/types";
 
@@ -67,6 +70,21 @@ export async function PATCH(
     if (body.action === "softDelete") {
       const activity = await softDeleteActivity(session, id);
       return jsonOk({ activity });
+    }
+
+    if (body.action === "requestException") {
+      const result = await requestException(session, id, body.explanation || "");
+      return jsonOk(result);
+    }
+
+    if (body.action === "approveException") {
+      const result = await approveException(session, id);
+      return jsonOk(result);
+    }
+
+    if (body.action === "rejectException") {
+      const result = await rejectException(session, id);
+      return jsonOk(result);
     }
 
     if (

@@ -1,6 +1,8 @@
 export type UserRole = "head" | "member";
 export type ActivityType = "Meeting" | "Project" | "Program" | "Task";
 export type ActivityStatus = "pending" | "completed" | "missed";
+export type ExceptionStatus = "none" | "requested" | "approved" | "rejected" | "expired";
+export type SubmissionType = "normal" | "late";
 export type DailyLogStatus = "pending" | "submitted";
 export type AttendeeSource = "unit" | "manual" | "link";
 export type NotifType =
@@ -85,6 +87,11 @@ export interface Activity {
   responsibilityIds: string[];
   location: string;
   status: ActivityStatus;
+  exceptionStatus: ExceptionStatus;
+  exceptionReason: string;
+  submissionType: SubmissionType;
+  gracePeriodStartedAt: Date | null;
+  gracePeriodExpiresAt: Date | null;
   createdAt: string;
   initiativeTeamwork: string;
   challenges: string;
@@ -142,6 +149,15 @@ export interface SendMessageAttachmentInput {
   height?: number | null;
 }
 
+export interface ReplyPreview {
+  id: string;
+  from: string;
+  text: string;
+  at: string;
+  attachments?: MessageAttachment[];
+  isDeleted?: boolean;
+}
+
 export interface Dm {
   isDeleted?: boolean;
   id: string;
@@ -151,6 +167,8 @@ export interface Dm {
   text: string;
   at: string;
   attachments?: MessageAttachment[];
+  replyToId?: string | null;
+  replyTo?: ReplyPreview | null;
 }
 
 export interface CallRecord {
@@ -175,6 +193,7 @@ export interface CommunityMessage {
   text: string;
   at: string;
   replyToId?: string | null;
+  replyTo?: ReplyPreview | null;
   attachments?: MessageAttachment[];
   mentions?: MessageMention[];
 }

@@ -12,6 +12,7 @@ import { useReportPreview } from "@/components/reports/ReportPreview";
 import { useSpeechRecognition } from "@/hooks/useSpeechRecognition";
 import type { Attendee, Attachment } from "@/lib/types";
 import { ActivityEditModal } from "./ActivityEditModal";
+import { GraceCountdown } from "./GraceCountdown";
 
 export function ActivityDetail({
   activityId,
@@ -33,6 +34,9 @@ export function ActivityDetail({
     updateActivityWrapup,
     updateActivityEndDate,
     setLogRsvpToken,
+    requestException,
+    approveException,
+    rejectException,
     refresh,
     users,
     responsibilities,
@@ -90,14 +94,21 @@ export function ActivityDetail({
             Back
           </button>
         </div>
-        <div className="mb-2 text-[11.5px] font-bold tracking-[0.12em] text-foreground-secondary uppercase">
-          {act.type} ·{" "}
-          {act.status === "completed"
-            ? "Completed"
-            : act.status === "missed"
-              ? "Missed"
-              : "Pending"}
-          {owner && owner.id !== sessionUser.id ? ` · ${owner.name}` : ""}
+        <div className="mb-2 flex items-center gap-2 text-[11.5px] font-bold tracking-[0.12em] text-foreground-secondary uppercase">
+          <span>
+            {act.type} ·{" "}
+            {act.status === "completed"
+              ? "Completed"
+              : act.status === "missed"
+                ? "Missed"
+                : "Pending"}
+            {owner && owner.id !== sessionUser.id ? ` · ${owner.name}` : ""}
+          </span>
+          {act.status === "completed" && act.submissionType === "late" && (
+            <span className="inline-flex items-center gap-1 rounded-full bg-warning-surface px-2 py-0.5 text-[9.5px] font-bold text-warning-foreground">
+              Submitted Late
+            </span>
+          )}
         </div>
         <h1 className="m-0 max-w-[640px] text-[30px] font-semibold flex items-center flex-wrap gap-3">
           {act.title}
@@ -156,13 +167,19 @@ export function ActivityDetail({
         </div>
         
         {canEditDates && act.status !== "completed" && (
-          <div className="mt-4 flex flex-wrap gap-2">
+          <div className="mt-4 flex flex-wrap items-center gap-2">
             <GhostBtn onClick={() => setEditOpen(true)} className="px-3 py-1.5 text-xs">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="mr-1.5">
                 <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z" />
               </svg>
               Edit Activity
             </GhostBtn>
+            <GraceCountdown activity={act} variant="banner" />
+          </div>
+        )}
+        {!canEditDates && act.status === "missed" && (
+          <div className="mt-4 flex flex-wrap items-center gap-2">
+            <GraceCountdown activity={act} variant="banner" />
           </div>
         )}
       </div>
@@ -176,26 +193,17 @@ export function ActivityDetail({
       )}
 
       {act.status === "missed" && (
-        <div className="rounded-[18px] border border-border bg-surface px-[26px] py-6 mb-6">
-          <div className="flex items-start gap-3.5">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[11px] bg-warning-surface text-warning-semantic">
-              <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d={PATHS.alert} />
-              </svg>
-            </div>
-            <div>
-              <div className="mb-1 font-bold">
-                Activity Needs Attention
-              </div>
-              <div className="text-[13px] text-foreground-secondary">
-                This activity passed its date with unsubmitted daily updates.{" "}
-                {isMine
-                  ? "You can still submit missed updates below, or extend the activity if you need more time."
-                  : ""}
-              </div>
-            </div>
-          </div>
-        </div>
+        <ExceptionPanel
+          act={act}
+          isMine={isMine}
+          sessionUser={sessionUser}
+          isHead={sessionUser.role === "head"}
+          requestException={requestException}
+          approveException={approveException}
+          rejectException={rejectException}
+          showToast={showToast}
+          onDecision={refresh}
+        />
       )}
 
       {act.status === "completed" && (
@@ -384,7 +392,11 @@ export function ActivityDetail({
         </div>
       )}
 
-      {(act.status === "pending" || act.status === "missed") && (
+      {(act.status === "pending" ||
+        (act.status === "missed" &&
+          act.exceptionStatus === "approved" &&
+          act.gracePeriodExpiresAt != null &&
+          new Date(act.gracePeriodExpiresAt) >= new Date())) && (
         <PendingForm
           act={act}
           logs={logs}
@@ -1228,6 +1240,166 @@ function DetailRow({ label, value }: { label: string; value: string }) {
     <div className="mb-3 flex items-center justify-between gap-2 last:mb-0">
       <span className="text-foreground-faint">{label}</span>
       <span className="text-right font-bold">{value}</span>
+    </div>
+  );
+}
+
+function ExceptionPanel({
+  act,
+  isMine,
+  sessionUser,
+  isHead,
+  requestException,
+  approveException,
+  rejectException,
+  showToast,
+  onDecision,
+}: {
+  act: NonNullable<ReturnType<ReturnType<typeof useTrak>["getActivity"]>>;
+  isMine: boolean;
+  sessionUser: ReturnType<typeof useTrak>["sessionUser"];
+  isHead: boolean;
+  requestException: ReturnType<typeof useTrak>["requestException"];
+  approveException: ReturnType<typeof useTrak>["approveException"];
+  rejectException: ReturnType<typeof useTrak>["rejectException"];
+  showToast: ReturnType<typeof useTrak>["showToast"];
+  onDecision: () => void;
+}) {
+  const [explanation, setExplanation] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [deciding, setDeciding] = useState(false);
+
+  return (
+    <div className="rounded-[18px] border border-border bg-surface px-[26px] py-6 mb-6">
+      <div className="flex items-start gap-3.5">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[11px] bg-warning-surface text-warning-semantic">
+          <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d={PATHS.alert} />
+          </svg>
+        </div>
+        <div className="flex-1">
+          <div className="mb-1 font-bold">Activity Needs Attention</div>
+          <div className="text-[13px] text-foreground-secondary">
+            This activity passed its date with unsubmitted daily updates.
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-4">
+        {act.exceptionStatus === "none" && isMine && (
+          <div className="rounded-[13px] border border-border bg-surface-muted p-4">
+            <div className="text-[13.5px] font-bold">Request Exception</div>
+            <div className="mt-0.5 text-[12.5px] text-foreground-secondary">
+              Explain why you missed the activity deadline. The Unit Head may grant a 2-hour grace period to log it late.
+            </div>
+            <div className="mt-3 flex flex-col gap-2">
+              <textarea
+                value={explanation}
+                onChange={(e) => setExplanation(e.target.value)}
+                placeholder="I was extremely busy yesterday and forgot to log the activity before the deadline."
+                className="min-h-[80px] w-full rounded-[11px] border-[1.5px] border-input-border bg-input text-foreground placeholder:text-input-placeholder px-[15px] py-3.5 text-sm outline-none focus:border-border-strong"
+              />
+              <div className="flex justify-end">
+                <PrimaryBtn
+                  disabled={!explanation.trim() || isSubmitting}
+                  onClick={() => {
+                    setIsSubmitting(true);
+                    requestException(act.id, explanation.trim())
+                      .then(() => {
+                        showToast("Exception requested", "The Unit Head has been notified.");
+                        setExplanation("");
+                      })
+                      .catch((e) => {
+                        const msg = e instanceof Error ? e.message : "Please try again.";
+                        showToast("Could not request exception", msg);
+                      })
+                      .finally(() => setIsSubmitting(false));
+                  }}
+                >
+                  Request Exception
+                </PrimaryBtn>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {act.exceptionStatus === "requested" && (
+          <div className="rounded-[13px] border border-warning-semantic/40 bg-warning-surface/50 p-4 text-[13px]">
+            <div className="font-bold text-warning-foreground">Exception Pending Review</div>
+            <div className="mt-1 text-warning-foreground/80">
+              {isMine
+                ? "Your request is being reviewed by the Unit Head. You'll be notified of the decision."
+                : `The member requested an exception for this activity.`}
+            </div>
+            {act.exceptionReason && (
+              <div className="mt-3 rounded-[10px] bg-surface/60 p-3 text-[12.5px] text-foreground-secondary">
+                <span className="font-bold text-foreground">Reason: </span>
+                {act.exceptionReason}
+              </div>
+            )}
+            {isHead && !isMine && (
+              <div className="mt-3 flex gap-2">
+                <button
+                  type="button"
+                  disabled={deciding}
+                  onClick={() => {
+                    setDeciding(true);
+                    approveException(act.id)
+                      .then(() => {
+                        showToast("Exception approved", "2-hour grace period granted.");
+                        onDecision();
+                      })
+                      .catch(() => showToast("Could not approve", "Please try again."))
+                      .finally(() => setDeciding(false));
+                  }}
+                  className="cursor-pointer rounded-[9px] border-none bg-success px-3.5 py-1.5 text-[12px] font-bold text-success-foreground hover:opacity-90 transition-opacity"
+                >
+                  Approve (2 hrs)
+                </button>
+                <button
+                  type="button"
+                  disabled={deciding}
+                  onClick={() => {
+                    setDeciding(true);
+                    rejectException(act.id)
+                      .then(() => {
+                        showToast("Exception rejected", "The member has been notified.");
+                        onDecision();
+                      })
+                      .catch(() => showToast("Could not reject", "Please try again."))
+                      .finally(() => setDeciding(false));
+                  }}
+                  className="cursor-pointer rounded-[9px] border-none bg-critical-semantic px-3.5 py-1.5 text-[12px] font-bold text-critical-foreground hover:opacity-90 transition-opacity"
+                >
+                  Reject
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {act.exceptionStatus === "approved" && (
+          <GraceCountdown activity={act} variant="banner" />
+        )}
+
+        {act.exceptionStatus === "rejected" && (
+          <div className="rounded-[13px] border border-critical/40 bg-critical-surface/50 p-4 text-[13px]">
+            <div className="font-bold text-critical">Exception Rejected</div>
+            <div className="mt-1 text-critical-foreground/80">
+              The Unit Head rejected the exception request. The activity remains missed.
+            </div>
+          </div>
+        )}
+
+        {act.exceptionStatus === "expired" && (
+          <div className="rounded-[13px] border border-border bg-surface-muted p-4 text-[13px]">
+            <div className="font-bold text-foreground">Grace Period Expired</div>
+            <div className="mt-1 text-foreground-secondary">
+              The approved grace period was not used in time. The activity remains missed.
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

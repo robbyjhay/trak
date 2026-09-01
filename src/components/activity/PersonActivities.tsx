@@ -13,7 +13,7 @@ import { useReportPreview } from "@/components/reports/ReportPreview";
 
 export function PersonActivities({ userId }: { userId: string }) {
   const router = useRouter();
-  const { sessionUser, userMap, bucket, now, activitiesFor } = useTrak();
+  const { sessionUser, userMap, bucket, now, activitiesFor, approveException, rejectException, showToast } = useTrak();
   const { openReport } = useReportPreview();
   const person = userMap[userId] || sessionUser;
   const isSelf = person.id === sessionUser.id;
@@ -196,7 +196,45 @@ export function PersonActivities({ userId }: { userId: string }) {
             </>
           ) : (
             items.map((a, idx) => (
-              <ActRow key={a.id} activity={a} onReport={openReport} hideStatus={tab === "completed"} index={idx} />
+              <div key={a.id} className="flex flex-col gap-2">
+                <ActRow key={a.id} activity={a} onReport={openReport} hideStatus={tab === "completed"} index={idx} />
+                {tab === "missed" && isHead && !isSelf && a.exceptionStatus === "requested" && (
+                  <div className="rounded-[13px] border border-warning-semantic/40 bg-warning-surface/40 px-4 py-3">
+                    <div className="mb-2 flex items-center justify-between gap-2">
+                      <span className="text-[12.5px] font-bold text-warning-foreground">
+                        Exception requested — review
+                      </span>
+                      <span className="text-[11px] text-foreground-faint">
+                        {a.exceptionReason || "No explanation given"}
+                      </span>
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          approveException(a.id)
+                            .then(() => showToast("Exception approved", "2-hour grace period granted."))
+                            .catch(() => showToast("Could not approve", "Please try again."))
+                        }
+                        className="cursor-pointer rounded-[9px] border-none bg-success px-3.5 py-1.5 text-[12px] font-bold text-success-foreground hover:opacity-90 transition-opacity"
+                      >
+                        Approve (2 hrs)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          rejectException(a.id)
+                            .then(() => showToast("Exception rejected", "The member has been notified."))
+                            .catch(() => showToast("Could not reject", "Please try again."))
+                        }
+                        className="cursor-pointer rounded-[9px] border-none bg-critical-semantic px-3.5 py-1.5 text-[12px] font-bold text-critical-foreground hover:opacity-90 transition-opacity"
+                      >
+                        Reject
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
             ))
           )}
         </div>

@@ -93,6 +93,7 @@ export function ConversationList({
 
   const partners = useMemo(() => {
     const s = new Set<string>();
+    s.add(me);
     db.dms.forEach((d) => {
       if (d.a === me) s.add(d.b);
       if (d.b === me) s.add(d.a);
@@ -105,7 +106,9 @@ export function ConversationList({
       const p = userMap[pid];
       if (!p) return false;
       if (search) {
-        if (!p.name.toLowerCase().includes(search.toLowerCase())) return false;
+        const nameMatch = p.name.toLowerCase().includes(search.toLowerCase());
+        const selfMatch = pid === me && "you".includes(search.toLowerCase());
+        if (!nameMatch && !selfMatch) return false;
       }
       if (filter === "unread" && !unreadMap[pid]) return false;
       return true;
@@ -248,8 +251,8 @@ export function ConversationList({
                 setMobilePane("thread");
               }}
               avatar={Avatar}
-              name={p.name}
-              snippet={snippet}
+              name={pid === me ? `${p.name} (You)` : p.name}
+              snippet={pid === me && !last ? "Message yourself" : snippet}
               time={lastTime ? formatListTime(lastTime) : undefined}
               unreadCount={unreadMap[pid]}
             />

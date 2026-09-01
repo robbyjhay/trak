@@ -1,6 +1,13 @@
-import React, { useRef, useEffect, useState } from "react";
+import React, { useRef, useEffect, useState, useCallback } from "react";
 import { PATHS } from "@/components/icons";
-import type { SendMessageAttachmentInput } from "@/lib/types";
+import type { SendMessageAttachmentInput, User } from "@/lib/types";
+import {
+  MentionAutocomplete,
+  parseMentionQuery,
+  insertMention,
+  type MentionData,
+  type MentionSelect,
+} from "./MentionAutocomplete";
 
 const EXT_MIME: Record<string, string> = {
   ".txt": "text/plain",
@@ -28,24 +35,64 @@ function resolveMimeType(file: File): string {
   return file.type || "application/octet-stream";
 }
 
+export type ReplyingTo = {
+  id: string;
+  from: string;
+  text: string;
+  attachments?: import("@/lib/types").MessageAttachment[];
+} | null;
+
+function getComposerReplyPreview(replyingTo: NonNullable<ReplyingTo>, userMap?: Record<string, User>): { name: string; preview: string } {
+  const sender = userMap?.[replyingTo.from];
+  const name = sender?.name ? sender.name.split(" ")[0] : "Unknown";
+  if (replyingTo.text && replyingTo.text.trim()) {
+    const t = replyingTo.text.trim();
+    return { name, preview: t.length > 70 ? t.slice(0, 70) + "…" : t };
+  }
+  if (replyingTo.attachments && replyingTo.attachments.length > 0) {
+    const ct = replyingTo.attachments[0].contentType || "";
+    if (ct.startsWith("image/")) return { name, preview: "📷 Photo" };
+    return { name, preview: `📎 ${replyingTo.attachments[0].name}` };
+  }
+  return { name, preview: "" };
+}
+
 export function Composer({
   value,
   onChange,
   placeholder,
   onSend,
+  users,
+  currentUserId,
+  showMentions = false,
+  replyingTo,
+  onCancelReply,
+  userMap,
 }: {
   value: string;
   onChange: (v: string) => void;
   placeholder: string;
-  onSend: (attachments?: SendMessageAttachmentInput[]) => void;
+  onSend: (attachments?: SendMessageAttachmentInput[], mentions?: MentionData[]) => void;
+  users?: User[];
+  currentUserId?: string;
+  showMentions?: boolean;
+  replyingTo?: ReplyingTo;
+  onCancelReply?: () => void;
+  userMap?: Record<string, User>;
 }) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   const [file, setFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
+
+  const [mentionOpen, setMentionOpen] = useState(false);
+  const [mentionQuery, setMentionQuery] = useState("");
+  const [pendingMentions, setPendingMentions] = useState<MentionData[]>([]);
+  const mentionStartRef = useRef<number>(-1);
 
   useEffect(() => {
     if (textareaRef.current) {
@@ -54,11 +101,32 @@ export function Composer({
     }
   }, [value]);
 
+  // Focus when entering reply mode
   useEffect(() => {
+    if (replyingTo && textareaRef.current) {
+      textareaRef.current.focus();
+    }
+  }, [replyingTo?.id]);
+
+  // ESC to cancel reply mode
+  useEffect(() => {
+    if (!replyingTo || !onCancelReply) return;
+    const cancel = onCancelReply;
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        cancel();
+      }
+    }
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [replyingTo, onCancelReply]);
+
+  useEffect(() => {
+    if (!mentionOpen) return;
     function handleClickOutside(e: MouseEvent) {
-      if (mentionOpen && containerRef.current && !containerRef.current.contains(e.target as Node)) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
         setMentionOpen(false);
-        mentionStartRef.current = -1;
       }
     }
     document.addEventListener("mousedown", handleClickOutside);
@@ -90,7 +158,7 @@ export function Composer({
       if (mentionStartRef.current === -1) return;
       const cursorPos = textareaRef.current?.selectionStart ?? value.length;
       const mentionInsertPos = mentionStartRef.current;
-      const mentionData = { userId: mention.userId, displayName: mention.displayName, position: mentionInsertPos };
+      const mentionData: MentionData = { userId: mention.userId, displayName: mention.displayName, position: mentionInsertPos };
       const result = insertMention(value, mentionInsertPos, cursorPos, mentionData);
       const mentionText = `@${mention.displayName}`;
       const mentionLen = mentionText.length + 1;
@@ -131,7 +199,6 @@ export function Composer({
     } else {
       setPreviewUrl(null);
     }
-    // reset input
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
@@ -148,7 +215,6 @@ export function Composer({
     const trimmed = value.trim();
     if (!trimmed && !file) return;
     if (uploading) return;
-
     if (mentionOpen) return;
 
     const mentionsToSend = pendingMentions.length > 0 ? [...pendingMentions] : undefined;
@@ -162,7 +228,6 @@ export function Composer({
     setUploading(true);
     setUploadError(null);
     try {
-      // 1. Get signed URL
       const res = await fetch("/api/uploads/sign", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -179,7 +244,6 @@ export function Composer({
       }
       const { uploadUrl, key, method } = await res.json();
 
-      // 2. Upload file
       const putRes = await fetch(uploadUrl, {
         method,
         headers: { "Content-Type": resolveMimeType(file) },
@@ -238,6 +302,33 @@ export function Composer({
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
     >
+      {/* Reply mode bar */}
+      {replyingTo && (
+        <div className="mx-4 mt-3 mb-0 flex items-stretch gap-3 rounded-[14px] border border-border bg-surface-muted px-3 py-2 shadow-sm sm:mx-6 md:mx-8" data-testid="reply-composer-bar">
+          <div className="w-[3px] shrink-0 rounded-full bg-primary self-stretch" />
+          <div className="min-w-0 flex-1 py-0.5">
+            <div className="text-[12px] font-bold leading-tight text-primary">
+              Replying to {getComposerReplyPreview(replyingTo, userMap as any).name}
+            </div>
+            <div className="truncate text-[12.5px] leading-tight text-foreground-secondary mt-0.5">
+              {getComposerReplyPreview(replyingTo, userMap as any).preview || "Attachment"}
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onCancelReply}
+            className="flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-full bg-surface text-foreground-faint hover:bg-surface-hover hover:text-foreground transition-colors border border-border/50 ml-2 self-center"
+            aria-label="Cancel reply"
+            data-testid="cancel-reply"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+          </button>
+        </div>
+      )}
+
       {showMentions && users && currentUserId && (
         <MentionAutocomplete
           query={mentionQuery}
@@ -248,6 +339,7 @@ export function Composer({
           isOpen={mentionOpen}
         />
       )}
+
       {file && (
         <div className="px-4 pt-4 sm:px-6 md:px-8">
           <div className="relative inline-flex flex-col items-center justify-center rounded-xl border border-border bg-surface p-2 shadow-sm max-w-[200px]">

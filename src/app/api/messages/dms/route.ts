@@ -44,11 +44,11 @@ export async function POST(req: Request) {
       throw new ServiceError(429, "Message rate limit exceeded.");
     }
 
-    const body = await parseJsonBody<{ toId?: string; text?: string; attachments?: any[] }>(req);
+    const body = await parseJsonBody<{ toId?: string; text?: string; attachments?: any[]; replyToId?: string | null }>(req);
     if (!body.toId) {
       throw new ServiceError(400, "toId is required");
     }
-    const result = await sendDm(session, body.toId, body.text || "", body.attachments);
+    const result = await sendDm(session, body.toId, body.text || "", body.attachments, body.replyToId ?? null);
     const { dms } = await listDmsForUser(session, { limit: 200 });
     const notifications = await myNotifications(session);
 

@@ -172,6 +172,7 @@ async function attachAuthenticatedClient(ws: WebSocket, userId: string) {
 app.prepare().then(async () => {
   prisma = (await import("./src/lib/db/prisma")).prisma;
   sendPushNotification = (await import("./src/lib/pushServer")).sendPushNotification;
+  const { markActivitiesMissed } = await import("./src/lib/db/service");
   const httpServer = createServer(async (req, res) => {
     try {
       const parsedUrl = parse(req.url!, true);
@@ -348,6 +349,20 @@ app.prepare().then(async () => {
     console.log(`> Ready on http://${hostname}:${PORT}`);
     console.log(`> WebSocket signaling on ws://${hostname}:${PORT}/ws`);
   });
+
+  // Scheduled background job: mark overdue pending activities as missed and
+  // expire any approved exception grace periods that have elapsed.
+  const runMissedProcessor = async () => {
+    try {
+      await markActivitiesMissed(new Date());
+      console.log("[scheduler] Missed-activity processor ran.");
+    } catch (err) {
+      console.error("[scheduler] Error running missed-activity processor:", err);
+    }
+  };
+  runMissedProcessor();
+  const missedTimer = setInterval(runMissedProcessor, 5 * 60 * 1000);
+  missedTimer.unref();
 
   // Graceful shutdown handling
   let isShuttingDown = false;

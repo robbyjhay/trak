@@ -62,6 +62,19 @@ enum ActivityStatus {
   missed
 }
 
+enum ExceptionStatus {
+  none
+  requested
+  approved
+  rejected
+  expired
+}
+
+enum SubmissionType {
+  normal
+  late
+}
+
 enum DailyLogStatus {
   pending
   submitted
@@ -246,6 +259,11 @@ model Activity {
   endTime            String         @default("") @map("end_time") @db.VarChar(8)
   location           String         @default("") @db.VarChar(300)
   status             ActivityStatus @default(pending)
+  exceptionStatus    ExceptionStatus @default(none)
+  exceptionReason    String         @default("") @map("exception_reason") @db.Text
+  submissionType     SubmissionType @default(normal)
+  gracePeriodStartedAt DateTime? @map("grace_period_started_at")
+  gracePeriodExpiresAt DateTime? @map("grace_period_expires_at")
   hidden             Boolean        @default(false)
   hasBudget          Boolean        @default(false) @map("has_budget")
   estimatedAmountNgn Decimal?       @map("estimated_amount_ngn") @db.Decimal(14, 2)
@@ -364,17 +382,21 @@ model DirectMessage {
   participantB String    @db.Uuid
   fromUserId   String    @map("from_user_id") @db.Uuid
   text         String    @db.Text
+  replyToId    String?   @map("reply_to_id") @db.Uuid
   deletedAt    DateTime? @map("deleted_at") @db.Timestamptz(3)
   createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
 
-  userA  User @relation("DirectMessageParticipantA", fields: [participantA], references: [id], onDelete: Cascade)
-  userB  User @relation("DirectMessageParticipantB", fields: [participantB], references: [id], onDelete: Cascade)
-  sender User @relation("DirectMessageSender", fields: [fromUserId], references: [id], onDelete: Cascade)
+  userA   User @relation("DirectMessageParticipantA", fields: [participantA], references: [id], onDelete: Cascade)
+  userB   User @relation("DirectMessageParticipantB", fields: [participantB], references: [id], onDelete: Cascade)
+  sender  User @relation("DirectMessageSender", fields: [fromUserId], references: [id], onDelete: Cascade)
+  replyTo DirectMessage?  @relation("DirectMessageReplies", fields: [replyToId], references: [id], onDelete: SetNull)
+  replies DirectMessage[] @relation("DirectMessageReplies")
 
   attachments MessageAttachment[]
   deletedBy   DeletedMessage[]
 
   @@index([participantA, participantB, createdAt])
+  @@index([replyToId])
   @@map("direct_messages")
 }
 

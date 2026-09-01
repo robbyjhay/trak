@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useTrak } from "@/context/TrakStore";
 import { useConnectNav } from "@/context/ConnectNav";
 import {
@@ -17,12 +17,12 @@ import { NewConversation } from "@/components/messaging/NewConversation";
 import { AddMember } from "@/components/messaging/AddMember";
 import { CallPanel } from "@/components/call/CallPanel";
 import { useCall } from "@/context/CallContext";
-import type { CallRecord, Dm, TrakDb } from "@/lib/types";
+import type { CallRecord, Dm, TrakDb, MessageAttachment } from "@/lib/types";
 
 // New specialized components
 import { ConversationList } from "./ConversationList";
 import { ChatThread } from "./ChatThread";
-import { Composer } from "./Composer";
+import { Composer, type ReplyingTo } from "./Composer";
 
 type ThreadItem =
   | { kind: "dm"; id: string; dm: Dm }
@@ -83,6 +83,7 @@ export function Messaging({
   const [newConvKey, setNewConvKey] = useState(0);
   const [addMemberOpen, setAddMemberOpen] = useState(false);
   const [contactsSearch, setContactsSearch] = useState("");
+  const [replyingTo, setReplyingTo] = useState<ReplyingTo>(null);
 
   useEffect(() => {
     setView(initialView);
@@ -102,6 +103,32 @@ export function Messaging({
     window.addEventListener("popstate", handlePopState);
     return () => window.removeEventListener("popstate", handlePopState);
   }, [mobilePane]);
+
+  // Clear reply when switching conversations if mismatch
+  useEffect(() => {
+    if (replyingTo) {
+      // If replyingTo conversation mismatches active, keep but hide? Better clear when switching.
+      // Community reply should only be valid for community thread.
+      const isCommunityReply = db.community.some((m) => m.id === replyingTo.id);
+      const isDmReply = db.dms.some((m) => m.id === replyingTo.id);
+      if (activeConv === "community" && !isCommunityReply) {
+        // Check if reply belongs to community — if not, clear
+        // But if user started reply in community then switched to DM, clear it
+        if (isDmReply) setReplyingTo(null);
+      } else if (activeConv !== "community" && activeConv !== "broadcast") {
+        if (isCommunityReply) setReplyingTo(null);
+        else if (isDmReply) {
+          const dm = db.dms.find((m) => m.id === replyingTo.id);
+          if (dm && dm.a !== me && dm.b !== me) {
+            // Not relevant
+          }
+          const belongsToActive = dm && ((dm.a === me && dm.b === activeConv) || (dm.a === activeConv && dm.b === me));
+          if (!belongsToActive) setReplyingTo(null);
+        }
+      }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeConv]);
 
   const canBc = canBroadcast(sessionUser);
   const canWipe = canWipeCommunity(sessionUser);
@@ -123,6 +150,26 @@ export function Messaging({
       setMobilePane("list");
     }
   }
+
+  const handleReplySelect = useCallback(
+    (messageId: string) => {
+      // Find message in community or DMs
+      let found: { id: string; from: string; text: string; attachments?: MessageAttachment[] } | null = null;
+      const comm = db.community.find((m) => m.id === messageId);
+      if (comm) {
+        found = { id: comm.id, from: comm.from, text: comm.text, attachments: comm.attachments };
+      } else {
+        const dm = db.dms.find((m) => m.id === messageId);
+        if (dm) found = { id: dm.id, from: dm.from, text: dm.text, attachments: dm.attachments };
+      }
+      if (found) {
+        setReplyingTo(found);
+      }
+    },
+    [db.community, db.dms],
+  );
+
+  const cancelReply = useCallback(() => setReplyingTo(null), []);
 
   return (
     <div className="h-full bg-background">
@@ -214,6 +261,7 @@ export function Messaging({
                   userMap={userMap} 
                   isGroup={true}
                   onMentionClick={openThread}
+                  onReply={handleReplySelect}
                   onDeleteMessage={(messageId, forEveryone) => {
                     void deleteCommunityMessage(messageId, forEveryone).catch(() =>
                       showToast("Could not delete message", "Please try again."),
@@ -229,11 +277,16 @@ export function Messaging({
                   users={users}
                   currentUserId={me}
                   showMentions={true}
+                  replyingTo={replyingTo}
+                  onCancelReply={cancelReply}
+                  userMap={userMap}
                   onSend={(attachments, mentions) => {
                     if (!input.trim() && (!attachments || attachments.length === 0)) return;
                     const text = input.trim();
+                    const rId = replyingTo?.id ?? null;
                     setInput("");
-                    void sendCommunity(text, attachments, mentions).catch(() =>
+                    setReplyingTo(null);
+                    void sendCommunity(text, attachments, mentions, rId).catch(() =>
                       showToast("Could not send message", "Please try again."),
                     );
                   }}
@@ -305,6 +358,7 @@ export function Messaging({
                     const p = userMap[activeConv];
                     const items = threadItems(db, me, activeConv);
                     const onCall = activeCall?.partnerId === activeConv;
+                    const isSelfDm = activeConv === me;
                     
                     return (
                       <>
@@ -317,44 +371,45 @@ export function Messaging({
                           <div className="flex items-center gap-4 border-b border-border bg-surface px-4 py-3 sm:px-6 md:px-8 shadow-sm z-10">
                             <BackBtn onClick={handleBack} />
                             <div
-                              className="flex h-[42px] w-[42px] items-center justify-center rounded-full font-display text-[15px] font-bold text-white shadow-sm cursor-pointer hover:opacity-90 transition-opacity"
+                              className="flex h-[42px] w-[42px] items-center justify-center rounded-full font-display text-[15px] font-bold text-white shadow-sm"
                               style={{ background: p.color }}
-                              title="View Profile"
                             >
                               {p.photoUrl ? (
                                 <img src={p.photoUrl} alt="" className="h-full w-full rounded-full object-cover" />
                               ) : initials(p.name)}
                             </div>
-                            <div className="min-w-0 flex-1 cursor-pointer" title="View Profile">
+                            <div className="min-w-0 flex-1">
                               <div className="truncate text-[15.5px] font-bold text-foreground tracking-tight">{p.name}</div>
                               <div className="truncate text-[11.5px] font-medium text-foreground-secondary mt-0.5">
-                                {roleLabel(p)} · {p.username}
+                                {isSelfDm ? "You" : <>{roleLabel(p)} · {p.username}</>}
                               </div>
                             </div>
-                            <div className="ml-auto flex gap-2.5">
-                              <button
-                                type="button"
-                                onClick={() => startCall(p.id)}
-                                title="Start Voice Call"
-                                aria-label={`Call ${p.name}`}
-                                className="flex h-[40px] w-[40px] cursor-pointer items-center justify-center rounded-full border border-border/80 bg-surface text-foreground-secondary transition-colors hover:border-primary/50 hover:text-primary hover:bg-primary/5 shadow-sm"
-                              >
-                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
-                                  <path d={PATHS.phone} />
-                                </svg>
-                              </button>
-                              <a
-                                href={`https://wa.me/${p.phone.replace("+", "").replace(/\s/g, "")}`}
-                                target="_blank"
-                                rel="noreferrer"
-                                title="WhatsApp"
-                                className="flex h-[40px] w-[40px] items-center justify-center rounded-full border border-border/80 bg-surface text-foreground-secondary transition-colors hover:border-[#25D366]/50 hover:text-[#25D366] hover:bg-[#25D366]/5 shadow-sm"
-                              >
-                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
-                                  <path d={PATHS.whatsapp} />
-                                </svg>
-                              </a>
-                            </div>
+                            {!isSelfDm && (
+                              <div className="ml-auto flex gap-2.5">
+                                <button
+                                  type="button"
+                                  onClick={() => startCall(p.id)}
+                                  title="Start Voice Call"
+                                  aria-label={`Call ${p.name}`}
+                                  className="flex h-[40px] w-[40px] cursor-pointer items-center justify-center rounded-full border border-border/80 bg-surface text-foreground-secondary transition-colors hover:border-primary/50 hover:text-primary hover:bg-primary/5 shadow-sm"
+                                >
+                                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
+                                    <path d={PATHS.phone} />
+                                  </svg>
+                                </button>
+                                <a
+                                  href={`https://wa.me/${p.phone.replace("+", "").replace(/\s/g, "")}`}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  title="WhatsApp"
+                                  className="flex h-[40px] w-[40px] items-center justify-center rounded-full border border-border/80 bg-surface text-foreground-secondary transition-colors hover:border-[#25D366]/50 hover:text-[#25D366] hover:bg-[#25D366]/5 shadow-sm"
+                                >
+                                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
+                                    <path d={PATHS.whatsapp} />
+                                  </svg>
+                                </a>
+                              </div>
+                            )}
                           </div>
                         )}
                         
@@ -362,23 +417,29 @@ export function Messaging({
                           items={items} 
                           me={me} 
                           userMap={userMap}
-                          onMentionClick={openThread}
+                          onReply={handleReplySelect}
                           onDeleteMessage={(messageId, forEveryone) => {
                             void deleteDmMessage(messageId, forEveryone).catch(() =>
                               showToast("Could not delete message", "Please try again."),
                             );
                           }}
+                          onMentionClick={openThread}
                         />
                         
                         <Composer
                           value={input}
                           onChange={setInput}
                           placeholder={`Message ${firstName(p.name)}…`}
+                          replyingTo={replyingTo}
+                          onCancelReply={cancelReply}
+                          userMap={userMap}
                           onSend={(attachments) => {
                             if (!input.trim() && (!attachments || attachments.length === 0)) return;
                             const text = input.trim();
+                            const rId = replyingTo?.id ?? null;
                             setInput("");
-                            void sendDm(activeConv, text, attachments).catch((err) =>
+                            setReplyingTo(null);
+                            void sendDm(activeConv, text, attachments, rId).catch((err) =>
                               showToast(
                                 "Could not send message",
                                 err?.message || "Please try again.",
@@ -433,7 +494,6 @@ export function Messaging({
           <div className="min-h-0 flex-1 overflow-y-auto pb-20 md:pb-6 scrollbar-thin">
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
               {users
-                .filter((u) => u.id !== me)
                 .filter((u) => contactsSearch ? u.name.toLowerCase().includes(contactsSearch.toLowerCase()) || u.username?.toLowerCase().includes(contactsSearch.toLowerCase()) : true)
                 .map((p) => (
                   <div
@@ -496,7 +556,7 @@ export function Messaging({
                     </div>
                   </div>
                 ))}
-                {users.filter(u => u.id !== me).filter((u) => contactsSearch ? u.name.toLowerCase().includes(contactsSearch.toLowerCase()) || u.username?.toLowerCase().includes(contactsSearch.toLowerCase()) : true).length === 0 && (
+                {users.filter((u) => contactsSearch ? u.name.toLowerCase().includes(contactsSearch.toLowerCase()) || u.username?.toLowerCase().includes(contactsSearch.toLowerCase()) : true).length === 0 && (
                   <div className="col-span-full py-12 text-center text-[14px] text-foreground-faint">
                     No contacts matched your search
                   </div>

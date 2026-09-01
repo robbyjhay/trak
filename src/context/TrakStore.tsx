@@ -148,8 +148,8 @@ interface TrakStoreValue {
       deliverables: string[];
     },
   ) => Promise<Responsibility>;
-  sendDm: (toId: string, text: string, attachments?: SendMessageAttachmentInput[]) => Promise<void>;
-  sendCommunity: (text: string, attachments?: SendMessageAttachmentInput[], mentions?: { userId: string; position: number }[]) => Promise<void>;
+  sendDm: (toId: string, text: string, attachments?: SendMessageAttachmentInput[], replyToId?: string | null) => Promise<void>;
+  sendCommunity: (text: string, attachments?: SendMessageAttachmentInput[], mentions?: { userId: string; position: number }[], replyToId?: string | null) => Promise<void>;
   wipeCommunity: () => Promise<void>;
   deleteDmMessage: (messageId: string, forEveryone: boolean) => Promise<void>;
   deleteCommunityMessage: (messageId: string, forEveryone: boolean) => Promise<void>;
@@ -160,6 +160,9 @@ interface TrakStoreValue {
   toggleActivityHidden: (activityId: string) => Promise<void>;
   softDeleteActivity: (activityId: string) => Promise<void>;
   deactivateResponsibility: (id: string) => Promise<void>;
+  requestException: (activityId: string, explanation: string) => Promise<void>;
+  approveException: (activityId: string) => Promise<void>;
+  rejectException: (activityId: string) => Promise<void>;
   activitiesFor: (userId: string) => Activity[];
   bucket: (userId: string) => ReturnType<typeof bucketMut>;
   getActivity: (id: string) => Activity | undefined;
@@ -617,7 +620,7 @@ export function TrakStoreProvider({
         bump();
       }
     },
-    sendCommunity: async (text, attachments, mentions) => {
+    sendCommunity: async (text, attachments, mentions, replyToId) => {
       const tempId = `temp_${Date.now()}`;
       stateRef.current.db.community.push({
         id: tempId,
@@ -625,19 +628,31 @@ export function TrakStoreProvider({
         text,
         attachments: (attachments || []).map((a, i) => ({ ...a, id: `${tempId}_${i}`, messageId: tempId })),
         at: new Date().toISOString(),
-        replyToId: null,
+        replyToId: replyToId || null,
         mentions: (mentions || []).map(m => ({
           userId: m.userId,
           position: m.position,
           displayName: userMap[m.userId]?.name || "Unknown",
         })),
+        replyTo: replyToId ? (() => {
+          const orig = stateRef.current.db.community.find((m) => m.id === replyToId) as any;
+          if (!orig) return null;
+          return {
+            id: orig.id,
+            from: orig.from,
+            text: orig.text || "",
+            at: orig.at,
+            attachments: orig.attachments,
+            isDeleted: orig.isDeleted,
+          };
+        })() : null,
       });
       bump();
       try {
         const res = await apiSend<{ community: typeof db.community }>(
           "/api/messages/community",
           "POST",
-          { text, attachments, mentions },
+          { text, attachments, mentions, replyToId: replyToId || null },
         );
         stateRef.current.db.community = res.community;
       } finally {
@@ -759,6 +774,50 @@ export function TrakStoreProvider({
       });
       const r = stateRef.current.responsibilities.find((x) => x.id === id);
       if (r) r.isActive = !r.isActive;
+      bump();
+    },
+    requestException: async (activityId, explanation) => {
+      const res = await apiSend<{
+        activity: Activity;
+        notification: Notification;
+      }>(`/api/activities/${activityId}`, "PATCH", {
+        action: "requestException",
+        explanation,
+      });
+      const actIdx = stateRef.current.db.activities.findIndex(
+        (a) => a.id === activityId,
+      );
+      if (actIdx >= 0) stateRef.current.db.activities[actIdx] = res.activity;
+      mergeNotifications([res.notification]);
+      bump();
+    },
+    approveException: async (activityId) => {
+      const res = await apiSend<{
+        activity: Activity;
+        notificationToMember: Notification;
+        notificationToHead: Notification;
+      }>(`/api/activities/${activityId}`, "PATCH", {
+        action: "approveException",
+      });
+      const actIdx = stateRef.current.db.activities.findIndex(
+        (a) => a.id === activityId,
+      );
+      if (actIdx >= 0) stateRef.current.db.activities[actIdx] = res.activity;
+      mergeNotifications([res.notificationToMember, res.notificationToHead]);
+      bump();
+    },
+    rejectException: async (activityId) => {
+      const res = await apiSend<{
+        activity: Activity;
+        notificationToMember: Notification;
+      }>(`/api/activities/${activityId}`, "PATCH", {
+        action: "rejectException",
+      });
+      const actIdx = stateRef.current.db.activities.findIndex(
+        (a) => a.id === activityId,
+      );
+      if (actIdx >= 0) stateRef.current.db.activities[actIdx] = res.activity;
+      mergeNotifications([res.notificationToMember]);
       bump();
     },
     activitiesFor: (userId) => activitiesForMut(db, userId),

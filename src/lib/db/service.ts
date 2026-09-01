@@ -143,6 +143,140 @@ async function recomputeActivityStatus(
   });
 }
 
+export async function markActivitiesMissed(reference: Date = now()): Promise<void> {
+  const activities = await prisma.activity.findMany({
+    where: {
+      status: "pending",
+      endDate: { lt: reference.toISOString() },
+      softDeletedAt: null,
+    },
+    select: { id: true, endDate: true, createdById: true },
+  });
+
+  const n = now();
+  for (const act of activities) {
+    const logs = await prisma.dailyLog.findMany({
+      where: { activityId: act.id },
+    });
+
+    const anySubmitted = logs.some((l) => l.status === "submitted");
+    if (!anySubmitted) {
+      await prisma.activity.update({
+        where: { id: act.id },
+        data: {
+          status: "missed",
+          exceptionStatus: "none",
+          submissionType: "normal",
+          gracePeriodStartedAt: null,
+          gracePeriodExpiresAt: null,
+        },
+      });
+    }
+  }
+
+  // Expire approved exceptions whose grace period has elapsed
+  await expireExpiredExceptions(n);
+}
+
+export async function expireExpiredExceptions(reference: Date = now()): Promise<void> {
+  const expired = await prisma.activity.findMany({
+    where: {
+      exceptionStatus: "approved",
+      status: "missed",
+      gracePeriodExpiresAt: { lt: reference },
+      softDeletedAt: null,
+    },
+    select: { id: true, createdById: true, title: true, gracePeriodExpiresAt: true },
+  });
+
+  for (const act of expired) {
+    await prisma.activity.update({
+      where: { id: act.id },
+      data: { exceptionStatus: "expired" },
+    });
+
+    await pushNotification(
+      act.createdById,
+      "activity_missed",
+      `"${act.title}" 2-hour grace period has expired. The activity remains missed.`,
+      act.id,
+    );
+  }
+}
+
+export async function requestException(
+  session: SessionUser,
+  activityId: string,
+  explanation: string,
+): Promise<{ activity: Activity; notification: Notification }> {
+  const actor = await requireActor(session);
+
+  const act = await prisma.activity.findUnique({
+    where: { id: activityId },
+    include: { createdBy: true },
+  });
+  if (!act || act.softDeletedAt) {
+    throw new ServiceError(404, "Activity not found.");
+  }
+  if (act.createdById !== session.id) {
+    throw new ServiceError(
+      403,
+      "You can only request an exception for your own activity.",
+    );
+  }
+  if (act.status !== "missed") {
+    throw new ServiceError(400, "Exception can only be requested for missed activities.");
+  }
+  if (act.exceptionStatus === "requested") {
+    throw new ServiceError(400, "An exception request for this activity already exists.");
+  }
+
+  const now = createNow();
+  const updated = await prisma.$transaction(async (tx) => {
+    const a = await tx.activity.update({
+      where: { id: activityId },
+      data: {
+        exceptionStatus: "requested",
+        exceptionReason: explanation,
+        submissionType: "normal",
+      },
+      include: { createdBy: true, responsibilities: true },
+    });
+    return { activity: mapActivity(a) };
+  });
+
+const headId = await findHeadUserId();
+  const creator = (await getUser(act.createdById))!;
+
+  if (headId) {
+    await pushNotification(
+      headId,
+      "activity_created",
+      `"${updated.activity.title}" - ${firstName(creator.name)} requested an exception. Reason: "${explanation}".`,
+      activityId,
+    );
+  }
+
+  await recordAuditEvent({
+    userId: session.authUserId,
+    action: "activity_miss",
+    targetId: activityId,
+    targetType: "activity",
+    meta: { explanation },
+  });
+
+  const notification = await prisma.notification.create({
+    data: {
+      userId: headId ?? creator.id,
+      type: "activity_missed",
+      text: `${firstName(creator.name)} requested an exception for "${act.title}".`,
+      activityId,
+    },
+  });
+
+  return { activity: updated.activity, notification: mapNotification(notification) };
+}
+
 async function pushNotification(
   userId: string,
   type: Notification["type"],
@@ -184,6 +318,148 @@ async function pushNotification(
   }
 
   sendPushNotification(userId, title, text, { url }).catch(console.error);
+}
+
+export async function approveException(
+  session: SessionUser,
+  activityId: string,
+): Promise<{ activity: Activity; notificationToMember: Notification; notificationToHead: Notification }> {
+  const actor = await requireActor(session);
+
+  const act = await prisma.activity.findUnique({
+    where: { id: activityId },
+    include: { createdBy: true },
+  });
+  if (!act || act.softDeletedAt) {
+    throw new ServiceError(404, "Activity not found.");
+  }
+  if (actor.role !== "head") {
+    throw new ServiceError(403, "Only the Unit Head can approve exceptions.");
+  }
+  if (act.exceptionStatus !== "requested") {
+    throw new ServiceError(400, "This exception request is not in REQUESTED state.");
+  }
+
+  const n = now();
+  const twoHoursLater = new Date(n.getTime() + 2 * 60 * 60 * 1000);
+
+  const updated = await prisma.$transaction(async (tx) => {
+    const a = await tx.activity.update({
+      where: { id: activityId },
+      data: {
+        exceptionStatus: "approved",
+        gracePeriodStartedAt: n,
+        gracePeriodExpiresAt: twoHoursLater,
+      },
+      include: { createdBy: true, responsibilities: true },
+    });
+    return { activity: mapActivity(a) };
+  });
+
+  const memberId = act.createdById;
+
+  await pushNotification(
+    memberId,
+    "activity_completed",
+    `"${updated.activity.title}" has been approved for late submission. You have 2 hours to log the activity.`,
+    activityId,
+  );
+
+  const headUser = await getUser(session.id);
+  await pushNotification(
+    act.createdById,
+    "activity_completed",
+    `"${updated.activity.title}" exception has been approved by ${headUser?.name || "Unit Head"}.`,
+    activityId,
+  );
+
+  await recordAuditEvent({
+    userId: session.authUserId,
+    action: "activity_update",
+    targetId: activityId,
+    targetType: "activity",
+  });
+
+  const notifMember = await prisma.notification.create({
+    data: {
+      userId: memberId,
+      type: "activity_completed",
+      text: `"${updated.activity.title}" has been approved for late submission. You have 2 hours to log the activity.`,
+      activityId,
+    },
+  });
+
+  const notifHead = await prisma.notification.create({
+    data: {
+      userId: session.id,
+      type: "activity_completed",
+      text: `"${updated.activity.title}" exception has been approved.`,
+      activityId,
+    },
+  });
+
+  return {
+    activity: updated.activity,
+    notificationToMember: mapNotification(notifMember),
+    notificationToHead: mapNotification(notifHead),
+  };
+}
+
+export async function rejectException(
+  session: SessionUser,
+  activityId: string,
+): Promise<{ activity: Activity; notificationToMember: Notification }> {
+  const actor = await requireActor(session);
+
+  const act = await prisma.activity.findUnique({
+    where: { id: activityId },
+    include: { createdBy: true },
+  });
+  if (!act || act.softDeletedAt) {
+    throw new ServiceError(404, "Activity not found.");
+  }
+  if (actor.role !== "head") {
+    throw new ServiceError(403, "Only the Unit Head can reject exceptions.");
+  }
+  if (act.exceptionStatus !== "requested") {
+    throw new ServiceError(400, "This exception request is not in REQUESTED state.");
+  }
+
+  const updated = await prisma.$transaction(async (tx) => {
+    const a = await tx.activity.update({
+      where: { id: activityId },
+      data: {
+        exceptionStatus: "rejected",
+      },
+      include: { createdBy: true, responsibilities: true },
+    });
+    return { activity: mapActivity(a) };
+  });
+
+  await pushNotification(
+    act.createdById,
+    "activity_missed",
+    `"${updated.activity.title}" exception request has been rejected.`,
+    activityId,
+  );
+
+  await recordAuditEvent({
+    userId: session.authUserId,
+    action: "activity_update",
+    targetId: activityId,
+    targetType: "activity",
+  });
+
+  const notification = await prisma.notification.create({
+    data: {
+      userId: act.createdById,
+      type: "activity_missed",
+      text: `"${updated.activity.title}" exception request has been rejected.`,
+      activityId,
+    },
+  });
+
+  return { activity: updated.activity, notificationToMember: mapNotification(notification) };
 }
 
 function publicStorageUrl(key: string | null | undefined): string | null {
@@ -667,6 +943,21 @@ export async function submitDailyLog(
   if (!log) throw new ServiceError(404, "Daily log not found.");
 
   const n = now();
+
+  if (act.status === "missed") {
+    const canSubmitLate =
+      act.exceptionStatus === "approved" &&
+      act.gracePeriodExpiresAt != null &&
+      n <= act.gracePeriodExpiresAt;
+
+    if (!canSubmitLate) {
+      throw new ServiceError(
+        400,
+        "This activity is missed. An approved exception with a valid grace period is required to submit it late.",
+      );
+    }
+  }
+
   await prisma.$transaction(async (tx) => {
     await tx.attendee.deleteMany({ where: { dailyLogId: log.id } });
     await tx.attachment.deleteMany({ where: { dailyLogId: log.id } });
@@ -713,6 +1004,18 @@ export async function submitDailyLog(
     });
   });
 
+  if (act.status === "missed") {
+    await prisma.activity.update({
+      where: { id: activityId },
+      data: {
+        submissionType: "late",
+        gracePeriodExpiresAt: null,
+        gracePeriodStartedAt: null,
+        exceptionStatus: act.exceptionStatus === "approved" ? "approved" : act.exceptionStatus,
+      },
+    });
+  }
+
   await recomputeActivityStatus(activityId, n);
 
   const updatedAct = await prisma.activity.findUniqueOrThrow({
@@ -728,10 +1031,19 @@ export async function submitDailyLog(
     const headId = await findHeadUserId();
     if (headId && updatedAct.createdById !== headId) {
       const owner = await getUser(updatedAct.createdById);
+      const latePrefix = updatedAct.submissionType === "late" ? " (submitted late)" : "";
       await pushNotification(
         headId,
         "activity_completed",
-        `"${updatedAct.title}" (${firstName(owner?.name || "")}) was just completed.`,
+        `"${updatedAct.title}" (${firstName(owner?.name || "")}) was just completed${latePrefix}.`,
+        activityId,
+      );
+    }
+    if (updatedAct.submissionType === "late") {
+      await pushNotification(
+        updatedAct.createdById,
+        "activity_completed",
+        `Your activity "${updatedAct.title}" has been successfully logged and recorded as a late submission.`,
         activityId,
       );
     }
@@ -1111,7 +1423,8 @@ export async function sendDm(
   session: SessionUser,
   toId: string,
   text: string,
-  attachments?: any[]
+  attachments?: any[],
+  replyToId?: string | null
 ): Promise<{ id: string }> {
   const actor = await requireActor(session);
   if (toId === session.id) {
@@ -1199,12 +1512,6 @@ export async function sendCommunity(
     throw new ServiceError(400, "Message text or attachment is required.");
   }
 
-  // Parse @mentions: @username
-  const mentionMatches = trimmed.match(/@([A-Za-z0-9_]+)/g) || [];
-  const mentionedUsernames = [
-    ...new Set(mentionMatches.map((m) => m.slice(1).toLowerCase())),
-  ];
-
   const msg = await prisma.$transaction(async (tx) => {
     const created = await tx.communityMessage.create({
       data: {
@@ -1226,33 +1533,27 @@ export async function sendCommunity(
       },
     });
 
-    if (mentionedUsernames.length) {
-      const users = await tx.user.findMany({
-        where: {
-          usernameNormalized: { in: mentionedUsernames },
-          isActive: true,
-        },
-        select: { id: true },
+    if (mentions && mentions.length > 0) {
+      await tx.communityMessageMention.createMany({
+        data: mentions.map((m) => ({
+          messageId: created.id,
+          userId: m.userId,
+          position: m.position,
+        })),
+        skipDuplicates: true,
       });
-      if (users.length) {
-        await tx.communityMessageMention.createMany({
-          data: users.map((u) => ({
-            messageId: created.id,
-            userId: u.id,
-          })),
-          skipDuplicates: true,
-        });
-        for (const u of users) {
-          if (u.id !== session.id) {
-            await tx.notification.create({
-              data: {
-                userId: u.id,
-                type: "mention",
-                text: `You were mentioned in community chat.`,
-                messageId: created.id,
-              },
-            });
-          }
+
+      // Avoid notifying the author if they mentioned themselves
+      for (const m of mentions) {
+        if (m.userId !== session.id) {
+          await tx.notification.create({
+            data: {
+              userId: m.userId,
+              type: "mention",
+              text: `You were mentioned in community chat.`,
+              messageId: created.id,
+            },
+          });
         }
       }
     }

@@ -1,9 +1,10 @@
-import React, { useRef, useEffect } from "react";
+import React, { useRef, useEffect, useState } from "react";
 import { Bubble } from "./Bubble";
 import { CallRecord, Dm, MessageMention } from "@/lib/types";
 import { PATHS } from "@/components/icons";
 import { formatDuration } from "@/lib/utils";
 import { formatRelativeDate } from "@/lib/dates";
+import { scrollToMessage } from "@/lib/message-scroll";
 
 type ThreadItem =
   | { kind: "dm"; id: string; dm: Dm; mentions?: MessageMention[] }
@@ -32,26 +33,47 @@ export function ChatThread({
   me,
   userMap,
   isGroup,
+  onReply,
   onDeleteMessage,
   canDeleteAny = false,
   onMentionClick,
+  highlightedId: externalHighlightedId,
 }: {
   items: ThreadItem[];
   me: string;
   userMap: any;
   isGroup?: boolean;
+  onReply?: (messageId: string) => void;
   onDeleteMessage?: (messageId: string, forEveryone: boolean) => void;
   canDeleteAny?: boolean;
   onMentionClick?: (userId: string) => void;
+  highlightedId?: string | null;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
+  const [highlightedId, setHighlightedId] = useState<string | null>(null);
 
-  // Scroll to bottom on new messages
+  // Scroll to bottom on new messages — but not if a reply highlight is active
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
   }, [items.length]);
+
+  useEffect(() => {
+    if (externalHighlightedId) {
+      setHighlightedId(externalHighlightedId);
+      const t = setTimeout(() => setHighlightedId(null), 1500);
+      return () => clearTimeout(t);
+    }
+  }, [externalHighlightedId]);
+
+  function handleBubbleReply(messageId: string) {
+    onReply?.(messageId);
+  }
+
+  function handleBubbleDelete(messageId: string, forEveryone: boolean) {
+    onDeleteMessage?.(messageId, forEveryone);
+  }
 
   if (!items.length) {
     return (
@@ -108,9 +130,12 @@ export function ChatThread({
       const isFirstInGroup = prevFromId !== fromId || (currTime - prevTime > 5 * 60 * 1000) || prev?.kind === "call";
       const isLastInGroup = nextFromId !== fromId || (nextTime - currTime > 5 * 60 * 1000) || next?.kind === "call";
 
+      const isHighlighted = highlightedId === item.id;
+
       grouped.push(
         <Bubble
           key={item.id}
+          id={item.id}
           fromId={fromId}
           text={item.dm.text}
           time={item.dm.at}
@@ -122,11 +147,15 @@ export function ChatThread({
           isLastInGroup={isLastInGroup}
           isGroup={isGroup}
           attachments={item.dm.attachments}
-          onDelete={onDeleteMessage ? (forEveryone) => onDeleteMessage(item.id, forEveryone) : undefined}
-          canDeleteAny={canDeleteAny}
-          isDeleted={(item.dm as any).isDeleted}
           mentions={item.mentions}
           onMentionClick={onMentionClick}
+          isDeleted={(item.dm as any).isDeleted}
+          replyTo={item.dm.replyTo ?? null}
+          replyToId={(item.dm as any).replyToId ?? null}
+          onReply={handleBubbleReply}
+          onDelete={onDeleteMessage ? (forEveryone) => handleBubbleDelete(item.id, forEveryone) : undefined}
+          canDeleteAny={canDeleteAny}
+          isHighlighted={isHighlighted}
         />
       );
     }
@@ -185,4 +214,13 @@ function CallPill({
       </span>
     </div>
   );
+}
+
+// Exported helper for parent components that need to trigger highlight
+export function triggerScrollToMessage(messageId: string, highlightSetter?: (id: string) => void) {
+  const ok = scrollToMessage(messageId);
+  if (ok && highlightSetter) {
+    highlightSetter(messageId);
+  }
+  return ok;
 }

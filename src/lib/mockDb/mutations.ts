@@ -46,6 +46,13 @@ export function recomputeStatus(db: TrakDb, activityId: string, now: Date): void
   const today = iso(now);
   const anyMissed = logs.some((l) => l.status === "pending" && l.date < today);
   act.status = anyMissed ? "missed" : "pending";
+  if (act.status === "missed") {
+    act.exceptionStatus = "none";
+    act.exceptionReason = "";
+    act.submissionType = "normal";
+    act.gracePeriodStartedAt = null;
+    act.gracePeriodExpiresAt = null;
+  }
 }
 
 export function createActivity(
@@ -68,6 +75,11 @@ export function createActivity(
     responsibilityIds: input.responsibilityIds,
     location: input.location ?? "",
     status: "pending",
+    exceptionStatus: "none",
+    exceptionReason: "",
+    submissionType: "normal",
+    gracePeriodStartedAt: null,
+    gracePeriodExpiresAt: null,
     createdAt: input.seedDate || iso(now),
     initiativeTeamwork: "",
     challenges: "",
@@ -112,6 +124,8 @@ export function submitDailyLog(
   data: SubmitDailyLogData,
   now: Date,
 ): void {
+  const act = db.activities.find((a) => a.id === activityId);
+  const wasMissed = act?.status === "missed";
   const log = db.dailyLogs.find(
     (l) => l.activityId === activityId && l.date === date,
   );
@@ -130,7 +144,63 @@ export function submitDailyLog(
     status: "submitted" as const,
     submittedAt: iso(now),
   });
+  if (wasMissed && act) {
+    act.submissionType = "late";
+    act.gracePeriodExpiresAt = null;
+    act.exceptionStatus = act.exceptionStatus === "approved" ? "approved" : act.exceptionStatus;
+  }
   recomputeStatus(db, activityId, now);
+}
+
+export function requestException(
+  db: TrakDb,
+  activityId: string,
+  explanation: string,
+  now: Date,
+): Activity | null {
+  const act = db.activities.find((a) => a.id === activityId);
+  if (!act || act.status !== "missed") return null;
+  if (act.exceptionStatus === "requested") return null;
+  act.exceptionStatus = "requested";
+  act.exceptionReason = explanation;
+  return act;
+}
+
+export function approveException(
+  db: TrakDb,
+  activityId: string,
+  now: Date,
+  durationMs = 2 * 60 * 60 * 1000,
+): Activity | null {
+  const act = db.activities.find((a) => a.id === activityId);
+  if (!act || act.exceptionStatus !== "requested") return null;
+  act.exceptionStatus = "approved";
+  act.gracePeriodStartedAt = now;
+  act.gracePeriodExpiresAt = new Date(now.getTime() + durationMs);
+  return act;
+}
+
+export function rejectException(
+  db: TrakDb,
+  activityId: string,
+): Activity | null {
+  const act = db.activities.find((a) => a.id === activityId);
+  if (!act || act.exceptionStatus !== "requested") return null;
+  act.exceptionStatus = "rejected";
+  return act;
+}
+
+export function expireExceptions(db: TrakDb, now: Date): void {
+  for (const act of db.activities) {
+    if (
+      act.exceptionStatus === "approved" &&
+      act.status === "missed" &&
+      act.gracePeriodExpiresAt &&
+      now > act.gracePeriodExpiresAt
+    ) {
+      act.exceptionStatus = "expired";
+    }
+  }
 }
 
 export function updateActivityWrapup(

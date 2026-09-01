@@ -124,12 +124,16 @@ function AccountingOfficer() {
 
   const activeUsers = users.filter((u) => u.isActive);
   const teamCounts = activeUsers
-    .map((u) => ({
-      u,
-      count: activitiesFor(u.id).filter(
+    .map((u) => {
+      const monthActs = activitiesFor(u.id).filter(
         (a) => a.status === "completed" && a.createdAt >= iso(addDays(now, -30)),
-      ).length,
-    }))
+      );
+      return {
+        u,
+        count: monthActs.length,
+        late: monthActs.filter((a) => a.submissionType === "late").length,
+      };
+    })
     .sort((a, b) => b.count - a.count);
   const teamMax = Math.max(1, ...teamCounts.map((t) => t.count));
 
@@ -231,7 +235,7 @@ function AccountingOfficer() {
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1.5fr_1fr]">
         <div className="flex flex-col gap-6">
           <Card title="Team performance" sub="Completed this month" large>
-            {teamCounts.map(({ u, count }) => (
+            {teamCounts.map(({ u, count, late }) => (
               <div key={u.id} className="mb-3 flex items-center gap-3 last:mb-0">
                 <button
                   type="button"
@@ -263,6 +267,9 @@ function AccountingOfficer() {
                   />
                 </div>
                 <div className="w-5 text-right font-mono text-[11.5px] font-bold text-foreground">{count}</div>
+                <div className="ml-1.5 hidden shrink-0 rounded-full bg-warning-surface px-1.5 py-0.5 text-[9.5px] font-bold tracking-wide text-warning-foreground uppercase sm:inline-flex">
+                  {late} late
+                </div>
                 <div className="ml-1.5 hidden shrink-0 rounded-full bg-surface-muted px-1.5 py-0.5 text-[9.5px] font-bold tracking-wide text-foreground-faint uppercase sm:inline-flex">
                   {roleLabel(u)}
                 </div>
@@ -366,7 +373,7 @@ function AccountingOfficer() {
                   a.status === "pending"
                     ? "Pending"
                     : a.status === "completed"
-                      ? "Completed"
+                      ? a.submissionType === "late" ? "Completed · Late" : "Completed"
                       : "Missed";
                 return (
                   <div

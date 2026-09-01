@@ -22,7 +22,6 @@ export function NewConversation({
   const q = search.trim().toLowerCase();
   const matches = users.filter(
     (u) =>
-      u.id !== me &&
       (u.name.toLowerCase().includes(q) ||
         u.username.toLowerCase().includes(q)),
   );

@@ -14,5 +14,9 @@ export {
   toggleActivityHidden,
   softDeleteActivity,
   deactivateResponsibility,
+  requestException,
+  approveException,
+  rejectException,
+  expireExceptions,
 } from "./mutations";
 export { seedDb } from "./seed";

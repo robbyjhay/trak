@@ -8,6 +8,7 @@ import { firstName } from "@/lib/utils";
 import type { Activity, User } from "@/lib/types";
 import { useTrak } from "@/context/TrakStore";
 import { PATHS } from "@/components/icons";
+import { GraceCountdown } from "./GraceCountdown";
 
 export function ActRow({
   activity,
@@ -59,14 +60,16 @@ export function ActRow({
         ? "In progress"
         : "Not started"
       : a.status === "completed"
-        ? "Completed"
+        ? a.submissionType === "late" ? "Completed · Late" : "Completed"
         : "Missed";
 
   const statusCls =
     a.status === "pending"
       ? "bg-warning-surface text-warning-foreground"
       : a.status === "completed"
-        ? "bg-success-surface text-success"
+        ? a.submissionType === "late"
+          ? "bg-success-surface text-success"
+          : "bg-success-surface text-success"
         : "bg-critical-surface text-critical-semantic";
 
   return (
@@ -106,6 +109,7 @@ export function ActRow({
           <span className="h-[3px] w-[3px] rounded-full bg-foreground-faint" />
           <span>{metaLine}</span>
           {dayTag}
+          <GraceCountdown activity={a} variant="pill" />
           {a.delegatedBy && (
             <span className="rounded-full bg-warning-surface px-2 py-0.5 text-[9.5px] font-bold tracking-wide text-warning-foreground uppercase">
               Delegated by{" "}

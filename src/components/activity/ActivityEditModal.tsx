@@ -8,6 +8,7 @@ import { Switch } from "@/components/ui/Switch";
 import type { Activity, ActivityType } from "@/lib/types";
 import { TYPE_COLOR } from "@/lib/constants";
 import { TypeIcon } from "@/components/icons";
+import { GraceCountdown } from "./GraceCountdown";
 
 const TYPES: ActivityType[] = ["Meeting", "Project", "Program", "Task"];
 
@@ -54,6 +55,18 @@ export function ActivityEditModal({
           <button onClick={onClose} className="text-foreground-faint hover:text-foreground">✕</button>
         </div>
         <div className="max-h-[60vh] overflow-y-auto px-6 py-4 space-y-6">
+          <GraceCountdown
+            activity={activity}
+            variant="banner"
+            className="w-full"
+          />
+          {activity.status === "missed" &&
+            activity.exceptionStatus === "approved" && (
+              <div className="text-[11.5px] leading-snug text-foreground-faint">
+                The grace period is fixed by the Unit Head. It cannot be edited here — log
+                the activity before the countdown ends.
+              </div>
+            )}
           <div>
             <label className="mb-2 block text-xs font-bold uppercase text-foreground-secondary">Title *</label>
             <input
