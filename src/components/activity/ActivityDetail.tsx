@@ -392,11 +392,7 @@ export function ActivityDetail({
         </div>
       )}
 
-      {(act.status === "pending" ||
-        (act.status === "missed" &&
-          act.exceptionStatus === "approved" &&
-          act.gracePeriodExpiresAt != null &&
-          new Date(act.gracePeriodExpiresAt) >= new Date())) && (
+      {(act.status === "pending" || act.status === "missed") && (
         <PendingForm
           act={act}
           logs={logs}
