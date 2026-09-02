@@ -1407,6 +1407,7 @@ export async function listDmsForUser(
       take: limit,
       include: {
         attachments: true,
+        replyTo: { include: { attachments: true } },
         deletedBy: { where: { userId: session.id }, select: { id: true } }
       }
     }),
@@ -1446,6 +1447,7 @@ export async function sendDm(
       participantB: b,
       fromUserId: session.id,
       text: trimmed,
+      replyToId: replyToId || null,
       ...(attachments && attachments.length > 0 && {
         attachments: {
           create: attachments.map((att: any) => ({
@@ -1486,6 +1488,7 @@ export async function listCommunity(
       take: limit,
       include: {
         attachments: true,
+        replyTo: { include: { attachments: true } },
         mentions: { include: { user: { include: { profile: true } } } },
         ...(opts?.userId ? { deletedBy: { where: { userId: opts.userId }, select: { id: true } } } : {})
       }
@@ -1977,6 +1980,7 @@ export async function getScopedBootstrap(session: SessionUser): Promise<{
       take: 200,
       include: {
         attachments: true,
+        replyTo: { include: { attachments: true } },
         deletedBy: { where: { userId: session.id }, select: { id: true } }
       }
     }),
@@ -1992,6 +1996,7 @@ export async function getScopedBootstrap(session: SessionUser): Promise<{
       take: 100,
       include: {
         attachments: true,
+        replyTo: { include: { attachments: true } },
         mentions: { include: { user: { include: { profile: true } } } },
         deletedBy: { where: { userId: session.id }, select: { id: true } }
       }

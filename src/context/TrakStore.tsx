@@ -597,7 +597,7 @@ export function TrakStoreProvider({
       bump();
       return res.responsibility;
     },
-    sendDm: async (toId, text, attachments) => {
+    sendDm: async (toId, text, attachments, replyToId) => {
       const tempId = `temp_${Date.now()}`;
       stateRef.current.db.dms.push({
         id: tempId,
@@ -607,13 +607,26 @@ export function TrakStoreProvider({
         text,
         attachments: (attachments || []).map((a, i) => ({ ...a, id: `${tempId}_${i}`, messageId: tempId })),
         at: new Date().toISOString(),
+        replyToId: replyToId || null,
+        replyTo: replyToId ? (() => {
+          const orig = stateRef.current.db.dms.find((m) => m.id === replyToId) as any;
+          if (!orig) return null;
+          return {
+            id: orig.id,
+            from: orig.from,
+            text: orig.text || "",
+            at: orig.at,
+            attachments: orig.attachments,
+            isDeleted: orig.isDeleted,
+          };
+        })() : null,
       });
       bump();
       try {
         const res = await apiSend<{
           dms: typeof db.dms;
           notifications: Notification[];
-        }>("/api/messages/dms", "POST", { toId, text, attachments });
+        }>("/api/messages/dms", "POST", { toId, text, attachments, replyToId: replyToId || null });
         stateRef.current.db.dms = res.dms;
         mergeNotifications(res.notifications);
       } finally {
