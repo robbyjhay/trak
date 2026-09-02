@@ -944,6 +944,20 @@ export async function submitDailyLog(
 
   const n = now();
 
+  if (act.status === "missed") {
+    const canSubmitLate =
+      act.exceptionStatus === "approved" &&
+      act.gracePeriodExpiresAt != null &&
+      n <= act.gracePeriodExpiresAt;
+
+    if (!canSubmitLate) {
+      throw new ServiceError(
+        400,
+        "This activity is missed. An approved exception with a valid grace period is required to submit it late.",
+      );
+    }
+  }
+
   await prisma.$transaction(async (tx) => {
     await tx.attendee.deleteMany({ where: { dailyLogId: log.id } });
     await tx.attachment.deleteMany({ where: { dailyLogId: log.id } });
@@ -990,6 +1004,18 @@ export async function submitDailyLog(
     });
   });
 
+  if (act.status === "missed") {
+    await prisma.activity.update({
+      where: { id: activityId },
+      data: {
+        submissionType: "late",
+        gracePeriodExpiresAt: null,
+        gracePeriodStartedAt: null,
+        exceptionStatus: act.exceptionStatus === "approved" ? "approved" : act.exceptionStatus,
+      },
+    });
+  }
+
   await recomputeActivityStatus(activityId, n);
 
   const updatedAct = await prisma.activity.findUniqueOrThrow({
@@ -1005,10 +1031,19 @@ export async function submitDailyLog(
     const headId = await findHeadUserId();
     if (headId && updatedAct.createdById !== headId) {
       const owner = await getUser(updatedAct.createdById);
+      const latePrefix = updatedAct.submissionType === "late" ? " (submitted late)" : "";
       await pushNotification(
         headId,
         "activity_completed",
-        `"${updatedAct.title}" (${firstName(owner?.name || "")}) was just completed.`,
+        `"${updatedAct.title}" (${firstName(owner?.name || "")}) was just completed${latePrefix}.`,
+        activityId,
+      );
+    }
+    if (updatedAct.submissionType === "late") {
+      await pushNotification(
+        updatedAct.createdById,
+        "activity_completed",
+        `Your activity "${updatedAct.title}" has been successfully logged and recorded as a late submission.`,
         activityId,
       );
     }
