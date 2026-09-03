@@ -47,7 +47,7 @@ function formatListTime(isoString: string): string {
   if (!isoString) return "";
   const d = new Date(isoString);
   if (isNaN(d.getTime())) return "";
-  return d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+  return d.toLocaleTimeString("en-US", { hour: 'numeric', minute: '2-digit', hour12: true });
 }
 
 export function ConversationList({
@@ -317,7 +317,7 @@ function ConvItem({
             {name}
           </div>
           {time && (
-            <div className={cn("shrink-0 pl-2 text-[11px] font-medium tracking-tight", unreadCount ? "text-primary font-bold" : "text-foreground-faint")}>
+            <div suppressHydrationWarning className={cn("shrink-0 pl-2 text-[11px] font-medium tracking-tight", unreadCount ? "text-primary font-bold" : "text-foreground-faint")}>
               {time}
             </div>
           )}

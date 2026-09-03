@@ -132,7 +132,7 @@ export function LoginForm({
             </>
           )}
 
-          <form action={formAction}>
+          <form action={formAction} suppressHydrationWarning>
             {passwordResetNotice && (
               <div
                 className="mb-4 border border-success/30 bg-success-surface px-3.5 py-3 text-[13px] font-semibold text-success"
@@ -159,6 +159,7 @@ export function LoginForm({
                 onChange={(e) => setUsername(e.target.value)}
                 className="w-full rounded-xl border-[1.5px] border-input-border bg-input px-3.5 py-3.5 text-[14.5px] text-foreground outline-none placeholder:text-input-placeholder focus:border-border-strong focus:ring-1 focus:ring-border"
                 required
+                suppressHydrationWarning
               />
             </div>
             <div className="mb-2.5">
@@ -178,6 +179,7 @@ export function LoginForm({
                 onChange={(e) => setPassword(e.target.value)}
                 className="w-full rounded-xl border-[1.5px] border-input-border bg-input px-3.5 py-3.5 text-[14.5px] text-foreground outline-none placeholder:text-input-placeholder focus:border-border-strong focus:ring-1 focus:ring-border"
                 required
+                suppressHydrationWarning
               />
             </div>
             {state && !state.ok && (

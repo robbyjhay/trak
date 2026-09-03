@@ -152,6 +152,15 @@
   --popover: var(--card);
   --modal: var(--card);
   --tooltip: var(--aztec);
+
+  /* Topbar height including safe-area for notched iPhones */
+  --topbar-height: calc(88px + env(safe-area-inset-top, 0px));
+  
+  --safe-area-bottom: env(safe-area-inset-bottom);
+}
+
+.keyboard-open {
+  --safe-area-bottom: 0px;
 }
 
 .dark {
@@ -261,6 +270,24 @@ a {
 
 button {
   font-family: inherit;
+}
+
+/* iOS Safari auto-zoom prevention: force >= 16px on all text-bearing form controls
+   when the device has a coarse pointer (touch). Safari zooms the viewport when
+   focused inputs are below 16px; this rule keeps the page at its natural scale. */
+@media (pointer: coarse) {
+  input,
+  textarea,
+  select,
+  input[type="text"],
+  input[type="search"],
+  input[type="email"],
+  input[type="password"],
+  input[type="tel"],
+  input[type="number"],
+  input[type="url"] {
+    font-size: 16px !important;
+  }
 }
 
 /* Scrollbar — subtle, paper-adjacent */

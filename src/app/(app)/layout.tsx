@@ -55,7 +55,7 @@ export default async function AppLayout({
         <ConnectNavProvider>
           <CallProvider userId={session.id}>
             <IncomingCallOverlay />
-            <div className="flex min-h-screen">
+            <div className="flex h-[100dvh] overflow-hidden w-full">
               <div className="hidden md:block">
                 <Rail />
               </div>

@@ -390,7 +390,7 @@ export function Composer({
         </div>
       )}
 
-      <div className="flex px-4 py-3 pb-[env(safe-area-inset-bottom)] sm:px-6 md:px-8 md:pb-4">
+      <div className="flex px-4 py-3 pb-[var(--safe-area-bottom,env(safe-area-inset-bottom))] sm:px-6 md:px-8 md:pb-4">
         <div className="flex flex-1 items-end gap-1.5 rounded-[24px] bg-surface border border-transparent focus-within:border-border focus-within:ring-2 focus-within:ring-foreground/10 px-1.5 py-1.5 shadow-sm transition-all">
           <input
             type="file"
