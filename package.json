@@ -24,7 +24,6 @@
     "smoke:auth": "node scripts/smoke-auth.mjs",
     "smoke:launch": "node scripts/smoke-launch.mjs",
     "check:prod-env": "node scripts/check-prod-env.mjs",
-    "postinstall": "prisma generate"
   },
   "prisma": {
     "seed": "npx tsx prisma/seed.ts"

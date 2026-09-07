@@ -1,3 +1,4 @@
+// Prisma 7 config — datasource URL lives here, not in schema.prisma
 import "dotenv/config";
 import { defineConfig, env } from "prisma/config";
 
@@ -8,6 +9,6 @@ export default defineConfig({
     seed: "npx tsx prisma/seed.ts",
   },
   datasource: {
-    url: process.env.DATABASE_URL,
+    url: env("DATABASE_URL"),
   },
 });
