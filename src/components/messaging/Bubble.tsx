@@ -9,7 +9,6 @@ import { scrollToMessage } from "@/lib/message-scroll";
 import { PATHS } from "@/components/icons";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { LinkPreviewCard } from "./LinkPreviewCard";
->>>>>>> feature/link-previews
 
 function formatMessageTime(isoString: string): string {
   if (!isoString) return "";
