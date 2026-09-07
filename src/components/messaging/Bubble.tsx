@@ -8,14 +8,8 @@ import { parseSegments, parseSegmentsWithLinks } from "@/lib/mention-utils";
 import { scrollToMessage } from "@/lib/message-scroll";
 import { PATHS } from "@/components/icons";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
+import type { MessageAttachment, MessageMention, ReplyPreview, LinkPreview } from "@/lib/types";
 import { LinkPreviewCard } from "./LinkPreviewCard";
-
-function formatMessageTime(isoString: string): string {
-  if (!isoString) return "";
-  const d = new Date(isoString);
-  if (isNaN(d.getTime())) return "";
-  return d.toLocaleTimeString("en-US", { hour: 'numeric', minute: '2-digit', hour12: true });
-}
 
 function getReplyPreviewText(reply: ReplyPreview): string {
   if (reply.isDeleted) return "Original message unavailable";
