@@ -52,7 +52,7 @@ export const NOTIF_PATHS: Record<NotifType, string> = {
     "M12 2v10l4.5 4.5 M22 12A10 10 0 1 1 12 2a10 10 0 0 1 10 10z",
   broadcast:
     "M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9 M13.73 21a2 2 0 0 1-3.46 0",
-  profile_updated: "", guestCode: "", mention:
+  profile_updated: "", mention:
     "M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20z M12 6v.01 M8 10h4a2 2 0 0 1 0 4H9v3",
 };
 
