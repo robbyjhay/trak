@@ -6,6 +6,9 @@ const ICE_SERVERS: RTCConfiguration = {
   iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
 };
 
+/** How long to wait after ICE goes "disconnected" before declaring failure. */
+const DISCONNECTED_TIMEOUT_MS = 10_000;
+
 export type PeerStatus =
   | "idle"
   | "requesting_media"
@@ -17,7 +20,17 @@ export function useWebRtc() {
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const remoteAudioRef = useRef<HTMLAudioElement | null>(null);
+  const disconnectedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [status, setStatus] = useState<PeerStatus>("idle");
+
+  // ---- helpers ----
+
+  const clearDisconnectedTimer = useCallback(() => {
+    if (disconnectedTimerRef.current) {
+      clearTimeout(disconnectedTimerRef.current);
+      disconnectedTimerRef.current = null;
+    }
+  }, []);
 
   const getLocalStream = useCallback(async (): Promise<MediaStream> => {
     const stream = await navigator.mediaDevices.getUserMedia({
@@ -61,20 +74,39 @@ export function useWebRtc() {
         }
       };
 
+      // Handle connection state: only "connected" and "failed" are terminal.
+      // "disconnected" gets a grace period before triggering failure.
       pc.onconnectionstatechange = () => {
         const s = pc.connectionState;
         if (s === "connected") {
+          clearDisconnectedTimer();
           setStatus("connected");
           onConnected();
-        } else if (s === "failed" || s === "disconnected") {
+        } else if (s === "disconnected") {
+          // Potentially temporary — start a grace period timer.
+          // If the connection recovers before the timer fires, we clear it.
+          if (disconnectedTimerRef.current) return; // already counting down
+          disconnectedTimerRef.current = setTimeout(() => {
+            disconnectedTimerRef.current = null;
+            // Timer expired without recovery — treat as failed.
+            // Guard: only act if PC still exists and is still disconnected/failed.
+            if (pcRef.current && (pcRef.current.connectionState === "disconnected" || pcRef.current.connectionState === "failed")) {
+              setStatus("failed");
+              onFailed();
+            }
+          }, DISCONNECTED_TIMEOUT_MS);
+        } else if (s === "failed") {
+          clearDisconnectedTimer();
           setStatus("failed");
           onFailed();
+        } else if (s === "closed") {
+          clearDisconnectedTimer();
         }
       };
 
       return pc;
     },
-    [],
+    [clearDisconnectedTimer],
   );
 
   const addLocalTracks = useCallback(
@@ -92,6 +124,18 @@ export function useWebRtc() {
     ): Promise<RTCSessionDescriptionInit> => {
       setStatus("connecting");
       const offer = await pc.createOffer();
+      await pc.setLocalDescription(offer);
+      return { type: "offer", sdp: offer.sdp || "" };
+    },
+    [],
+  );
+
+  /** Create a new offer with ICE restart enabled (does NOT create a new PC). */
+  const createRestartOffer = useCallback(
+    async (pc: RTCPeerConnection): Promise<RTCSessionDescriptionInit> => {
+      pc.restartIce();
+      setStatus("connecting");
+      const offer = await pc.createOffer({ iceRestart: true });
       await pc.setLocalDescription(offer);
       return { type: "offer", sdp: offer.sdp || "" };
     },
@@ -131,6 +175,7 @@ export function useWebRtc() {
   );
 
   const cleanup = useCallback(() => {
+    clearDisconnectedTimer();
     if (streamRef.current) {
       for (const track of streamRef.current.getTracks()) {
         track.stop();
@@ -147,6 +192,16 @@ export function useWebRtc() {
       pcRef.current = null;
     }
     setStatus("idle");
+  }, [clearDisconnectedTimer]);
+
+  /** Get the local audio track (for mute control). */
+  const getLocalAudioTrack = useCallback((): MediaStreamTrack | null => {
+    return streamRef.current?.getAudioTracks()[0] ?? null;
+  }, []);
+
+  /** Get the remote audio element (for speaker/sinkId control). */
+  const getRemoteAudioElement = useCallback((): HTMLAudioElement | null => {
+    return remoteAudioRef.current;
   }, []);
 
   return {
@@ -155,10 +210,13 @@ export function useWebRtc() {
     createPeerConnection,
     addLocalTracks,
     createOffer,
+    createRestartOffer,
     handleOffer,
     handleAnswer,
     addIceCandidate,
     cleanup,
+    getLocalAudioTrack,
+    getRemoteAudioElement,
     getPeer: () => pcRef.current,
   };
 }

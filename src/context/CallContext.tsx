@@ -29,13 +29,21 @@ interface CallContextValue {
   elapsedSec: number;
   incomingCallFrom: string | null;
   onlineUsers: Set<string>;
+  signalingConnected: boolean;
+  presenceSynced: boolean;
   startCall: (partnerId: string) => void;
   acceptCall: () => void;
   rejectCall: () => void;
   endCall: () => void;
+  toggleMute: () => boolean;
+  isMuted: boolean;
+  setSpeakerSinkId: (sinkId: string) => Promise<void>;
+  speakerSupported: boolean;
 }
 
 const CallContext = createContext<CallContextValue | null>(null);
+
+const CALL_TIMEOUT_MS = 30_000;
 
 function playRingtone(): AudioContext | null {
   try {
@@ -89,7 +97,8 @@ export function CallProvider({
   const [activeCall, setActiveCall] = useState<ActiveCall | null>(null);
   const [elapsedSec, setElapsedSec] = useState(0);
   const [incomingCallFrom, setIncomingCallFrom] = useState<string | null>(null);
-  const { onlineUsers, send, onMessage } = useSignaling(userId);
+  const [muted, setMuted] = useState(false);
+  const { onlineUsers, connected: signalingConnected, presenceSynced, send, onMessage } = useSignaling(userId);
   const webrtc = useWebRtc();
   const { showToast } = useTrak();
 
@@ -100,12 +109,65 @@ export function CallProvider({
   const sendRef = useRef(send);
   const webrtcRef = useRef(webrtc);
   const showToastRef = useRef(showToast);
+  const callTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingOfferRef = useRef<{ sdp: RTCSessionDescriptionInit; from: string } | null>(null);
+  const iceRestartInProgressRef = useRef(false);
+  const mutedRef = useRef(false);
 
   // Keep refs current
   useEffect(() => { sendRef.current = send; }, [send]);
   useEffect(() => { webrtcRef.current = webrtc; }, [webrtc]);
   useEffect(() => { activeCallRef.current = activeCall; }, [activeCall]);
   useEffect(() => { showToastRef.current = showToast; }, [showToast]);
+  useEffect(() => { mutedRef.current = muted; }, [muted]);
+
+  // Clear call timeout helper (idempotent)
+  const clearCallTimeout = useCallback(() => {
+    if (callTimeoutRef.current) {
+      clearTimeout(callTimeoutRef.current);
+      callTimeoutRef.current = null;
+    }
+  }, []);
+
+  // ---- ICE restart ----
+  const attemptIceRestart = useCallback(async (partnerId: string) => {
+    if (iceRestartInProgressRef.current) return; // prevent concurrent restarts
+    const w = webrtcRef.current;
+    const s = sendRef.current;
+    const pc = w.getPeer();
+    if (!pc) return;
+
+    iceRestartInProgressRef.current = true;
+    try {
+      const offer = await w.createRestartOffer(pc);
+      s({ type: "ice_restart_offer", to: partnerId, sdp: offer });
+    } catch (err) {
+      console.error("ICE restart failed:", err);
+      // Recovery ultimately failed — terminate the call cleanly
+      iceRestartInProgressRef.current = false;
+      s({ type: "call_end", to: partnerId });
+      stopRingtone(ringtoneRef.current);
+      ringtoneRef.current = null;
+      setActiveCall(null);
+      partnerIdRef.current = null;
+      pendingIceRef.current = [];
+      w.cleanup();
+    }
+  }, []);
+
+  // ---- ICE failure handler (passed to useWebRtc) ----
+  const handleIceFailed = useCallback(() => {
+    const ac = activeCallRef.current;
+    if (!ac || ac.status === "ended") return;
+    // Attempt ICE restart if not already in progress
+    void attemptIceRestart(ac.partnerId);
+  }, [attemptIceRestart]);
+
+  const handleIceConnected = useCallback(() => {
+    iceRestartInProgressRef.current = false;
+    clearCallTimeout();
+    setActiveCall((c) => c ? { ...c, status: "connected" } : null);
+  }, [clearCallTimeout]);
 
   // Listen for signaling messages (uses refs to avoid stale closures)
   useEffect(() => {
@@ -125,20 +187,19 @@ export function CallProvider({
           ringtoneRef.current = playRingtone();
           pendingIceRef.current = [];
 
-          w.createPeerConnection(
-            (candidate) => s({ type: "ice_candidate", to: msg.from, candidate }),
-            () => {},
-            () => {},
-            () => {},
-          );
-
-          (window as any).__pendingOffer = { sdp: msg.sdp, from: msg.from };
+          // Do NOT create a PeerConnection here — only buffer the offer.
+          // The real PC is created in acceptCall().
+          pendingOfferRef.current = { sdp: msg.sdp, from: msg.from };
           break;
         }
 
         case "call_answer": {
+          // Caller receives this after recipient accepts
           const pc = w.getPeer();
           if (!pc) return;
+          // Ignore answer if call was already ended or timed out
+          if (!ac || ac.status === "ended") return;
+          clearCallTimeout();
           await w.handleAnswer(pc, msg.sdp);
           for (const c of pendingIceRef.current) {
             await w.addIceCandidate(pc, c);
@@ -150,6 +211,7 @@ export function CallProvider({
         case "ice_candidate": {
           const pc = w.getPeer();
           if (!pc) {
+            // No PC yet — buffer for later (recipient pre-accept, or caller pre-answer)
             pendingIceRef.current.push(msg.candidate);
             return;
           }
@@ -157,34 +219,29 @@ export function CallProvider({
           break;
         }
 
-        case "call_accept": {
-          stopRingtone(ringtoneRef.current);
-          ringtoneRef.current = null;
-          try {
-            const stream = await w.getLocalStream();
-            const pc = w.createPeerConnection(
-              (candidate) => s({ type: "ice_candidate", to: msg.from, candidate }),
-              () => {},
-              () => setActiveCall((c) => c ? { ...c, status: "connected" } : null),
-              () => { setActiveCall(null); w.cleanup(); },
-            );
-            w.addLocalTracks(pc, stream);
-            const offer = await w.createOffer(pc);
-            s({ type: "call_offer", to: msg.from, sdp: offer });
-            setActiveCall((c) => c ? { ...c, status: "ringing" } : null);
-          } catch (err: any) {
-            console.error("call_accept failed:", err);
-            showToastRef.current(
-              "Call Failed",
-              "Unable to access camera or microphone."
-            );
-            setActiveCall(null);
-            w.cleanup();
-          }
+        case "ice_restart_offer": {
+          // Remote peer's ICE failed and they sent a restart offer.
+          // Process it like a new offer on the existing PeerConnection.
+          const pc = w.getPeer();
+          if (!pc) return;
+          if (!ac || ac.status === "ended") return;
+          const answer = await w.handleOffer(pc, msg.sdp);
+          s({ type: "ice_restart_answer", to: msg.from, sdp: answer });
+          break;
+        }
+
+        case "ice_restart_answer": {
+          // We sent a restart offer, now we get the answer.
+          const pc = w.getPeer();
+          if (!pc) return;
+          if (!ac || ac.status === "ended") return;
+          await w.handleAnswer(pc, msg.sdp);
+          iceRestartInProgressRef.current = false;
           break;
         }
 
         case "call_reject": {
+          clearCallTimeout();
           stopRingtone(ringtoneRef.current);
           ringtoneRef.current = null;
           setActiveCall(null);
@@ -193,16 +250,21 @@ export function CallProvider({
         }
 
         case "call_end": {
+          clearCallTimeout();
           stopRingtone(ringtoneRef.current);
           ringtoneRef.current = null;
           setActiveCall(null);
           setIncomingCallFrom(null);
+          pendingOfferRef.current = null;
+          pendingIceRef.current = [];
+          iceRestartInProgressRef.current = false;
           w.cleanup();
           break;
         }
 
         case "peer_busy":
         case "peer_unavailable": {
+          clearCallTimeout();
           stopRingtone(ringtoneRef.current);
           ringtoneRef.current = null;
           setActiveCall(null);
@@ -211,7 +273,7 @@ export function CallProvider({
         }
       }
     });
-  }, [onMessage]);
+  }, [onMessage, clearCallTimeout]);
 
   // Timer
   useEffect(() => {
@@ -235,14 +297,28 @@ export function CallProvider({
       const pc = w.createPeerConnection(
         (candidate) => s({ type: "ice_candidate", to: partnerId, candidate }),
         () => {},
-        () => setActiveCall((c) => c ? { ...c, status: "connected" } : null),
-        () => { setActiveCall(null); w.cleanup(); },
+        handleIceConnected,
+        handleIceFailed,
       );
       w.addLocalTracks(pc, stream);
       const offer = await w.createOffer(pc);
       s({ type: "call_offer", to: partnerId, sdp: offer });
+
+      // Start unanswered-call timeout
+      callTimeoutRef.current = setTimeout(() => {
+        // Timeout fired — check if call was already answered/ended
+        if (!activeCallRef.current || activeCallRef.current.status !== "ringing") return;
+        s({ type: "call_end", to: partnerId });
+        stopRingtone(ringtoneRef.current);
+        ringtoneRef.current = null;
+        setActiveCall(null);
+        partnerIdRef.current = null;
+        pendingIceRef.current = [];
+        w.cleanup();
+      }, CALL_TIMEOUT_MS);
     } catch (err: any) {
       console.error("startCall failed:", err);
+      clearCallTimeout();
       showToastRef.current(
         "Call Failed",
         "Unable to access camera or microphone. Please check your browser permissions or ensure you are using a secure connection (HTTPS)."
@@ -250,13 +326,13 @@ export function CallProvider({
       setActiveCall(null);
       webrtcRef.current.cleanup();
     }
-  }, []);
+  }, [clearCallTimeout, handleIceConnected, handleIceFailed]);
 
   // Accept incoming call
   const acceptCall = useCallback(async () => {
-    const pending = (window as any).__pendingOffer;
+    const pending = pendingOfferRef.current;
     if (!pending) return;
-    delete (window as any).__pendingOffer;
+    pendingOfferRef.current = null;
 
     stopRingtone(ringtoneRef.current);
     ringtoneRef.current = null;
@@ -273,13 +349,14 @@ export function CallProvider({
       const pc = w.createPeerConnection(
         (candidate) => s({ type: "ice_candidate", to: from, candidate }),
         () => {},
-        () => setActiveCall((c) => c ? { ...c, status: "connected" } : null),
-        () => { setActiveCall(null); w.cleanup(); },
+        handleIceConnected,
+        handleIceFailed,
       );
       w.addLocalTracks(pc, stream);
       const answer = await w.handleOffer(pc, sdp);
       s({ type: "call_answer", to: from, sdp: answer });
 
+      // Drain all buffered ICE candidates into the real PeerConnection
       for (const c of pendingIceRef.current) {
         await w.addIceCandidate(pc, c);
       }
@@ -293,14 +370,14 @@ export function CallProvider({
       setActiveCall(null);
       webrtcRef.current.cleanup();
     }
-  }, []);
+  }, [handleIceConnected, handleIceFailed]);
 
   // Reject incoming call
   const rejectCall = useCallback(() => {
-    const pending = (window as any).__pendingOffer;
+    const pending = pendingOfferRef.current;
     if (pending) {
       sendRef.current({ type: "call_reject", to: pending.from });
-      delete (window as any).__pendingOffer;
+      pendingOfferRef.current = null;
     }
     stopRingtone(ringtoneRef.current);
     ringtoneRef.current = null;
@@ -308,8 +385,9 @@ export function CallProvider({
     pendingIceRef.current = [];
   }, []);
 
-  // End active call
+  // End active call (cleanup-safe — idempotent)
   const endCall = useCallback(() => {
+    clearCallTimeout();
     const partnerId = partnerIdRef.current;
     if (partnerId) {
       sendRef.current({ type: "call_end", to: partnerId });
@@ -319,9 +397,36 @@ export function CallProvider({
     setActiveCall(null);
     setIncomingCallFrom(null);
     partnerIdRef.current = null;
+    pendingOfferRef.current = null;
     pendingIceRef.current = [];
+    iceRestartInProgressRef.current = false;
+    setMuted(false);
     webrtcRef.current.cleanup();
+  }, [clearCallTimeout]);
+
+  // ---- Mute control ----
+  const toggleMute = useCallback((): boolean => {
+    const track = webrtcRef.current.getLocalAudioTrack();
+    if (!track) return mutedRef.current;
+    const newMuted = !mutedRef.current;
+    track.enabled = !newMuted;
+    setMuted(newMuted);
+    return newMuted;
   }, []);
+
+  // ---- Speaker control ----
+  const speakerSupported = typeof HTMLAudioElement !== "undefined" &&
+    typeof HTMLAudioElement.prototype.setSinkId === "function";
+
+  const setSpeakerSinkId = useCallback(async (sinkId: string) => {
+    const audio = webrtcRef.current.getRemoteAudioElement();
+    if (!audio || !speakerSupported) return;
+    try {
+      await audio.setSinkId(sinkId);
+    } catch (err) {
+      console.warn("setSinkId failed:", err);
+    }
+  }, [speakerSupported]);
 
   return (
     <CallContext.Provider
@@ -330,10 +435,16 @@ export function CallProvider({
         elapsedSec,
         incomingCallFrom,
         onlineUsers,
+        signalingConnected,
+        presenceSynced,
         startCall,
         acceptCall,
         rejectCall,
         endCall,
+        toggleMute,
+        isMuted: muted,
+        setSpeakerSinkId,
+        speakerSupported,
       }}
     >
       {children}

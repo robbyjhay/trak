@@ -9,9 +9,14 @@ let globalWs: WebSocket | null = null;
 const globalHandlers: Set<MessageHandler> = new Set();
 let globalOnlineUsers: Set<string> = new Set();
 let globalConnected = false;
+let globalPresenceSynced = false;
 /** Stop reconnect loops after auth rejection (no valid session cookie). */
 let authRejected = false;
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+let pingTimer: ReturnType<typeof setInterval> | null = null;
+
+/** Client → server heartbeat interval in ms. Must be < server TTL (60 s). */
+const PING_INTERVAL_MS = 30_000;
 
 function getWsUrl(): string {
   if (typeof window === "undefined") return "";
@@ -27,6 +32,22 @@ function clearReconnectTimer() {
   }
 }
 
+function clearPingTimer() {
+  if (pingTimer) {
+    clearInterval(pingTimer);
+    pingTimer = null;
+  }
+}
+
+function startPingTimer() {
+  clearPingTimer();
+  pingTimer = setInterval(() => {
+    if (globalWs && globalWs.readyState === WebSocket.OPEN) {
+      globalWs.send(JSON.stringify({ type: "ping" }));
+    }
+  }, PING_INTERVAL_MS);
+}
+
 function ensureConnection(userId: string) {
   if (authRejected) return;
   if (globalWs && globalWs.readyState === WebSocket.OPEN) return;
@@ -37,8 +58,10 @@ function ensureConnection(userId: string) {
 
   ws.onopen = () => {
     globalConnected = true;
+    globalPresenceSynced = false;
     // Handshake only — server ignores userId and uses session cookie.
     ws.send(JSON.stringify({ type: "register", userId }));
+    startPingTimer();
   };
 
   ws.onmessage = (e) => {
@@ -52,6 +75,7 @@ function ensureConnection(userId: string) {
     if (msg.type === "error" && msg.code === "unauthorized") {
       authRejected = true;
       clearReconnectTimer();
+      clearPingTimer();
       try {
         ws.close();
       } catch {
@@ -61,6 +85,7 @@ function ensureConnection(userId: string) {
 
     if (msg.type === "online_users") {
       globalOnlineUsers = new Set(msg.users);
+      globalPresenceSynced = true;
     } else if (msg.type === "user_online") {
       globalOnlineUsers.add(msg.userId);
     } else if (msg.type === "user_offline") {
@@ -74,10 +99,17 @@ function ensureConnection(userId: string) {
 
   ws.onclose = (ev) => {
     globalConnected = false;
+    globalPresenceSynced = false;
     globalWs = null;
+    clearPingTimer();
     // 4401 = unauthorized (custom); do not spin reconnect without a session.
     if (authRejected || ev.code === 4401) {
       authRejected = true;
+      return;
+    }
+    // 4000 = replaced by a newer connection from another tab/device.
+    // Do not reconnect — the newer connection owns presence.
+    if (ev.code === 4000) {
       return;
     }
     clearReconnectTimer();
@@ -94,6 +126,7 @@ export function useSignaling(userId: string) {
     globalOnlineUsers,
   );
   const [connected, setConnected] = useState(globalConnected);
+  const [presenceSynced, setPresenceSynced] = useState(globalPresenceSynced);
   const handlerRef = useRef<MessageHandler | null>(null);
 
   useEffect(() => {
@@ -106,6 +139,7 @@ export function useSignaling(userId: string) {
     const handler: MessageHandler = (msg) => {
       if (msg.type === "online_users") {
         setOnlineUsers(new Set(msg.users));
+        setPresenceSynced(true);
       } else if (msg.type === "user_online") {
         setOnlineUsers((prev) => {
           const next = new Set(prev);
@@ -120,6 +154,7 @@ export function useSignaling(userId: string) {
         });
       }
       setConnected(globalConnected);
+      setPresenceSynced(globalPresenceSynced);
       handlerRef.current?.(msg);
     };
 
@@ -140,5 +175,5 @@ export function useSignaling(userId: string) {
     handlerRef.current = handler;
   }, []);
 
-  return { onlineUsers, connected, send, onMessage };
+  return { onlineUsers, connected, presenceSynced, send, onMessage };
 }

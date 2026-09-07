@@ -5,7 +5,8 @@ export type OutgoingMessage =
   | { type: "call_offer"; to: string; sdp: RTCSessionDescriptionInit }
   | { type: "call_answer"; to: string; sdp: RTCSessionDescriptionInit }
   | { type: "ice_candidate"; to: string; candidate: RTCIceCandidateInit }
-  | { type: "call_accept"; to: string }
+  | { type: "ice_restart_offer"; to: string; sdp: RTCSessionDescriptionInit }
+  | { type: "ice_restart_answer"; to: string; sdp: RTCSessionDescriptionInit }
   | { type: "call_reject"; to: string }
   | { type: "call_end"; to: string }
   | { type: "ping" };
@@ -18,7 +19,8 @@ export type IncomingMessage =
   | { type: "call_offer"; from: string; sdp: RTCSessionDescriptionInit }
   | { type: "call_answer"; from: string; sdp: RTCSessionDescriptionInit }
   | { type: "ice_candidate"; from: string; candidate: RTCIceCandidateInit }
-  | { type: "call_accept"; from: string }
+  | { type: "ice_restart_offer"; from: string; sdp: RTCSessionDescriptionInit }
+  | { type: "ice_restart_answer"; from: string; sdp: RTCSessionDescriptionInit }
   | { type: "call_reject"; from: string }
   | { type: "call_end"; from: string }
   | { type: "peer_busy"; from: string }

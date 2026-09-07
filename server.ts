@@ -290,14 +290,20 @@ app.prepare().then(async () => {
           });
           break;
 
-        case "call_accept":
+        case "ice_restart_offer":
           sendTo(msg.to as string, {
-            type: "call_accept",
+            type: "ice_restart_offer",
             from: userId,
+            sdp: msg.sdp,
           });
-          prisma.pendingCall.deleteMany({
-            where: { fromUserId: msg.to as string, toUserId: userId }
-          }).catch(console.error);
+          break;
+
+        case "ice_restart_answer":
+          sendTo(msg.to as string, {
+            type: "ice_restart_answer",
+            from: userId,
+            sdp: msg.sdp,
+          });
           break;
 
         case "call_reject":
@@ -306,7 +312,7 @@ app.prepare().then(async () => {
             from: userId,
           });
           prisma.pendingCall.deleteMany({
-            where: { fromUserId: msg.to as string, toUserId: userId }
+            where: { fromUserId: userId, toUserId: msg.to as string }
           }).catch(console.error);
           break;
 
