@@ -609,6 +609,7 @@ export async function updateUserProfile(
 
   const u = mapUser(updated);
   u.photoUrl = publicStorageUrl(u.photoUrl);
+  broadcast({ type: "profile_updated", user: u });
   return u;
 }
 

@@ -12,6 +12,7 @@ export type NotifType =
   | "activity_completed"
   | "activity_missed"
   | "broadcast"
+  | "profile_updated"
   | "mention";
 
 export interface User {
