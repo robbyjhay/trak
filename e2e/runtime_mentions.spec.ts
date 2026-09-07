@@ -15,10 +15,10 @@ test('Real Runtime Verification of @Mentions', async ({ browser }) => {
   await pageA.click('button[type="submit"]');
   await expect(pageA).toHaveURL(/.*dashboard.*/);
   
-  // 3. Login User B (DLUFFF)
+  // 3. Login User B (DLUARU)
   await pageB.goto('/login');
-  await pageB.fill('input[name="username"]', 'DLUFFF');
-  await pageB.fill('input[type="password"]', 'dev');
+  await pageB.fill('input[name="username"]', 'DLUARU');
+  await pageB.fill('input[type="password"]', 'TrakDevPass123!');
   await pageB.click('button[type="submit"]');
   await expect(pageB).toHaveURL(/.*dashboard.*/);
   
@@ -39,8 +39,8 @@ test('Real Runtime Verification of @Mentions', async ({ browser }) => {
   await composerA.fill(`Hello @`);
   
   // Wait for mention autocomplete to appear
-  await pageA.waitForSelector('text=fffff');
-  await pageA.click('text=fffff');
+  await pageA.waitForSelector('text=aru');
+  await pageA.click('text=aru');
   
   // Ensure the mention inserted space and then type unique string
   await composerA.pressSequentially(` ${uniqueString}`);
