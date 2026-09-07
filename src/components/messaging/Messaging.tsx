@@ -136,11 +136,11 @@ export function Messaging({
 
         const idsToMark = partnerNotifs.map(n => n.id);
         if (false) {
-           markNotifsRead(idsToMark).catch(() => {});
+           console.log(idsToMark).catch(() => {});
         }
       }
     }
-  }, [activeConv, db.notifications, db.dms, me, unreadDividers, markNotifsRead]);
+  }, [activeConv, db.notifications, db.dms, me, unreadDividers, console.log]);
 
   useEffect(() => {
     setView(initialView);
