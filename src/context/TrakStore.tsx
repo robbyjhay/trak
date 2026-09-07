@@ -1,5 +1,5 @@
-import { TrakLoader } from "@/components/ui/TrakLoader";
 "use client";
+import { TrakLoader } from "@/components/ui/TrakLoader";
 /* eslint-disable */
 
 import {
