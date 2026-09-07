@@ -81,10 +81,10 @@ enum DailyLogStatus {
 }
 
 enum AttendeeSource {
+  guest
   unit
   manual
   link
-  guest
 }
 
 enum AttachmentKind {
@@ -95,13 +95,14 @@ enum AttachmentKind {
 enum NotificationType {
   comment
   dm
+  community
   activity_created
   activity_completed
   activity_missed
   activity_reminder
   broadcast
-  community
   mention
+  profile_updated
 }
 
 // ---------------------------------------------------------------------------
@@ -147,6 +148,7 @@ model User {
   auditEvents         AuditEvent[]
   deletedMessages     DeletedMessage[]
   pushSubscriptions   PushSubscription[]        @relation("UserPushSubscriptions")
+  attendances         Attendee[]
 
   @@index([role])
   @@index([isActive])
@@ -266,10 +268,10 @@ model Activity {
   exceptionReason    String         @default("") @map("exception_reason") @db.Text
   submissionType     SubmissionType @default(normal)
   gracePeriodStartedAt DateTime? @map("grace_period_started_at")
-  gracePeriodExpiresAt DateTime?
-  dueAt                DateTime?
-  reminderStatus       Json       @default("{}")
-  reminderVersion      Int        @default(1) @map("grace_period_expires_at")
+  gracePeriodExpiresAt DateTime? @map("grace_period_expires_at")
+  dueAt              DateTime?      @map("due_at") @db.Timestamptz(3)
+  reminderStatus     Json?          @default("{}")
+  reminderVersion    Int            @default(1)
   hidden             Boolean        @default(false)
   hasBudget          Boolean        @default(false) @map("has_budget")
   estimatedAmountNgn Decimal?       @map("estimated_amount_ngn") @db.Decimal(14, 2)
@@ -315,6 +317,8 @@ model DailyLog {
   attendanceCount     String         @default("") @map("attendance_count") @db.VarChar(64)
   attendanceNotes     String         @default("") @map("attendance_notes") @db.Text
   rsvpTokenHash       String?        @unique @map("rsvp_token_hash") @db.VarChar(128)
+  guestCode          String?        @unique @map("guest_code") @db.VarChar(8)
+  guestCodeExpiresAt DateTime?      @map("guest_code_expires_at") @db.Timestamptz(3)
   status              DailyLogStatus @default(pending)
   amountReleasedNgn   Decimal?       @map("amount_released_ngn") @db.Decimal(14, 2)
   amountSpentNgn      Decimal?       @map("amount_spent_ngn") @db.Decimal(14, 2)
@@ -332,19 +336,29 @@ model DailyLog {
   @@map("daily_logs")
 }
 
+enum AttendeeStatus {
+  pending
+  verified
+  declined
+}
+
 model Attendee {
   id           String         @id @default(uuid()) @db.Uuid
   dailyLogId   String         @map("daily_log_id") @db.Uuid
+  userId       String?        @map("user_id") @db.Uuid
   name         String         @db.VarChar(200)
   phone        String         @default("") @db.VarChar(40)
   email        String         @default("") @db.VarChar(255)
   source       AttendeeSource @default(manual)
+  status       AttendeeStatus @default(verified)
   registeredAt DateTime?      @map("registered_at") @db.Timestamptz(3)
   createdAt    DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
 
   dailyLog DailyLog @relation(fields: [dailyLogId], references: [id], onDelete: Cascade)
+  user     User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   @@index([dailyLogId])
+  @@index([userId])
   @@map("attendees")
 }
 
@@ -400,6 +414,7 @@ model DirectMessage {
 
   attachments MessageAttachment[]
   deletedBy   DeletedMessage[]
+  linkPreview LinkPreview?
 
   @@index([participantA, participantB, createdAt])
   @@index([replyToId])
@@ -442,6 +457,7 @@ model CommunityMessage {
   mentions    CommunityMessageMention[]
   attachments MessageAttachment[]
   deletedBy   DeletedMessage[]
+  linkPreview LinkPreview?
 
   @@index([createdAt])
   @@map("community_messages")
@@ -457,6 +473,27 @@ model CommunityMessageMention {
 
   @@id([messageId, userId])
   @@map("community_message_mentions")
+}
+
+model LinkPreview {
+  id                 String   @id @default(uuid()) @db.Uuid
+  directMessageId    String?  @map("direct_message_id") @db.Uuid
+  communityMessageId String?  @map("community_message_id") @db.Uuid
+  url                String   @db.VarChar(2048)
+  domain             String   @db.VarChar(255)
+  title              String?  @db.VarChar(512)
+  description        String?  @db.Text
+  image              String?  @db.VarChar(2048)
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  directMessage    DirectMessage?    @relation(fields: [directMessageId], references: [id], onDelete: Cascade)
+  communityMessage CommunityMessage? @relation(fields: [communityMessageId], references: [id], onDelete: Cascade)
+
+  @@unique([directMessageId])
+  @@unique([communityMessageId])
+  @@index([directMessageId])
+  @@index([communityMessageId])
+  @@map("link_previews")
 }
 
 model DeletedMessage {
@@ -583,22 +620,4 @@ model PendingCall {
 
   @@index([toUserId])
   @@map("pending_calls")
-}
-
-model LinkPreview {
-  id                   String            @id @default(uuid())
-  url                  String
-  domain               String
-  title                String?
-  description          String?
-  image                String?
-  createdAt            DateTime          @default(now())
-
-  directMessageId      String?           @unique
-  directMessage        DirectMessage?    @relation(fields: [directMessageId], references: [id], onDelete: Cascade)
-
-  communityMessageId   String?           @unique
-  communityMessage     CommunityMessage? @relation(fields: [communityMessageId], references: [id], onDelete: Cascade)
-
-  @@map("link_previews")
 }
