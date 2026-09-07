@@ -36,3 +36,37 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }
+
+export async function DELETE(req: Request) {
+  const session = await readSession();
+  if (!session) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  try {
+    let endpoint: string | null = null;
+    try {
+      const body = await req.json();
+      endpoint = typeof body?.endpoint === "string" ? body.endpoint : null;
+    } catch {
+      endpoint = null;
+    }
+
+    if (endpoint) {
+      // Scoped to the authenticated user — clients cannot delete others' rows.
+      await prisma.pushSubscription.deleteMany({
+        where: { endpoint, userId: session.id },
+      });
+    } else {
+      await prisma.pushSubscription.deleteMany({
+        where: { userId: session.id },
+      });
+    }
+
+    // Notification history is intentionally untouched.
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error("Failed to delete push subscription:", error);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+  }
+}
