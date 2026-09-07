@@ -13,7 +13,7 @@ import {
   updateActivityWrapup,
   updateActivityEndDate,
   updateActivityMetadata,
-  softDeleteActivity,
+  softDeleteActivity, hardDeleteActivity,
   requestException,
   approveException,
   rejectException,
@@ -104,6 +104,21 @@ export async function PATCH(
     }
 
     return jsonError(400, "Unknown patch action");
+  } catch (err) {
+    return handleServiceError(err);
+  }
+}
+
+export async function DELETE(
+  req: Request,
+  ctx: { params: Promise<{ id: string }> },
+) {
+  try {
+    const { session, error } = await requireSession();
+    if (error) return error;
+    const { id } = await ctx.params;
+    await hardDeleteActivity(session, id);
+    return jsonOk({ success: true });
   } catch (err) {
     return handleServiceError(err);
   }
