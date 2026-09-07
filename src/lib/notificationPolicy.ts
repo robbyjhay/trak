@@ -133,6 +133,13 @@ export const NOTIFICATION_TAXONOMY: Record<
     prefCategory: "messages",
     dedupe: "one record per messageId per recipient",
   },
+  profile_updated: {
+    recipient: "all",
+    title: "Profile Updated",
+    deepLink: "/",
+    prefCategory: "activities",
+    dedupe: "profile_updated",
+  },
   broadcast: {
     recipient: "Every active user except sender",
     title: "Unit announcement",

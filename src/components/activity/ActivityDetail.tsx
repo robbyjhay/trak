@@ -799,7 +799,7 @@ function PendingForm({
                           name: manName.trim(),
                           phone: manPhone.trim(),
                           email: manEmail.trim(),
-                          source: "manual",
+                          source: "manual", status: "pending",
                         },
                       ]);
                       setManName("");

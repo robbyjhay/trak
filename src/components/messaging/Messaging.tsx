@@ -71,8 +71,7 @@ export function Messaging({
     deleteDmMessage,
     deleteCommunityMessage,
     showToast,
-    markNotifsRead,
-  } = useTrak();
+      } = useTrak();
   const { view, setView, setMobileThreadOpen } = useConnectNav();
   const { activeCall, startCall, elapsedSec, onlineUsers, signalingConnected, presenceSynced } = useCall();
   const { isExpanded, setIsExpanded } = useCallUi();

@@ -49,7 +49,7 @@ export async function POST(req: Request) {
         name: body.name || "",
         phone: body.phone || "",
         email: body.email || "",
-        source: "link",
+        source: "link", status: "pending",
       },
       body.logId,
     );
