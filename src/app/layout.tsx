@@ -3,6 +3,7 @@ import { headers } from "next/headers";
 import { Archivo, Fraunces, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/context/ThemeContext";
+import { Maintenance } from "@/components/Maintenance";
 
 /**
  * Fraunces — display / heading serif.
@@ -65,6 +66,8 @@ export default async function RootLayout({
   const h = await headers();
   const nonce = h.get("x-trak-nonce") ?? undefined;
 
+  const maintenanceMode = process.env.MAINTENANCE_MODE === "true";
+
   return (
     <html
       lang="en"
@@ -94,7 +97,7 @@ export default async function RootLayout({
           Skip to content
         </a>
         <ThemeProvider>
-          {children}
+          {maintenanceMode ? <Maintenance /> : children}
         </ThemeProvider>
       </body>
     </html>
