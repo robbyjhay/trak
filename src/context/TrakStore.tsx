@@ -852,19 +852,15 @@ export function TrakStoreProvider({
   if (!ready) {
     return (
       <div
-        className="flex min-h-screen items-center justify-center bg-paper text-ink-soft"
+        className="flex min-h-screen items-center justify-center bg-paper text-ink-soft dark:bg-aztec"
         role="status"
         aria-live="polite"
       >
         <div className="text-center">
-          <div
-            className="mx-auto mb-4 h-8 w-8 animate-spin rounded-full border-2 border-line border-t-aztec"
-            aria-hidden
-          />
-          <div className="mb-2 font-display text-lg font-semibold text-ink">
-            Loading Trak…
+          <div className="mx-auto mb-4 flex justify-center">
+            <TrakLoader />
           </div>
-          <div className="text-sm">Syncing with server</div>
+          <div className="text-sm font-medium text-ink-soft dark:text-[#ffffff]">Syncing with server</div>
         </div>
       </div>
     );

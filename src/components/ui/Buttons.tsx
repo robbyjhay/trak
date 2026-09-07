@@ -10,7 +10,7 @@ export function PrimaryBtn({
     <button
       type="button"
       className={cn(
-        "inline-flex items-center gap-2 rounded-[11px] bg-linear-to-br from-aztec-3 to-aztec px-[26px] py-3.5 text-[13.5px] font-bold text-white shadow-sm transition-transform hover:-translate-y-px focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:cursor-not-allowed disabled:opacity-[0.42] disabled:shadow-none disabled:hover:translate-y-0",
+        "inline-flex items-center gap-2 rounded-[11px] bg-linear-to-br from-aztec-3 to-aztec px-[26px] py-3.5 text-[13.5px] font-bold text-white shadow-sm transition-all duration-150 hover:-translate-y-px active:translate-y-0 active:scale-[0.98] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:cursor-not-allowed disabled:opacity-[0.42] disabled:shadow-none disabled:hover:translate-y-0 disabled:active:scale-100",
         className,
       )}
       {...props}
@@ -29,7 +29,7 @@ export function GhostBtn({
     <button
       type="button"
       className={cn(
-        "inline-flex items-center gap-1.5 rounded-[9px] border-[1.5px] border-border px-3.5 py-2 text-xs font-bold text-foreground-secondary transition-all hover:border-primary hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary",
+        "inline-flex items-center gap-1.5 rounded-[9px] border-[1.5px] border-border px-3.5 py-2 text-xs font-bold text-foreground-secondary transition-all duration-150 hover:border-primary hover:text-foreground active:scale-[0.98] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:active:scale-100",
         className,
       )}
       {...props}
@@ -48,7 +48,7 @@ export function PrimaryMini({
     <button
       type="button"
       className={cn(
-        "inline-flex items-center gap-1.5 rounded-[9px] border-none bg-aztec px-[15px] py-2 text-xs font-bold text-white transition-transform hover:-translate-y-px focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary",
+        "inline-flex items-center gap-1.5 rounded-[9px] border-none bg-aztec px-[15px] py-2 text-xs font-bold text-white transition-all duration-150 hover:-translate-y-px active:translate-y-0 active:scale-[0.98] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:active:scale-100",
         className,
       )}
       {...props}

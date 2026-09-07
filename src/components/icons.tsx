@@ -61,6 +61,8 @@ export function TypeIcon({ type, size = 17 }: { type: ActivityType; size?: numbe
 export const PATHS = {
   dashboard:
     "M3 3h7v9H3zM14 3h7v5h-7zM14 12h7v9h-7zM3 16h7v5H3z",
+  search: "M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16zM21 21l-4.35-4.35",
+  inbox: "M22 12h-6l-2 3h-4l-2-3H2",
   plus: "M12 5v14M5 12h14",
   checkList: "M9 11l3 3L22 4M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11",
   responsibilities: "M9 12l2 2 4-4M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z",
@@ -81,6 +83,8 @@ export const PATHS = {
   chart: "M3 3v18h18M18 9l-5 5-3-3-4 4",
   send: "M22 2L11 13M22 2l-7 20-4-9-9-4z",
   pin: "M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0zM12 13a3 3 0 1 0 0-6 3 3 0 0 0 0 6z",
+  pushpin:
+    "M16 9V4h1c.55 0 1-.45 1-1V3c0-.55-.45-1-1-1H7c-.55 0-1 .45-1 1v0c0 .55.45 1 1 1h1v5c0 1.66-1.34 3-3 3v2h5.97v7l1 1 1-1v-7H19v-2c-1.66 0-3-1.34-3-3z",
   mic: "M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3zM19 10v2a7 7 0 0 1-14 0v-2M12 19v4M8 23h8",
   paperclip:
     "M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48",

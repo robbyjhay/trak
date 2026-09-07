@@ -9,6 +9,7 @@ import {
   type ReactNode,
   type KeyboardEvent as ReactKeyboardEvent,
 } from "react";
+import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 
 const FOCUSABLE =
   'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
@@ -101,7 +102,7 @@ export function ModalBackdrop({
     };
   }, [open, trapFocus]);
 
-  if (!open) return null;
+  const reduce = useReducedMotion();
 
   function onBackdropKeyDown(e: ReactKeyboardEvent<HTMLDivElement>) {
     if (e.key === "Escape") {
@@ -111,36 +112,49 @@ export function ModalBackdrop({
   }
 
   return (
-    <div
-      className={cn(
-        "fixed inset-0 z-[100] flex bg-overlay backdrop-blur-[2px]",
-        bottomSheetOnMobile ? "items-end sm:items-center justify-center" : "items-center justify-center",
-        className,
+    <AnimatePresence>
+      {open && (
+        <motion.div
+          initial={reduce ? { opacity: 0 } : { opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={reduce ? { opacity: 0 } : { opacity: 0 }}
+          transition={{ duration: 0.18, ease: "easeOut" }}
+          className={cn(
+            "fixed inset-0 z-[100] flex bg-overlay backdrop-blur-[2px]",
+            bottomSheetOnMobile ? "items-end sm:items-center justify-center" : "items-center justify-center",
+            className,
+          )}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) onClose?.();
+          }}
+          onKeyDown={onBackdropKeyDown}
+          role="presentation"
+        >
+          <motion.div
+            ref={panelRef}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby={labelledBy || autoTitleId}
+            aria-describedby={describedBy}
+            tabIndex={-1}
+            initial={reduce ? { opacity: 0 } : bottomSheetOnMobile ? { y: 16, opacity: 0, scale: 0.99 } : { opacity: 0, scale: 0.97, y: 8 }}
+            animate={reduce ? { opacity: 1 } : bottomSheetOnMobile ? { y: 0, opacity: 1, scale: 1 } : { opacity: 1, scale: 1, y: 0 }}
+            exit={reduce ? { opacity: 0 } : bottomSheetOnMobile ? { y: 16, opacity: 0, scale: 0.99 } : { opacity: 0, scale: 0.98, y: 4 }}
+            transition={{ duration: 0.22, ease: [0.2, 0.8, 0.2, 1] }}
+            className={cn("outline-none", bottomSheetOnMobile && "w-full sm:w-auto")}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Fallback title for screen readers when caller omits labelledBy */}
+            {!labelledBy && (
+              <span id={autoTitleId} className="sr-only">
+                Dialog
+              </span>
+            )}
+            {children}
+          </motion.div>
+        </motion.div>
       )}
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onClose?.();
-      }}
-      onKeyDown={onBackdropKeyDown}
-      role="presentation"
-    >
-      <div
-        ref={panelRef}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={labelledBy || autoTitleId}
-        aria-describedby={describedBy}
-        tabIndex={-1}
-        className={cn("outline-none", bottomSheetOnMobile && "w-full sm:w-auto")}
-      >
-        {/* Fallback title for screen readers when caller omits labelledBy */}
-        {!labelledBy && (
-          <span id={autoTitleId} className="sr-only">
-            Dialog
-          </span>
-        )}
-        {children}
-      </div>
-    </div>
+    </AnimatePresence>
   );
 }
 
@@ -160,7 +174,7 @@ export function ModalPanel({
       className={cn(
         "overflow-y-auto bg-modal text-foreground p-7 shadow-modal border border-border",
         wide ? "w-[900px] max-w-[95vw] p-0" : "w-[460px] max-w-[92vw]",
-        bottomSheetOnMobile 
+        bottomSheetOnMobile
           ? "max-h-[92vh] rounded-t-[24px] rounded-b-none sm:rounded-[20px] pb-[max(env(safe-area-inset-bottom),28px)] sm:pb-7 max-w-full w-full"
           : "max-h-[88vh] rounded-[20px]",
         className,

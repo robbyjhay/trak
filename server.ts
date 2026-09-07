@@ -1,3 +1,5 @@
+import { createRequire } from "node:module";
+const require = createRequire(import.meta.url);
 // Bypass server-only error when running via raw tsx
 const _Module = require("module");
 try {
@@ -12,6 +14,16 @@ import { getSessionUserIdFromCookieHeader } from "./src/lib/auth/ws-session";
 
 
 import Redis from "ioredis";
+
+// Prevent unhandled ECONNRESET on sockets from crashing the entire server.
+process.on("uncaughtException", (err: any) => {
+  if (err.code === "ECONNRESET") {
+    // Ignore harmless aborted connections
+    return;
+  }
+  console.error("Uncaught Exception:", err);
+  process.exit(1);
+});
 
 const dev = process.env.NODE_ENV !== "production";
 const hostname = "localhost";
@@ -332,9 +344,10 @@ app.prepare().then(async () => {
         if (current?.ws === ws) {
           clients.delete(userId);
           console.log(`[WS] ${userId} disconnected (${clients.size} online locally)`);
-          if (isMulti && redisClient) {
-            redisClient.zrem("trak:ws:online", userId).catch(() => {});
-          }
+          // In multi-instance mode, do NOT zrem from Redis here.
+          // Other instances may still have active connections for this user.
+          // The TTL-based pruning (every 30s, entries >60s old) handles stale cleanup.
+          // Active connections refresh their Redis timestamp via ping.
           broadcast({ type: "user_offline", userId });
         }
       }
