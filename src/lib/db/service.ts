@@ -1,4 +1,5 @@
-import { sendPushNotification } from "@/lib/pushServer";
+import { broadcast } from "@/lib/realtime";
+import { notifyMany, notifyUser } from "@/lib/notifications";
 /**
  * Domain service layer — PostgreSQL via Prisma (Phase 1+).
  * Replaces the legacy JSON file store for all product data.
@@ -8,6 +9,7 @@ import { createHash, randomBytes } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db/prisma";
 import { addDays, createNow, daysBetween, iso } from "@/lib/dates";
+import { computeDueTriggers, buildDedupeKey, parseReminderStatus, computeDueAt, buildReminderCandidateWindow } from "@/lib/reminders";
 import {
   canBroadcast,
   canComment,
@@ -74,6 +76,13 @@ function now(): Date {
 
 function dateFromIso(s: string): Date {
   return new Date(s.slice(0, 10) + "T00:00:00.000Z");
+}
+
+/** Date-only normalization (yyyy-mm-dd) for comparing stored vs submitted values. */
+function dateStringOnly(d: Date | string | null | undefined): string {
+  if (!d) return "";
+  if (typeof d === "string") return d.slice(0, 10);
+  return d.toISOString().slice(0, 10);
 }
 
 function canonicalPair(a: string, b: string): [string, string] {
@@ -204,6 +213,86 @@ export async function expireExpiredExceptions(reference: Date = now()): Promise<
   }
 }
 
+export async function processDueReminders(reference: Date = now()): Promise<void> {
+  // Candidate selection must be a SUPERSET of every eligible activity while
+  // remaining bounded. Two categories:
+  //   1. Overdue: dueAt already <= reference (any age, so morning catch-up works).
+  //   2. Due later "today": dueAt still in the future but falls on the user's
+  //      current calendar day, so the midnight/morning trigger can fire before
+  //      the due time. Because users span every IANA timezone, the widest possible
+  //      "today" spans from startUtcDay -14h (UTC+14's earliest local midnight)
+  //      to startUtcDay +48h (latest possible local day end across all zones).
+  // `computeDueTriggers()` remains the source of truth: selecting a candidate here
+  // does NOT fire a reminder by itself.
+  const { todayWindowStart, todayWindowEnd } = buildReminderCandidateWindow(reference);
+
+  const activities = await prisma.activity.findMany({
+    where: {
+      status: "pending",
+      type: "Task",
+      softDeletedAt: null,
+      reminderStatus: { path: ["cancelled"], equals: false },
+      OR: [
+        { dueAt: { lte: reference } },
+        { dueAt: { gte: todayWindowStart, lte: todayWindowEnd } },
+      ],
+    },
+    select: {
+      id: true,
+      createdById: true,
+      title: true,
+      dueAt: true,
+      startTime: true,
+      reminderStatus: true,
+      reminderVersion: true,
+    },
+  });
+
+  for (const act of activities) {
+    const userPrefs = await prisma.userPreferences.findUnique({
+      where: { userId: act.createdById },
+      select: { timezone: true },
+    });
+    const userTimeZone = userPrefs?.timezone || "Africa/Lagos";
+
+    const triggers = computeDueTriggers(
+      {
+        id: act.id,
+        title: act.title,
+        dueAt: act.dueAt,
+        startTime: act.startTime,
+        reminderStatus: act.reminderStatus as any,
+        reminderVersion: act.reminderVersion,
+      },
+      reference,
+      userTimeZone,
+    );
+
+    if (triggers.length === 0) continue;
+
+    const status = parseReminderStatus(act.reminderStatus);
+
+    for (const trigger of triggers) {
+      const dedupeKey = buildDedupeKey(act.id, trigger.type, reference, act.reminderVersion);
+      await notifyUser({
+        userId: act.createdById,
+        type: "activity_reminder",
+        text: trigger.message,
+        activityId: act.id,
+        dedupeKey,
+      });
+      if (trigger.type === "morning") status.morningSent = true;
+      else if (trigger.type === "due_now") status.dueSent = true;
+      else if (trigger.type === "eod") status.eodSent = true;
+    }
+
+    await prisma.activity.update({
+      where: { id: act.id, reminderVersion: act.reminderVersion },
+      data: { reminderStatus: status as any },
+    });
+  }
+}
+
 export async function requestException(
   session: SessionUser,
   activityId: string,
@@ -248,14 +337,16 @@ export async function requestException(
 const headId = await findHeadUserId();
   const creator = (await getUser(act.createdById))!;
 
-  if (headId) {
-    await pushNotification(
-      headId,
+  // One logical event → one canonical notification (P0 dedupe fix).
+  const notification =
+    (await pushNotification(
+      headId ?? creator.id,
       "activity_created",
       `"${updated.activity.title}" - ${firstName(creator.name)} requested an exception. Reason: "${explanation}".`,
       activityId,
-    );
-  }
+      null,
+      { dedupeKey: `exception-request:${activityId}:${act.createdById}` },
+    ))!;
 
   await recordAuditEvent({
     userId: session.authUserId,
@@ -265,16 +356,7 @@ const headId = await findHeadUserId();
     meta: { explanation },
   });
 
-  const notification = await prisma.notification.create({
-    data: {
-      userId: headId ?? creator.id,
-      type: "activity_missed",
-      text: `${firstName(creator.name)} requested an exception for "${act.title}".`,
-      activityId,
-    },
-  });
-
-  return { activity: updated.activity, notification: mapNotification(notification) };
+  return { activity: updated.activity, notification };
 }
 
 async function pushNotification(
@@ -283,41 +365,17 @@ async function pushNotification(
   text: string,
   activityId?: string | null,
   messageId?: string | null,
-): Promise<void> {
-  const prefs = await prisma.userPreferences.findUnique({ where: { userId } });
-  if (prefs && type !== 'broadcast') {
-    if (!prefs.notificationsEnabled) return;
-    if (type === 'dm' && !prefs.dmNotifications) return;
-    if (['activity_created', 'activity_completed', 'activity_missed', 'comment', 'mention'].includes(type) && !prefs.activityNotifications) return;
-  }
-  await prisma.notification.create({
-    data: {
-      userId,
-      type,
-      text,
-      activityId: activityId ?? null,
-      messageId: messageId ?? null,
-    },
+  opts?: { dedupeKey?: string | null },
+): Promise<Notification | null> {
+  const row = await notifyUser({
+    userId,
+    type,
+    text,
+    activityId: activityId ?? null,
+    messageId: messageId ?? null,
+    dedupeKey: opts?.dedupeKey ?? null,
   });
-
-  let title = "TRAK";
-  let url = "/dashboard";
-
-  if (type === "dm") {
-    title = "New Message";
-    url = "/messages";
-  } else if (type === "broadcast") {
-    title = "📢 Unit Announcement";
-    url = "/messages";
-  } else if (type === "mention") {
-    title = "You were mentioned";
-    url = "/messages";
-  } else if (type.startsWith("activity_") || type === "comment") {
-    title = "Activity Update";
-    url = activityId ? `/activities/${activityId}` : "/activities";
-  }
-
-  sendPushNotification(userId, title, text, { url }).catch(console.error);
+  return row ? mapNotification(row) : null;
 }
 
 export async function approveException(
@@ -358,20 +416,28 @@ export async function approveException(
 
   const memberId = act.createdById;
 
-  await pushNotification(
-    memberId,
-    "activity_completed",
-    `"${updated.activity.title}" has been approved for late submission. You have 2 hours to log the activity.`,
-    activityId,
-  );
+  // One logical event → one canonical notification per recipient (P0 fix).
+  // Previously this sent TWO pushes to the member plus two extra manual
+  // records (4 notifications for one approval).
+  const notificationToMember =
+    (await pushNotification(
+      memberId,
+      "activity_completed",
+      `"${updated.activity.title}" has been approved for late submission. You have 2 hours to log the activity.`,
+      activityId,
+      null,
+      { dedupeKey: `exception-approve:${activityId}` },
+    ))!;
 
-  const headUser = await getUser(session.id);
-  await pushNotification(
-    act.createdById,
-    "activity_completed",
-    `"${updated.activity.title}" exception has been approved by ${headUser?.name || "Unit Head"}.`,
-    activityId,
-  );
+  const notificationToHead =
+    (await pushNotification(
+      session.id,
+      "activity_completed",
+      `"${updated.activity.title}" exception has been approved.`,
+      activityId,
+      null,
+      { dedupeKey: `exception-approve-head:${activityId}` },
+    ))!;
 
   await recordAuditEvent({
     userId: session.authUserId,
@@ -380,28 +446,10 @@ export async function approveException(
     targetType: "activity",
   });
 
-  const notifMember = await prisma.notification.create({
-    data: {
-      userId: memberId,
-      type: "activity_completed",
-      text: `"${updated.activity.title}" has been approved for late submission. You have 2 hours to log the activity.`,
-      activityId,
-    },
-  });
-
-  const notifHead = await prisma.notification.create({
-    data: {
-      userId: session.id,
-      type: "activity_completed",
-      text: `"${updated.activity.title}" exception has been approved.`,
-      activityId,
-    },
-  });
-
   return {
     activity: updated.activity,
-    notificationToMember: mapNotification(notifMember),
-    notificationToHead: mapNotification(notifHead),
+    notificationToMember,
+    notificationToHead,
   };
 }
 
@@ -436,12 +484,18 @@ export async function rejectException(
     return { activity: mapActivity(a) };
   });
 
-  await pushNotification(
-    act.createdById,
-    "activity_missed",
-    `"${updated.activity.title}" exception request has been rejected.`,
-    activityId,
-  );
+  // One logical event → one canonical notification (P0 fix:
+  // previously this created one record via pushNotification AND a second
+  // identical manual record).
+  const notificationToMember =
+    (await pushNotification(
+      act.createdById,
+      "activity_missed",
+      `"${updated.activity.title}" exception request has been rejected.`,
+      activityId,
+      null,
+      { dedupeKey: `exception-reject:${activityId}` },
+    ))!;
 
   await recordAuditEvent({
     userId: session.authUserId,
@@ -450,16 +504,7 @@ export async function rejectException(
     targetType: "activity",
   });
 
-  const notification = await prisma.notification.create({
-    data: {
-      userId: act.createdById,
-      type: "activity_missed",
-      text: `"${updated.activity.title}" exception request has been rejected.`,
-      activityId,
-    },
-  });
-
-  return { activity: updated.activity, notificationToMember: mapNotification(notification) };
+  return { activity: updated.activity, notificationToMember };
 }
 
 function publicStorageUrl(key: string | null | undefined): string | null {
@@ -507,6 +552,7 @@ export async function getUser(id: string): Promise<User | null> {
 export type ProfilePatch = Partial<
   Pick<
     User,
+    | "email"
     | "designation"
     | "gradeLevel"
     | "sex"
@@ -539,59 +585,144 @@ export async function updateUserProfile(
   });
   if (!existing) throw new ServiceError(404, "User not found.");
 
+  const isManager = canManageTeamProfiles(mapUser(actor));
+
+  // Determine which fields the user is allowed to update
+  const allowedPatch: ProfilePatch = {};
+  let emailChanged = false;
+  let phoneChanged = false;
+  // Tracks whether any submitted value actually differs from the stored row, so
+  // a no-op submit (same email/phone/etc.) performs no DB write and emits no
+  // profile_updated broadcast or duplicate notification.
+  let anyChanged = false;
+
+  // Everyone can update their own email, phone, and photoUrl
+  if (patch.email !== undefined) {
+    allowedPatch.email = patch.email;
+    if (existing.email !== patch.email) {
+      emailChanged = true;
+      anyChanged = true;
+    }
+  }
+  if (patch.phone !== undefined) {
+    allowedPatch.phone = patch.phone;
+    if (existing.profile?.phone !== patch.phone) {
+      phoneChanged = true;
+      anyChanged = true;
+    }
+  }
+  if (patch.photoUrl !== undefined) {
+    allowedPatch.photoUrl = patch.photoUrl;
+    // Submitted avatar URLs may be a public/root-relative form of the stored
+    // key; treat any provided photoUrl as a change to avoid equality surprises.
+    anyChanged = true;
+  }
+
+  // Only managers can update other fields
+  if (isManager) {
+    if (patch.designation !== undefined) {
+      allowedPatch.designation = patch.designation;
+      if ((existing.profile?.designation ?? "") !== patch.designation) anyChanged = true;
+    }
+    if (patch.gradeLevel !== undefined) {
+      allowedPatch.gradeLevel = patch.gradeLevel;
+      if ((existing.profile?.gradeLevel ?? "") !== patch.gradeLevel) anyChanged = true;
+    }
+    if (patch.sex !== undefined) {
+      allowedPatch.sex = patch.sex;
+      if ((existing.profile?.sex ?? "") !== patch.sex) anyChanged = true;
+    }
+    if (patch.stateOfOrigin !== undefined) {
+      allowedPatch.stateOfOrigin = patch.stateOfOrigin;
+      if ((existing.profile?.stateOfOrigin ?? "") !== patch.stateOfOrigin) anyChanged = true;
+    }
+    if (patch.dateJoined !== undefined) {
+      allowedPatch.dateJoined = patch.dateJoined;
+      if (dateStringOnly(existing.profile?.dateJoined) !== patch.dateJoined) anyChanged = true;
+    }
+    if (patch.corpsEnd !== undefined) {
+      allowedPatch.corpsEnd = patch.corpsEnd;
+      const cur = existing.profile?.corpsEnd ? dateStringOnly(existing.profile.corpsEnd) : null;
+      const next = patch.corpsEnd ? dateStringOnly(patch.corpsEnd) : null;
+      if (cur !== next) anyChanged = true;
+    }
+  }
+
   const data: Prisma.UserProfileUpdateInput = {};
-  if (patch.designation !== undefined) data.designation = patch.designation;
-  if (patch.gradeLevel !== undefined) data.gradeLevel = patch.gradeLevel;
-  if (patch.sex !== undefined) data.sex = patch.sex;
-  if (patch.phone !== undefined) data.phone = patch.phone;
-  if (patch.stateOfOrigin !== undefined) data.stateOfOrigin = patch.stateOfOrigin;
-  if (patch.dateJoined !== undefined) {
-    data.dateJoined = patch.dateJoined
-      ? dateFromIso(patch.dateJoined)
+  if (allowedPatch.designation !== undefined) data.designation = allowedPatch.designation;
+  if (allowedPatch.gradeLevel !== undefined) data.gradeLevel = allowedPatch.gradeLevel;
+  if (allowedPatch.sex !== undefined) data.sex = allowedPatch.sex;
+  if (allowedPatch.phone !== undefined) data.phone = allowedPatch.phone;
+  if (allowedPatch.stateOfOrigin !== undefined) data.stateOfOrigin = allowedPatch.stateOfOrigin;
+  if (allowedPatch.dateJoined !== undefined) {
+    data.dateJoined = allowedPatch.dateJoined
+      ? dateFromIso(allowedPatch.dateJoined)
       : null;
   }
-  if (patch.photoUrl !== undefined) data.photoKey = patch.photoUrl;
+  if (allowedPatch.photoUrl !== undefined) data.photoKey = allowedPatch.photoUrl;
 
   const updateData: Prisma.UserUpdateInput = {
+    ...(allowedPatch.email !== undefined ? { email: allowedPatch.email } : {}),
     profile: {
       upsert: {
         create: {
           name: existing.profile?.name ?? existing.username,
-          designation: patch.designation ?? "",
-          gradeLevel: patch.gradeLevel ?? "",
-          sex: patch.sex ?? "",
-          phone: patch.phone ?? "",
-          stateOfOrigin: patch.stateOfOrigin ?? "",
-          dateJoined: patch.dateJoined ? dateFromIso(patch.dateJoined) : null,
-          photoKey: patch.photoUrl ?? null,
-          corpsEnd: patch.corpsEnd ? dateFromIso(patch.corpsEnd) : null,
+          designation: allowedPatch.designation ?? "",
+          gradeLevel: allowedPatch.gradeLevel ?? "",
+          sex: allowedPatch.sex ?? "",
+          phone: allowedPatch.phone ?? "",
+          stateOfOrigin: allowedPatch.stateOfOrigin ?? "",
+          dateJoined: allowedPatch.dateJoined ? dateFromIso(allowedPatch.dateJoined) : null,
+          photoKey: allowedPatch.photoUrl ?? null,
+          corpsEnd: allowedPatch.corpsEnd ? dateFromIso(allowedPatch.corpsEnd) : null,
         },
         update: {
           ...data,
-          ...(patch.corpsEnd !== undefined ? { corpsEnd: patch.corpsEnd ? dateFromIso(patch.corpsEnd) : null } : {}),
+          ...(allowedPatch.corpsEnd !== undefined ? { corpsEnd: allowedPatch.corpsEnd ? dateFromIso(allowedPatch.corpsEnd) : null } : {}),
         },
       },
     },
   };
 
-  if (canManageTeamProfiles(mapUser(actor))) {
-    if (patch.role !== undefined) updateData.role = patch.role;
-    if (patch.isSecretary !== undefined) updateData.isSecretary = patch.isSecretary;
-    if (patch.isCorps !== undefined) updateData.isCorps = patch.isCorps;
-    if (patch.isIntern !== undefined) updateData.isIntern = patch.isIntern;
+  if (isManager) {
+    if (patch.role !== undefined) {
+      updateData.role = patch.role;
+      if (existing.role !== patch.role) anyChanged = true;
+    }
+    if (patch.isSecretary !== undefined) {
+      updateData.isSecretary = patch.isSecretary;
+      if (existing.isSecretary !== patch.isSecretary) anyChanged = true;
+    }
+    if (patch.isCorps !== undefined) {
+      updateData.isCorps = patch.isCorps;
+      if (existing.isCorps !== patch.isCorps) anyChanged = true;
+    }
+    if (patch.isIntern !== undefined) {
+      updateData.isIntern = patch.isIntern;
+      if (existing.isIntern !== patch.isIntern) anyChanged = true;
+    }
     if (patch.isActive !== undefined) {
       if (!patch.isActive && userId === session.authUserId) {
         throw new ServiceError(400, "You cannot deactivate your own account.");
       }
+      if (existing.isActive !== patch.isActive) anyChanged = true;
       updateData.isActive = patch.isActive;
-      if (!patch.isActive) {
-        // Revoke sessions
+      if (!patch.isActive && existing.isActive !== patch.isActive) {
+        // Revoke sessions only when actually deactivating
         await prisma.session.updateMany({
           where: { userId, revokedAt: null },
           data: { revokedAt: new Date() },
         });
       }
     }
+  }
+
+  // No-op submit: nothing changed, so return the canonical row without writing,
+  // notifying, or broadcasting a spurious profile_updated event.
+  if (!anyChanged) {
+    const u = mapUser(existing);
+    u.photoUrl = publicStorageUrl(u.photoUrl);
+    return u;
   }
 
   const updated = await prisma.user.update({
@@ -607,9 +738,42 @@ export async function updateUserProfile(
     targetType: "user",
   });
 
+  if ((emailChanged || phoneChanged) && !isManager && userId === session.authUserId) {
+    // Member changed their own profile, notify heads via centralized pipeline.
+    const heads = await prisma.user.findMany({
+      where: { role: "head", isActive: true },
+      select: { id: true },
+    });
+
+    let text = "";
+    if (emailChanged && phoneChanged) {
+      text = "Email and phone number changed.";
+    } else if (emailChanged) {
+      text = "Email changed.";
+    } else if (phoneChanged) {
+      text = "Phone number changed.";
+    }
+
+    if (heads.length > 0 && text) {
+      await notifyMany(
+        heads.map((h) => ({
+          userId: h.id,
+          type: "activity_missed" as any,
+          text,
+          meta: { userId },
+        })),
+      );
+    }
+  }
+
   const u = mapUser(updated);
   u.photoUrl = publicStorageUrl(u.photoUrl);
+  
+  // Realtime Profile Sync
+  // Broadcast the canonical database record to all authenticated users via WebSocket.
+  // This enables the Head Dashboard to immediately reflect profile edits without polling.
   broadcast({ type: "profile_updated", user: u });
+
   return u;
 }
 
@@ -813,6 +977,13 @@ export async function createActivity(
     throw new ServiceError(400, "endDate must be on or after startDate");
   }
 
+  const creatorPrefs = await prisma.userPreferences.findUnique({
+    where: { userId: createdBy },
+    select: { timezone: true },
+  });
+  const creatorTimeZone = creatorPrefs?.timezone || "Africa/Lagos";
+  const dueAt = computeDueAt(input.startDate, input.startTime, creatorTimeZone);
+
   const nDays = daysBetween(input.startDate, input.endDate) + 1;
   if (nDays > 90) {
     throw new ServiceError(400, "Activity span cannot exceed 90 days");
@@ -837,6 +1008,9 @@ export async function createActivity(
           input.estimatedAmountNgn != null
             ? new Prisma.Decimal(input.estimatedAmountNgn)
             : null,
+        dueAt,
+        reminderStatus: { cancelled: false },
+        reminderVersion: 1,
         createdAt: input.seedDate
           ? new Date(input.seedDate)
           : undefined,
@@ -960,7 +1134,7 @@ export async function submitDailyLog(
   }
 
   await prisma.$transaction(async (tx) => {
-    await tx.attendee.deleteMany({ where: { dailyLogId: log.id } });
+    await tx.attendee.deleteMany({ where: { dailyLogId: log.id, source: { notIn: ["link", "guest"] } } });
     await tx.attachment.deleteMany({ where: { dailyLogId: log.id } });
 
     await tx.dailyLog.update({
@@ -985,10 +1159,12 @@ export async function submitDailyLog(
         submittedAt: n,
         attendees: {
           create: (data.attendees ?? []).map((a) => ({
+            userId: a.userId || null,
             name: a.name,
             phone: a.phone || "",
             email: a.email || "",
             source: a.source || "manual",
+            status: a.status || (a.source === "link" ? "pending" : "verified"),
             registeredAt: a.at ? new Date(a.at) : n,
           })),
         },
@@ -1023,6 +1199,14 @@ export async function submitDailyLog(
     where: { id: activityId },
     include: activityInclude,
   });
+
+  // Cancel reminders when activity is completed
+  if (updatedAct.status === "completed") {
+    await prisma.activity.update({
+      where: { id: activityId },
+      data: { reminderStatus: { cancelled: true } },
+    });
+  }
   const updatedLog = await prisma.dailyLog.findUniqueOrThrow({
     where: { id: log.id },
     include: logInclude,
@@ -1129,10 +1313,14 @@ export async function updateActivityEndDate(
       });
     }
 
-    // Update Activity endDate
+    // Update Activity endDate and cancel reminders (schedule may have shifted)
     return await tx.activity.update({
       where: { id: activityId },
-      data: { endDate: newEnd },
+      data: { 
+        endDate: newEnd,
+        reminderVersion: act.reminderVersion + 1,
+        reminderStatus: { cancelled: false, morningSent: false, dueSent: false, eodSent: false },
+      },
       include: activityInclude,
     });
   });
@@ -1185,6 +1373,18 @@ export async function updateActivityMetadata(
   if (data.location !== undefined) updateData.location = data.location;
   if (data.hasBudget !== undefined) updateData.hasBudget = data.hasBudget;
   if (data.estimatedAmountNgn !== undefined) updateData.estimatedAmountNgn = data.estimatedAmountNgn;
+
+  // If startTime changed, recompute dueAt and cancel old reminders
+  if (data.startTime !== undefined && data.startTime !== act.startTime) {
+    const creatorPrefs = await prisma.userPreferences.findUnique({
+      where: { userId: act.createdById },
+      select: { timezone: true },
+    });
+    const creatorTimeZone = creatorPrefs?.timezone || "Africa/Lagos";
+    updateData.dueAt = computeDueAt(iso(act.startDate), data.startTime, creatorTimeZone);
+    updateData.reminderVersion = act.reminderVersion + 1;
+    updateData.reminderStatus = { cancelled: false, morningSent: false, dueSent: false, eodSent: false };
+  }
 
   const updatedAct = await prisma.$transaction(async (tx) => {
     if (data.responsibilityIds) {
@@ -1366,10 +1566,12 @@ export async function addRsvpAttendee(
   await prisma.attendee.create({
     data: {
       dailyLogId: log.id,
+      userId: attendee.userId || null,
       name,
       phone: (attendee.phone || "").trim(),
       email: (attendee.email || "").trim(),
       source: attendee.source || "link",
+      status: attendee.status || "pending",
       registeredAt: new Date(),
     },
   });
@@ -1409,7 +1611,8 @@ export async function listDmsForUser(
       include: {
         attachments: true,
         replyTo: { include: { attachments: true } },
-        deletedBy: { where: { userId: session.id }, select: { id: true } }
+        deletedBy: { where: { userId: session.id }, select: { id: true } },
+        linkPreview: true,
       }
     }),
     prisma.directMessage.count({ where }),
@@ -1429,12 +1632,12 @@ export async function sendDm(
   replyToId?: string | null
 ): Promise<{ id: string }> {
   const actor = await requireActor(session);
-  if (toId === session.id) {
-    throw new ServiceError(400, "Cannot message yourself.");
-  }
-  const recipient = await prisma.user.findUnique({ where: { id: toId } });
-  if (!recipient || !recipient.isActive) {
-    throw new ServiceError(404, "Recipient not found.");
+  const isSelfDm = toId === session.id;
+  if (!isSelfDm) {
+    const recipient = await prisma.user.findUnique({ where: { id: toId } });
+    if (!recipient || !recipient.isActive) {
+      throw new ServiceError(404, "Recipient not found.");
+    }
   }
   const trimmed = text.trim();
   if (!trimmed && (!attachments || attachments.length === 0)) {
@@ -1442,6 +1645,12 @@ export async function sendDm(
   }
 
   const [a, b] = canonicalPair(session.id, toId);
+  if (replyToId) {
+    const orig = await prisma.directMessage.findUnique({ where: { id: replyToId } });
+    if (!orig || orig.participantA !== a || orig.participantB !== b) {
+      throw new ServiceError(400, "Reply must reference a message from the same conversation.");
+    }
+  }
   const msg = await prisma.directMessage.create({
     data: {
       participantA: a,
@@ -1464,13 +1673,15 @@ export async function sendDm(
     },
   });
 
-  await pushNotification(
-    toId,
-    "dm",
-    `${firstName(mapUser(actor).name)} sent you a message.`,
-    null,
-    msg.id,
-  );
+  if (!isSelfDm) {
+    await pushNotification(
+      toId,
+      "dm",
+      `${firstName(mapUser(actor).name)} sent you a message.`,
+      null,
+      msg.id,
+    );
+  }
 
   return { id: msg.id };
 }
@@ -1491,6 +1702,7 @@ export async function listCommunity(
         attachments: true,
         replyTo: { include: { attachments: true } },
         mentions: { include: { user: { include: { profile: true } } } },
+        linkPreview: true,
         ...(opts?.userId ? { deletedBy: { where: { userId: opts.userId }, select: { id: true } } } : {})
       }
     }),
@@ -1510,11 +1722,20 @@ export async function sendCommunity(
   attachments?: any[],
   mentions?: { userId: string; position: number }[]
 ): Promise<{ id: string }> {
-  await requireActor(session);
+  const actor = await requireActor(session);
+  void actor;
   const trimmed = text.trim();
   if (!trimmed && (!attachments || attachments.length === 0)) {
     throw new ServiceError(400, "Message text or attachment is required.");
   }
+
+  if (replyToId) {
+    const orig = await prisma.communityMessage.findUnique({ where: { id: replyToId } });
+    if (!orig) throw new ServiceError(404, "Referenced message not found.");
+  }
+
+  const sender = await getUser(session.id);
+  const senderName = sender?.name ? firstName(sender.name) : "Someone";
 
   const msg = await prisma.$transaction(async (tx) => {
     const created = await tx.communityMessage.create({
@@ -1546,26 +1767,84 @@ export async function sendCommunity(
         })),
         skipDuplicates: true,
       });
-
-      // Avoid notifying the author if they mentioned themselves
-      for (const m of mentions) {
-        if (m.userId !== session.id) {
-          await tx.notification.create({
-            data: {
-              userId: m.userId,
-              type: "mention",
-              text: `You were mentioned in community chat.`,
-              messageId: created.id,
-            },
-          });
-        }
-      }
     }
 
     return created;
   });
 
+  // P1: route community + mentions through the centralized pipeline so they
+  // get persistent history + push + prefs + deep links like every other type.
+  // Mentioned users get ONE mention notification (not mention + community).
+  try {
+    const mentionedIds = new Set(
+      (mentions ?? []).map((m) => m.userId).filter((id) => id !== session.id),
+    );
+    const preview =
+      trimmed.length > 120 ? `${trimmed.slice(0, 120)}…` : trimmed || "sent an attachment";
+
+    if (mentionedIds.size > 0) {
+      await notifyMany(
+        [...mentionedIds].map((userId) => ({
+          userId,
+          type: "mention" as const,
+          text: `${senderName} mentioned you in community chat: "${preview}"`,
+          messageId: msg.id,
+        })),
+      );
+    }
+
+    const others = await prisma.user.findMany({
+      where: {
+        isActive: true,
+        id: { not: session.id, notIn: [...mentionedIds] },
+      },
+      select: { id: true },
+    });
+    if (others.length) {
+      await notifyMany(
+        others.map((u) => ({
+          userId: u.id,
+          type: "community" as const,
+          text: `${senderName} in Community Chat: "${preview}"`,
+          messageId: msg.id,
+        })),
+      );
+    }
+  } catch (err) {
+    // Notifications must never break message delivery.
+    console.error("[sendCommunity] notification fan-out failed:", err);
+  }
+
   return { id: msg.id };
+}
+
+export async function saveLinkPreview(
+  messageId: string,
+  messageType: "dm" | "community",
+  data: { url: string; domain: string; title?: string; description?: string; image?: string },
+): Promise<void> {
+  try {
+    const existing = await prisma.linkPreview.findFirst({
+      where: messageType === "dm"
+        ? { directMessageId: messageId }
+        : { communityMessageId: messageId },
+    });
+    if (existing) return;
+
+    await prisma.linkPreview.create({
+      data: {
+        directMessageId: messageType === "dm" ? messageId : null,
+        communityMessageId: messageType === "community" ? messageId : null,
+        url: data.url,
+        domain: data.domain,
+        title: data.title ?? null,
+        description: data.description ?? null,
+        image: data.image ?? null,
+      },
+    });
+  } catch (err) {
+    console.error("[saveLinkPreview] Failed:", err);
+  }
 }
 
 export async function wipeCommunity(session: SessionUser): Promise<void> {
@@ -1616,17 +1895,16 @@ export async function sendBroadcast(
   });
   if (others.length) {
     const textPreview = `Broadcast from ${mapUser(actor).name}: ${trimmed}`;
-    await prisma.notification.createMany({
-      data: others.map((u) => ({
+    // Centralized pipeline: persistent history always, push always
+    // (broadcasts are mandatory and bypass preference gates).
+    await notifyMany(
+      others.map((u) => ({
         userId: u.id,
         type: "broadcast" as const,
         text: textPreview,
+        messageId: msg.id,
       })),
-    });
-
-    for (const u of others) {
-      sendPushNotification(u.id, "📢 Unit Announcement", textPreview, { url: "/messages" }).catch(console.error);
-    }
+    );
   }
 
   return { id: msg.id };
@@ -1879,6 +2157,44 @@ export async function toggleActivityHidden(
   return mapActivity(updated);
 }
 
+export async function hardDeleteActivity(
+  session: SessionUser,
+  activityId: string,
+): Promise<void> {
+  const actor = await requireActor(session);
+  // Only the Unit Head can delete activities (Members are denied)
+  if (actor.role !== "head") {
+    throw new ServiceError(403, "Only the Unit Head can delete activities.");
+  }
+  const act = await prisma.activity.findUnique({
+    where: { id: activityId },
+  });
+  if (!act) throw new ServiceError(404, "Activity not found.");
+  if (act.status !== "missed") {
+    throw new ServiceError(400, "Only missed activities can be deleted.");
+  }
+
+  // Delete associated notifications manually since they don't have a strict FK
+  await prisma.notification.deleteMany({
+    where: { activityId },
+  });
+
+  // Delete the activity (this will cascade to DailyLog, Comment, ActivityResponsibility, etc.)
+  await prisma.activity.delete({
+    where: { id: activityId },
+  });
+
+  await recordAuditEvent({
+    userId: session.authUserId,
+    action: "activity_delete",
+    targetId: activityId,
+    targetType: "activity",
+    meta: {
+      title: act.title,
+    },
+  });
+}
+
 export async function softDeleteActivity(
   session: SessionUser,
   activityId: string,
@@ -1895,7 +2211,10 @@ export async function softDeleteActivity(
 
   const updated = await prisma.activity.update({
     where: { id: activityId },
-    data: { softDeletedAt: new Date() },
+    data: { 
+      softDeletedAt: new Date(),
+      reminderStatus: { cancelled: true },
+    },
     include: activityInclude,
   });
 
@@ -1982,7 +2301,8 @@ export async function getScopedBootstrap(session: SessionUser): Promise<{
       include: {
         attachments: true,
         replyTo: { include: { attachments: true } },
-        deletedBy: { where: { userId: session.id }, select: { id: true } }
+        deletedBy: { where: { userId: session.id }, select: { id: true } },
+        linkPreview: true,
       }
     }),
     prisma.callRecord.findMany({
@@ -1999,6 +2319,7 @@ export async function getScopedBootstrap(session: SessionUser): Promise<{
         attachments: true,
         replyTo: { include: { attachments: true } },
         mentions: { include: { user: { include: { profile: true } } } },
+        linkPreview: true,
         deletedBy: { where: { userId: session.id }, select: { id: true } }
       }
     }),
@@ -2092,151 +2413,5 @@ export async function deleteDmMessage(session: SessionUser, id: string, forEvery
     });
   }
   return true;
-}
-
-
-export async function hardDeleteActivity(
-  session: SessionUser,
-  activityId: string,
-): Promise<void> {
-  const actor = await requireActor(session);
-  if (actor.role !== "head") {
-    throw new ServiceError(403, "Only the Unit Head can delete activities.");
-  }
-  const act = await prisma.activity.findUnique({
-    where: { id: activityId },
-  });
-  if (!act) throw new ServiceError(404, "Activity not found.");
-  if (act.status !== "missed") {
-    throw new ServiceError(400, "Only missed activities can be deleted.");
-  }
-
-  await prisma.notification.deleteMany({
-    where: { activityId },
-  });
-
-  await prisma.activity.delete({
-    where: { id: activityId },
-  });
-
-  await recordAuditEvent({
-    userId: session.authUserId,
-    action: "activity_delete",
-    targetId: activityId,
-    targetType: "activity",
-    meta: {
-      title: act.title,
-    },
-  });
-}
-
-export async function softDeleteActivity(
-  session: SessionUser,
-  activityId: string,
-): Promise<ActivityPayload> {
-  const actor = await requireActor(session);
-  if (actor.role !== "head") {
-    throw new ServiceError(403, "Only the Unit Head can soft-delete activities.");
-  }
-  const act = await prisma.activity.findUnique({
-    where: { id: activityId },
-  });
-  if (!act) throw new ServiceError(404, "Activity not found.");
-
-  const updated = await prisma.activity.update({
-    where: { id: activityId },
-    data: { 
-      softDeletedAt: new Date(),
-    },
-    include: activityInclude,
-  });
-
-  return mapActivity(updated);
-}
-export async function processDueReminders(reference: Date = now()): Promise<void> {
-  // Candidate selection must be a SUPERSET of every eligible activity while
-  // remaining bounded. Two categories:
-  //   1. Overdue: dueAt already <= reference (any age, so morning catch-up works).
-  //   2. Due later "today": dueAt still in the future but falls on the user's
-  //      current calendar day, so the midnight/morning trigger can fire before
-  //      the due time. Because users span every IANA timezone, the widest possible
-  //      "today" spans from startUtcDay -14h (UTC+14's earliest local midnight)
-  //      to startUtcDay +48h (latest possible local day end across all zones).
-  // `computeDueTriggers()` remains the source of truth: selecting a candidate here
-  // does NOT fire a reminder by itself.
-  const { todayWindowStart, todayWindowEnd } = buildReminderCandidateWindow(reference);
-
-  const activities = await prisma.activity.findMany({
-    where: {
-      status: "pending",
-      type: "Task",
-      softDeletedAt: null,
-      reminderStatus: { path: ["cancelled"], equals: false },
-      OR: [
-        { dueAt: { lte: reference } },
-        { dueAt: { gte: todayWindowStart, lte: todayWindowEnd } },
-      ],
-    },
-    select: {
-      id: true,
-      createdById: true,
-      title: true,
-      dueAt: true,
-      startTime: true,
-      reminderStatus: true,
-      reminderVersion: true,
-    },
-  });
-
-  for (const act of activities) {
-    const userPrefs = await prisma.userPreferences.findUnique({
-      where: { userId: act.createdById },
-      select: { timezone: true },
-    });
-    const userTimeZone = userPrefs?.timezone || "Africa/Lagos";
-
-    const triggers = computeDueTriggers(
-      {
-        id: act.id,
-        title: act.title,
-        dueAt: act.dueAt,
-        startTime: act.startTime,
-        reminderStatus: act.reminderStatus as any,
-        reminderVersion: act.reminderVersion,
-      },
-      reference,
-      userTimeZone,
-    );
-
-    if (triggers.length === 0) continue;
-
-    const status = parseReminderStatus(act.reminderStatus);
-
-    for (const trigger of triggers) {
-      const dedupeKey = buildDedupeKey(act.id, trigger.type, reference, act.reminderVersion);
-      await notifyUser({
-        userId: act.createdById,
-        type: "activity_reminder",
-        text: trigger.message,
-        activityId: act.id,
-        dedupeKey,
-      });
-      if (trigger.type === "morning") status.morningSent = true;
-      else if (trigger.type === "due_now") status.dueSent = true;
-      else if (trigger.type === "eod") status.eodSent = true;
-    }
-
-    await prisma.activity.update({
-      where: { id: act.id, reminderVersion: act.reminderVersion },
-      data: { reminderStatus: status as any },
-    });
-  }
-}
-
-
-function dateStringOnly(d: Date | string | null | undefined): string {
-  if (!d) return "";
-  if (typeof d === "string") return d.slice(0, 10);
-  return d.toISOString().slice(0, 10);
 }
 

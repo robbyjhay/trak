@@ -1,4 +1,3 @@
-import { TrakLoader } from "@/components/ui/TrakLoader";
 "use client";
 /* eslint-disable */
 
@@ -149,8 +148,8 @@ interface TrakStoreValue {
       deliverables: string[];
     },
   ) => Promise<Responsibility>;
-  sendDm: (toId: string, text: string, attachments?: SendMessageAttachmentInput[], replyToId?: string | null) => Promise<void>;
-  sendCommunity: (text: string, attachments?: SendMessageAttachmentInput[], mentions?: { userId: string; position: number; length: number }[], replyToId?: string | null) => Promise<void>;
+  sendDm: (toId: string, text: string, attachments?: SendMessageAttachmentInput[]) => Promise<void>;
+  sendCommunity: (text: string, attachments?: SendMessageAttachmentInput[], mentions?: { userId: string; position: number }[]) => Promise<void>;
   wipeCommunity: () => Promise<void>;
   deleteDmMessage: (messageId: string, forEveryone: boolean) => Promise<void>;
   deleteCommunityMessage: (messageId: string, forEveryone: boolean) => Promise<void>;
@@ -161,9 +160,6 @@ interface TrakStoreValue {
   toggleActivityHidden: (activityId: string) => Promise<void>;
   softDeleteActivity: (activityId: string) => Promise<void>;
   deactivateResponsibility: (id: string) => Promise<void>;
-  requestException: (activityId: string, explanation: string) => Promise<void>;
-  approveException: (activityId: string) => Promise<void>;
-  rejectException: (activityId: string) => Promise<void>;
   activitiesFor: (userId: string) => Activity[];
   bucket: (userId: string) => ReturnType<typeof bucketMut>;
   getActivity: (id: string) => Activity | undefined;
@@ -330,49 +326,45 @@ export function TrakStoreProvider({
     );
   }, []);
 
-  // Web Push via the Service Worker is the SOLE OS-level notification path.
-  // Polling here only synchronizes in-app state (badge / bell / toasts).
-  // See Phase 1 P0 fix: never fire OS alerts from polling —
-  // it duplicates SW push and is unreliable on mobile PWAs.
-  const showToastRef = useRef(showToast);
-  showToastRef.current = showToast;
+  const maybeOsNotify = useCallback(
+    (userId: string, text: string) => {
+      if (
+        notificationsEnabled &&
+        session.id === userId &&
+        typeof Notification !== "undefined" &&
+        Notification.permission === "granted"
+      ) {
+        try {
+          new Notification("Trak", {
+            body: text,
+            tag: "trak-" + Math.random().toString(36).slice(2),
+          });
+        } catch {
+          /* in-app bell still has it */
+        }
+      }
+    },
+    [notificationsEnabled, session.id],
+  );
 
   const mergeNotifications = useCallback(
     (notifications?: Notification[]) => {
       if (!notifications) return;
       const mine = notifications.filter((n) => n.userId === session.id);
-      const prev = stateRef.current.db.notifications || [];
-      const prevIds = new Set(prev.map((n) => n.id));
-      const fresh = mine.filter((n) => !prevIds.has(n.id) && !n.read);
-
-      const map = new Map(prev.map(n => [n.id, n]));
-      for (const n of notifications) {
-        map.set(n.id, n);
-      }
-      stateRef.current.db.notifications = Array.from(map.values()).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-
-      // In-app toast for genuinely new arrivals (P2/P7). One toast per batch,
-      // suppressed when the user is already looking at the target route and
-      // when the tab is hidden (SW push covers that case).
-      if (fresh.length > 0 && typeof document !== "undefined" && document.visibilityState === "visible") {
-        const latest = [...fresh].sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""))[0];
-        try {
-          const path = window.location.pathname || "";
-          const target = latest.activityId
-            ? `/activity/${latest.activityId}`
-            : latest.type === "dm" || latest.type === "mention" || latest.type === "community" || latest.type === "broadcast"
-              ? "/messages"
-              : null;
-          const onTarget = !!target && (path === target || path.startsWith(target + "/"));
-          if (!onTarget && latest.text) {
-            showToastRef.current("New notification", latest.text.length > 120 ? `${latest.text.slice(0, 120)}…` : latest.text);
-          }
-        } catch {
-          /* toast is best-effort */
+      const prev = stateRef.current.db.notifications;
+      const prevUnread = new Set(
+        prev
+          .filter((n) => n.userId === session.id && !n.read)
+          .map((n) => n.id),
+      );
+      for (const n of mine) {
+        if (!prevUnread.has(n.id) && !n.read) {
+          maybeOsNotify(n.userId, n.text);
         }
       }
+      stateRef.current.db.notifications = notifications;
     },
-    [session.id],
+    [maybeOsNotify, session.id],
   );
 
   // Lightweight poll for notifications; full refresh less often
@@ -602,7 +594,7 @@ export function TrakStoreProvider({
       bump();
       return res.responsibility;
     },
-    sendDm: async (toId, text, attachments, replyToId) => {
+    sendDm: async (toId, text, attachments) => {
       const tempId = `temp_${Date.now()}`;
       stateRef.current.db.dms.push({
         id: tempId,
@@ -612,33 +604,20 @@ export function TrakStoreProvider({
         text,
         attachments: (attachments || []).map((a, i) => ({ ...a, id: `${tempId}_${i}`, messageId: tempId })),
         at: new Date().toISOString(),
-        replyToId: replyToId || null,
-        replyTo: replyToId ? (() => {
-          const orig = stateRef.current.db.dms.find((m) => m.id === replyToId) as any;
-          if (!orig) return null;
-          return {
-            id: orig.id,
-            from: orig.from,
-            text: orig.text || "",
-            at: orig.at,
-            attachments: orig.attachments,
-            isDeleted: orig.isDeleted,
-          };
-        })() : null,
       });
       bump();
       try {
         const res = await apiSend<{
           dms: typeof db.dms;
           notifications: Notification[];
-        }>("/api/messages/dms", "POST", { toId, text, attachments, replyToId: replyToId || null });
+        }>("/api/messages/dms", "POST", { toId, text, attachments });
         stateRef.current.db.dms = res.dms;
         mergeNotifications(res.notifications);
       } finally {
         bump();
       }
     },
-    sendCommunity: async (text, attachments, mentions, replyToId) => {
+    sendCommunity: async (text, attachments, mentions) => {
       const tempId = `temp_${Date.now()}`;
       stateRef.current.db.community.push({
         id: tempId,
@@ -646,32 +625,14 @@ export function TrakStoreProvider({
         text,
         attachments: (attachments || []).map((a, i) => ({ ...a, id: `${tempId}_${i}`, messageId: tempId })),
         at: new Date().toISOString(),
-        replyToId: replyToId || null,
-        mentions: (mentions || []).map(m => ({
-          userId: m.userId,
-          position: m.position,
-          length: m.length,
-          displayName: userMap[m.userId]?.name || "Unknown",
-        })),
-        replyTo: replyToId ? (() => {
-          const orig = stateRef.current.db.community.find((m) => m.id === replyToId) as any;
-          if (!orig) return null;
-          return {
-            id: orig.id,
-            from: orig.from,
-            text: orig.text || "",
-            at: orig.at,
-            attachments: orig.attachments,
-            isDeleted: orig.isDeleted,
-          };
-        })() : null,
+        replyToId: null,
       });
       bump();
       try {
         const res = await apiSend<{ community: typeof db.community }>(
           "/api/messages/community",
           "POST",
-          { text, attachments, mentions, replyToId: replyToId || null },
+          { text, attachments, mentions },
         );
         stateRef.current.db.community = res.community;
       } finally {
@@ -795,50 +756,6 @@ export function TrakStoreProvider({
       if (r) r.isActive = !r.isActive;
       bump();
     },
-    requestException: async (activityId, explanation) => {
-      const res = await apiSend<{
-        activity: Activity;
-        notification: Notification;
-      }>(`/api/activities/${activityId}`, "PATCH", {
-        action: "requestException",
-        explanation,
-      });
-      const actIdx = stateRef.current.db.activities.findIndex(
-        (a) => a.id === activityId,
-      );
-      if (actIdx >= 0) stateRef.current.db.activities[actIdx] = res.activity;
-      mergeNotifications([res.notification]);
-      bump();
-    },
-    approveException: async (activityId) => {
-      const res = await apiSend<{
-        activity: Activity;
-        notificationToMember: Notification;
-        notificationToHead: Notification;
-      }>(`/api/activities/${activityId}`, "PATCH", {
-        action: "approveException",
-      });
-      const actIdx = stateRef.current.db.activities.findIndex(
-        (a) => a.id === activityId,
-      );
-      if (actIdx >= 0) stateRef.current.db.activities[actIdx] = res.activity;
-      mergeNotifications([res.notificationToMember, res.notificationToHead]);
-      bump();
-    },
-    rejectException: async (activityId) => {
-      const res = await apiSend<{
-        activity: Activity;
-        notificationToMember: Notification;
-      }>(`/api/activities/${activityId}`, "PATCH", {
-        action: "rejectException",
-      });
-      const actIdx = stateRef.current.db.activities.findIndex(
-        (a) => a.id === activityId,
-      );
-      if (actIdx >= 0) stateRef.current.db.activities[actIdx] = res.activity;
-      mergeNotifications([res.notificationToMember]);
-      bump();
-    },
     activitiesFor: (userId) => activitiesForMut(db, userId),
     bucket: (userId) => bucketMut(db, userId),
     getActivity: (id) => db.activities.find((a) => a.id === id),
@@ -857,15 +774,19 @@ export function TrakStoreProvider({
   if (!ready) {
     return (
       <div
-        className="flex min-h-screen items-center justify-center bg-paper text-ink-soft dark:bg-aztec"
+        className="flex min-h-screen items-center justify-center bg-paper text-ink-soft"
         role="status"
         aria-live="polite"
       >
         <div className="text-center">
-          <div className="mx-auto mb-4 flex justify-center">
-            <TrakLoader />
+          <div
+            className="mx-auto mb-4 h-8 w-8 animate-spin rounded-full border-2 border-line border-t-aztec"
+            aria-hidden
+          />
+          <div className="mb-2 font-display text-lg font-semibold text-ink">
+            Loading Trak…
           </div>
-          <div className="text-sm font-medium text-ink-soft dark:text-[#ffffff]">Syncing with server</div>
+          <div className="text-sm">Syncing with server</div>
         </div>
       </div>
     );

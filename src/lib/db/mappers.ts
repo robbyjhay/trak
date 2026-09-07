@@ -14,6 +14,7 @@ import type {
   CommunityMessageMention as DbMention,
   DailyLog as DbDailyLog,
   DirectMessage as DbDm,
+  LinkPreview as DbLinkPreview,
   MessageAttachment as DbMessageAttachment,
   Notification as DbNotification,
   Responsibility as DbResponsibility,
@@ -30,6 +31,7 @@ import type {
   CommunityMessage,
   DailyLog,
   Dm,
+  LinkPreview,
   MessageAttachment,
   MessageMention,
   Notification,
@@ -78,6 +80,7 @@ export function mapUser(row: UserWithProfile): User {
     id: row.id,
     name: p?.name ?? row.username,
     username: row.username,
+    email: row.email ?? null,
     role: row.role === "head" ? "head" : "member",
     isSecretary: row.isSecretary,
     isCorps: row.isCorps,
@@ -141,6 +144,9 @@ export function mapActivity(row: ActivityWithRelations): Activity {
     estimatedAmountNgn: decimalToNumber(row.estimatedAmountNgn),
     hidden: row.hidden,
     softDeletedAt: row.softDeletedAt ? row.softDeletedAt.toISOString() : null,
+    dueAt: row.dueAt ? row.dueAt.toISOString() : null,
+    reminderStatus: row.reminderStatus as any,
+    reminderVersion: row.reminderVersion,
   };
 }
 
@@ -151,10 +157,12 @@ export type DailyLogWithRelations = DbDailyLog & {
 
 export function mapAttendee(row: DbAttendee): Attendee {
   return {
+    userId: row.userId ?? undefined,
     name: row.name,
     phone: row.phone,
     email: row.email,
     source: row.source,
+    status: row.status as Attendee["status"],
     at: row.registeredAt?.toISOString() ?? row.createdAt.toISOString(),
   };
 }
@@ -213,8 +221,18 @@ export function mapMessageAttachment(row: DbMessageAttachment): MessageAttachmen
   };
 }
 
+function mapLinkPreview(row: DbLinkPreview): LinkPreview {
+  return {
+    url: row.url,
+    domain: row.domain,
+    title: row.title ?? undefined,
+    description: row.description ?? undefined,
+    image: row.image ?? undefined,
+  };
+}
+
 export function mapDm(
-  row: DbDm & { attachments?: DbMessageAttachment[]; replyTo?: (DbDm & { attachments?: DbMessageAttachment[] }) | null },
+  row: DbDm & { attachments?: DbMessageAttachment[]; replyTo?: (DbDm & { attachments?: DbMessageAttachment[] }) | null; linkPreview?: DbLinkPreview | null },
   deletedForMeIds?: Set<string>,
 ): Dm {
   const isDeleted = Boolean(row.deletedAt) || Boolean(deletedForMeIds?.has(row.id));
@@ -249,6 +267,7 @@ export function mapDm(
     isDeleted,
     replyToId: (row as any).replyToId ?? null,
     replyTo,
+    linkPreview: isDeleted ? null : (row as any).linkPreview ? mapLinkPreview((row as any).linkPreview) : null,
   };
 }
 
@@ -257,6 +276,7 @@ export function mapCommunity(
     attachments?: DbMessageAttachment[];
     mentions?: (DbMention & { user?: { id: string; profile?: { name: string } | null } })[];
     replyTo?: (DbCommunity & { attachments?: DbMessageAttachment[] }) | null;
+    linkPreview?: DbLinkPreview | null;
   },
   deletedForMeIds?: Set<string>,
 ): CommunityMessage {
@@ -291,6 +311,7 @@ export function mapCommunity(
       length: (m as any).length,
     })),
     isDeleted,
+    linkPreview: isDeleted ? null : (row as any).linkPreview ? mapLinkPreview((row as any).linkPreview) : null,
   };
 }
 

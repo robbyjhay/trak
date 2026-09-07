@@ -1,0 +1,617 @@
+diff --git a/src/context/TrakStore.tsx b/src/context/TrakStore.tsx
+index 2f7e60e..a1ecf5d 100644
+--- a/src/context/TrakStore.tsx
++++ b/src/context/TrakStore.tsx
+@@ -148,8 +148,8 @@ interface TrakStoreValue {
+       deliverables: string[];
+     },
+   ) => Promise<Responsibility>;
+-  sendDm: (toId: string, text: string, attachments?: SendMessageAttachmentInput[]) => Promise<void>;
+-  sendCommunity: (text: string, attachments?: SendMessageAttachmentInput[], mentions?: { userId: string; position: number }[]) => Promise<void>;
++  sendDm: (toId: string, text: string, attachments?: SendMessageAttachmentInput[], replyToId?: string | null) => Promise<void>;
++  sendCommunity: (text: string, attachments?: SendMessageAttachmentInput[], mentions?: { userId: string; position: number }[], replyToId?: string | null) => Promise<void>;
+   wipeCommunity: () => Promise<void>;
+   deleteDmMessage: (messageId: string, forEveryone: boolean) => Promise<void>;
+   deleteCommunityMessage: (messageId: string, forEveryone: boolean) => Promise<void>;
+@@ -160,6 +160,9 @@ interface TrakStoreValue {
+   toggleActivityHidden: (activityId: string) => Promise<void>;
+   softDeleteActivity: (activityId: string) => Promise<void>;
+   deactivateResponsibility: (id: string) => Promise<void>;
++  requestException: (activityId: string, explanation: string) => Promise<void>;
++  approveException: (activityId: string) => Promise<void>;
++  rejectException: (activityId: string) => Promise<void>;
+   activitiesFor: (userId: string) => Activity[];
+   bucket: (userId: string) => ReturnType<typeof bucketMut>;
+   getActivity: (id: string) => Activity | undefined;
+@@ -617,7 +620,7 @@ export function TrakStoreProvider({
+         bump();
+       }
+     },
+-    sendCommunity: async (text, attachments, mentions) => {
++    sendCommunity: async (text, attachments, mentions, replyToId) => {
+       const tempId = `temp_${Date.now()}`;
+       stateRef.current.db.community.push({
+         id: tempId,
+@@ -625,14 +628,31 @@ export function TrakStoreProvider({
+         text,
+         attachments: (attachments || []).map((a, i) => ({ ...a, id: `${tempId}_${i}`, messageId: tempId })),
+         at: new Date().toISOString(),
+-        replyToId: null,
++        replyToId: replyToId || null,
++        mentions: (mentions || []).map(m => ({
++          userId: m.userId,
++          position: m.position,
++          displayName: userMap[m.userId]?.name || "Unknown",
++        })),
++        replyTo: replyToId ? (() => {
++          const orig = stateRef.current.db.community.find((m) => m.id === replyToId) as any;
++          if (!orig) return null;
++          return {
++            id: orig.id,
++            from: orig.from,
++            text: orig.text || "",
++            at: orig.at,
++            attachments: orig.attachments,
++            isDeleted: orig.isDeleted,
++          };
++        })() : null,
+       });
+       bump();
+       try {
+         const res = await apiSend<{ community: typeof db.community }>(
+           "/api/messages/community",
+           "POST",
+-          { text, attachments, mentions },
++          { text, attachments, mentions, replyToId: replyToId || null },
+         );
+         stateRef.current.db.community = res.community;
+       } finally {
+@@ -756,6 +776,50 @@ export function TrakStoreProvider({
+       if (r) r.isActive = !r.isActive;
+       bump();
+     },
++    requestException: async (activityId, explanation) => {
++      const res = await apiSend<{
++        activity: Activity;
++        notification: Notification;
++      }>(`/api/activities/${activityId}`, "PATCH", {
++        action: "requestException",
++        explanation,
++      });
++      const actIdx = stateRef.current.db.activities.findIndex(
++        (a) => a.id === activityId,
++      );
++      if (actIdx >= 0) stateRef.current.db.activities[actIdx] = res.activity;
++      mergeNotifications([res.notification]);
++      bump();
++    },
++    approveException: async (activityId) => {
++      const res = await apiSend<{
++        activity: Activity;
++        notificationToMember: Notification;
++        notificationToHead: Notification;
++      }>(`/api/activities/${activityId}`, "PATCH", {
++        action: "approveException",
++      });
++      const actIdx = stateRef.current.db.activities.findIndex(
++        (a) => a.id === activityId,
++      );
++      if (actIdx >= 0) stateRef.current.db.activities[actIdx] = res.activity;
++      mergeNotifications([res.notificationToMember, res.notificationToHead]);
++      bump();
++    },
++    rejectException: async (activityId) => {
++      const res = await apiSend<{
++        activity: Activity;
++        notificationToMember: Notification;
++      }>(`/api/activities/${activityId}`, "PATCH", {
++        action: "rejectException",
++      });
++      const actIdx = stateRef.current.db.activities.findIndex(
++        (a) => a.id === activityId,
++      );
++      if (actIdx >= 0) stateRef.current.db.activities[actIdx] = res.activity;
++      mergeNotifications([res.notificationToMember]);
++      bump();
++    },
+     activitiesFor: (userId) => activitiesForMut(db, userId),
+     bucket: (userId) => bucketMut(db, userId),
+     getActivity: (id) => db.activities.find((a) => a.id === id),
+diff --git a/src/lib/db/mappers.ts b/src/lib/db/mappers.ts
+index 1b9a343..dd8da29 100644
+--- a/src/lib/db/mappers.ts
++++ b/src/lib/db/mappers.ts
+@@ -11,6 +11,7 @@ import type {
+   CallRecord as DbCall,
+   Comment as DbComment,
+   CommunityMessage as DbCommunity,
++  CommunityMessageMention as DbMention,
+   DailyLog as DbDailyLog,
+   DirectMessage as DbDm,
+   MessageAttachment as DbMessageAttachment,
+@@ -30,6 +31,7 @@ import type {
+   DailyLog,
+   Dm,
+   MessageAttachment,
++  MessageMention,
+   Notification,
+   NotifType,
+   Responsibility,
+@@ -125,6 +127,11 @@ export function mapActivity(row: ActivityWithRelations): Activity {
+     ),
+     location: row.location,
+     status: row.status,
++    exceptionStatus: row.exceptionStatus,
++    exceptionReason: row.exceptionReason,
++    submissionType: row.submissionType,
++    gracePeriodStartedAt: row.gracePeriodStartedAt ? new Date(row.gracePeriodStartedAt) : null,
++    gracePeriodExpiresAt: row.gracePeriodExpiresAt ? new Date(row.gracePeriodExpiresAt) : null,
+     createdAt: row.createdAt.toISOString(),
+     initiativeTeamwork: row.initiativeTeamwork,
+     challenges: row.challenges,
+@@ -207,10 +214,30 @@ export function mapMessageAttachment(row: DbMessageAttachment): MessageAttachmen
+ }
+ 
+ export function mapDm(
+-  row: DbDm & { attachments?: DbMessageAttachment[] },
++  row: DbDm & { attachments?: DbMessageAttachment[]; replyTo?: (DbDm & { attachments?: DbMessageAttachment[] }) | null },
+   deletedForMeIds?: Set<string>,
+ ): Dm {
+   const isDeleted = Boolean(row.deletedAt) || Boolean(deletedForMeIds?.has(row.id));
++  let replyTo: Dm["replyTo"] = null;
++  if ((row as any).replyTo) {
++    const r: any = (row as any).replyTo;
++    const replyIsDeleted = Boolean(r.deletedAt);
++    replyTo = {
++      id: r.id,
++      from: r.fromUserId,
++      text: replyIsDeleted ? "Original message unavailable" : r.text || "",
++      at: r.createdAt ? new Date(r.createdAt).toISOString() : "",
++      attachments: replyIsDeleted ? undefined : r.attachments?.map(mapMessageAttachment),
++      isDeleted: replyIsDeleted,
++    };
++    // Handle soft-deleted via DeletedMessage for reply preview — if not fetched, still check text fallback
++    if (!replyIsDeleted && !r.text && r.text !== "") {
++      // No-op
++    }
++  } else if ((row as any).replyToId) {
++    // replyToId exists but relation not loaded — leave replyTo as minimal stub to indicate missing
++    replyTo = null;
++  }
+   return {
+     id: row.id,
+     a: row.participantA,
+@@ -220,21 +247,48 @@ export function mapDm(
+     at: row.createdAt.toISOString(),
+     attachments: isDeleted ? undefined : row.attachments?.map(mapMessageAttachment),
+     isDeleted,
++    replyToId: (row as any).replyToId ?? null,
++    replyTo,
+   };
+ }
+ 
+ export function mapCommunity(
+-  row: DbCommunity & { attachments?: DbMessageAttachment[] },
++  row: DbCommunity & {
++    attachments?: DbMessageAttachment[];
++    mentions?: (DbMention & { user?: { id: string; profile?: { name: string } | null } })[];
++    replyTo?: (DbCommunity & { attachments?: DbMessageAttachment[] }) | null;
++  },
+   deletedForMeIds?: Set<string>,
+ ): CommunityMessage {
+   const isDeleted = Boolean(row.deletedAt) || Boolean(deletedForMeIds?.has(row.id));
++  let replyTo: CommunityMessage["replyTo"] = null;
++  if ((row as any).replyTo) {
++    const r: any = (row as any).replyTo;
++    const replyIsDeleted = Boolean(r.deletedAt);
++    replyTo = {
++      id: r.id,
++      from: r.fromUserId,
++      text: replyIsDeleted ? "Original message unavailable" : r.text || "",
++      at: r.createdAt ? new Date(r.createdAt).toISOString() : "",
++      attachments: replyIsDeleted ? undefined : r.attachments?.map(mapMessageAttachment),
++      isDeleted: replyIsDeleted,
++    };
++  } else if (row.replyToId) {
++    replyTo = null;
++  }
+   return {
+     id: row.id,
+     from: row.fromUserId,
+     text: isDeleted ? "This message was deleted." : row.text,
+     at: row.createdAt.toISOString(),
+     replyToId: row.replyToId,
++    replyTo,
+     attachments: isDeleted ? undefined : row.attachments?.map(mapMessageAttachment),
++    mentions: isDeleted ? undefined : row.mentions?.map((m) => ({
++      userId: m.userId,
++      displayName: m.user?.profile?.name ?? m.user?.id ?? "Unknown",
++      position: m.position,
++    })),
+     isDeleted,
+   };
+ }
+@@ -266,6 +320,7 @@ export function mapNotification(row: DbNotification): Notification {
+     type: row.type as NotifType,
+     text: row.text,
+     activityId: row.activityId,
++    messageId: row.messageId ?? null,
+     createdAt: row.createdAt.toISOString(),
+     read: Boolean(row.readAt),
+   };
+diff --git a/src/lib/db/service.ts b/src/lib/db/service.ts
+index 53fd85c..2de04b2 100644
+--- a/src/lib/db/service.ts
++++ b/src/lib/db/service.ts
+@@ -143,6 +143,140 @@ async function recomputeActivityStatus(
+   });
+ }
+ 
++export async function markActivitiesMissed(reference: Date = now()): Promise<void> {
++  const activities = await prisma.activity.findMany({
++    where: {
++      status: "pending",
++      endDate: { lt: reference.toISOString() },
++      softDeletedAt: null,
++    },
++    select: { id: true, endDate: true, createdById: true },
++  });
++
++  const n = now();
++  for (const act of activities) {
++    const logs = await prisma.dailyLog.findMany({
++      where: { activityId: act.id },
++    });
++
++    const anySubmitted = logs.some((l) => l.status === "submitted");
++    if (!anySubmitted) {
++      await prisma.activity.update({
++        where: { id: act.id },
++        data: {
++          status: "missed",
++          exceptionStatus: "none",
++          submissionType: "normal",
++          gracePeriodStartedAt: null,
++          gracePeriodExpiresAt: null,
++        },
++      });
++    }
++  }
++
++  // Expire approved exceptions whose grace period has elapsed
++  await expireExpiredExceptions(n);
++}
++
++export async function expireExpiredExceptions(reference: Date = now()): Promise<void> {
++  const expired = await prisma.activity.findMany({
++    where: {
++      exceptionStatus: "approved",
++      status: "missed",
++      gracePeriodExpiresAt: { lt: reference },
++      softDeletedAt: null,
++    },
++    select: { id: true, createdById: true, title: true, gracePeriodExpiresAt: true },
++  });
++
++  for (const act of expired) {
++    await prisma.activity.update({
++      where: { id: act.id },
++      data: { exceptionStatus: "expired" },
++    });
++
++    await pushNotification(
++      act.createdById,
++      "activity_missed",
++      `"${act.title}" 2-hour grace period has expired. The activity remains missed.`,
++      act.id,
++    );
++  }
++}
++
++export async function requestException(
++  session: SessionUser,
++  activityId: string,
++  explanation: string,
++): Promise<{ activity: Activity; notification: Notification }> {
++  const actor = await requireActor(session);
++
++  const act = await prisma.activity.findUnique({
++    where: { id: activityId },
++    include: { createdBy: true },
++  });
++  if (!act || act.softDeletedAt) {
++    throw new ServiceError(404, "Activity not found.");
++  }
++  if (act.createdById === session.id) {
++    throw new ServiceError(
++      400,
++      "Exception can only be requested for missed activities you did not create.",
++    );
++  }
++  if (act.status !== "missed") {
++    throw new ServiceError(400, "Exception can only be requested for missed activities.");
++  }
++  if (act.exceptionStatus === "requested") {
++    throw new ServiceError(400, "An exception request for this activity already exists.");
++  }
++
++  const now = createNow();
++  const updated = await prisma.$transaction(async (tx) => {
++    const a = await tx.activity.update({
++      where: { id: activityId },
++      data: {
++        exceptionStatus: "requested",
++        exceptionReason: explanation,
++        submissionType: "normal",
++      },
++      include: { createdBy: true, responsibilities: true },
++    });
++    return { activity: mapActivity(a) };
++  });
++
++const headId = await findHeadUserId();
++  const creator = (await getUser(act.createdById))!;
++
++  if (headId) {
++    await pushNotification(
++      headId,
++      "activity_created",
++      `"${updated.activity.title}" - ${firstName(creator.name)} requested an exception. Reason: "${explanation}".`,
++      activityId,
++    );
++  }
++
++  await recordAuditEvent({
++    userId: session.authUserId,
++    action: "activity_miss",
++    targetId: activityId,
++    targetType: "activity",
++    meta: { explanation },
++  });
++
++  const notification = await prisma.notification.create({
++    data: {
++      userId: headId ?? creator.id,
++      type: "activity_missed",
++      text: `${firstName(creator.name)} requested an exception for "${act.title}".`,
++      activityId,
++    },
++  });
++
++  return { activity: updated.activity, notification: mapNotification(notification) };
++}
++
+ async function pushNotification(
+   userId: string,
+   type: Notification["type"],
+@@ -186,6 +320,148 @@ async function pushNotification(
+   sendPushNotification(userId, title, text, { url }).catch(console.error);
+ }
+ 
++export async function approveException(
++  session: SessionUser,
++  activityId: string,
++): Promise<{ activity: Activity; notificationToMember: Notification; notificationToHead: Notification }> {
++  const actor = await requireActor(session);
++
++  const act = await prisma.activity.findUnique({
++    where: { id: activityId },
++    include: { createdBy: true },
++  });
++  if (!act || act.softDeletedAt) {
++    throw new ServiceError(404, "Activity not found.");
++  }
++  if (act.createdById !== session.id && actor.role !== "head") {
++    throw new ServiceError(403, "Only the Unit Head can approve exceptions.");
++  }
++  if (act.exceptionStatus !== "requested") {
++    throw new ServiceError(400, "This exception request is not in REQUESTED state.");
++  }
++
++  const n = now();
++  const twoHoursLater = new Date(n.getTime() + 2 * 60 * 60 * 1000);
++
++  const updated = await prisma.$transaction(async (tx) => {
++    const a = await tx.activity.update({
++      where: { id: activityId },
++      data: {
++        exceptionStatus: "approved",
++        gracePeriodStartedAt: n,
++        gracePeriodExpiresAt: twoHoursLater,
++      },
++      include: { createdBy: true, responsibilities: true },
++    });
++    return { activity: mapActivity(a) };
++  });
++
++  const memberId = act.createdById;
++
++  await pushNotification(
++    memberId,
++    "activity_completed",
++    `"${updated.activity.title}" has been approved for late submission. You have 2 hours to log the activity.`,
++    activityId,
++  );
++
++  const headUser = await getUser(session.id);
++  await pushNotification(
++    act.createdById,
++    "activity_completed",
++    `"${updated.activity.title}" exception has been approved by ${headUser?.name || "Unit Head"}.`,
++    activityId,
++  );
++
++  await recordAuditEvent({
++    userId: session.authUserId,
++    action: "activity_update",
++    targetId: activityId,
++    targetType: "activity",
++  });
++
++  const notifMember = await prisma.notification.create({
++    data: {
++      userId: memberId,
++      type: "activity_completed",
++      text: `"${updated.activity.title}" has been approved for late submission. You have 2 hours to log the activity.`,
++      activityId,
++    },
++  });
++
++  const notifHead = await prisma.notification.create({
++    data: {
++      userId: session.id,
++      type: "activity_completed",
++      text: `"${updated.activity.title}" exception has been approved.`,
++      activityId,
++    },
++  });
++
++  return {
++    activity: updated.activity,
++    notificationToMember: mapNotification(notifMember),
++    notificationToHead: mapNotification(notifHead),
++  };
++}
++
++export async function rejectException(
++  session: SessionUser,
++  activityId: string,
++): Promise<{ activity: Activity; notificationToMember: Notification }> {
++  const actor = await requireActor(session);
++
++  const act = await prisma.activity.findUnique({
++    where: { id: activityId },
++    include: { createdBy: true },
++  });
++  if (!act || act.softDeletedAt) {
++    throw new ServiceError(404, "Activity not found.");
++  }
++  if (act.createdById !== session.id && actor.role !== "head") {
++    throw new ServiceError(403, "Only the Unit Head can reject exceptions.");
++  }
++  if (act.exceptionStatus !== "requested") {
++    throw new ServiceError(400, "This exception request is not in REQUESTED state.");
++  }
++
++  const updated = await prisma.$transaction(async (tx) => {
++    const a = await tx.activity.update({
++      where: { id: activityId },
++      data: {
++        exceptionStatus: "rejected",
++      },
++      include: { createdBy: true, responsibilities: true },
++    });
++    return { activity: mapActivity(a) };
++  });
++
++  await pushNotification(
++    act.createdById,
++    "activity_missed",
++    `"${updated.activity.title}" exception request has been rejected.`,
++    activityId,
++  );
++
++  await recordAuditEvent({
++    userId: session.authUserId,
++    action: "activity_update",
++    targetId: activityId,
++    targetType: "activity",
++  });
++
++  const notification = await prisma.notification.create({
++    data: {
++      userId: act.createdById,
++      type: "activity_missed",
++      text: `"${updated.activity.title}" exception request has been rejected.`,
++      activityId,
++    },
++  });
++
++  return { activity: updated.activity, notificationToMember: mapNotification(notification) };
++}
++
+ function publicStorageUrl(key: string | null | undefined): string | null {
+   if (!key) return null;
+   if (
+@@ -667,6 +943,21 @@ export async function submitDailyLog(
+   if (!log) throw new ServiceError(404, "Daily log not found.");
+ 
+   const n = now();
++
++  if (act.status === "missed") {
++    const canSubmitLate =
++      act.exceptionStatus === "approved" &&
++      act.gracePeriodExpiresAt != null &&
++      n <= act.gracePeriodExpiresAt;
++
++    if (!canSubmitLate) {
++      throw new ServiceError(
++        400,
++        "This activity is missed. An approved exception with a valid grace period is required to submit it late.",
++      );
++    }
++  }
++
+   await prisma.$transaction(async (tx) => {
+     await tx.attendee.deleteMany({ where: { dailyLogId: log.id } });
+     await tx.attachment.deleteMany({ where: { dailyLogId: log.id } });
+@@ -713,6 +1004,18 @@ export async function submitDailyLog(
+     });
+   });
+ 
++  if (act.status === "missed") {
++    await prisma.activity.update({
++      where: { id: activityId },
++      data: {
++        submissionType: "late",
++        gracePeriodExpiresAt: null,
++        gracePeriodStartedAt: null,
++        exceptionStatus: act.exceptionStatus === "approved" ? "approved" : act.exceptionStatus,
++      },
++    });
++  }
++
+   await recomputeActivityStatus(activityId, n);
+ 
+   const updatedAct = await prisma.activity.findUniqueOrThrow({
+@@ -728,10 +1031,19 @@ export async function submitDailyLog(
+     const headId = await findHeadUserId();
+     if (headId && updatedAct.createdById !== headId) {
+       const owner = await getUser(updatedAct.createdById);
++      const latePrefix = updatedAct.submissionType === "late" ? " (submitted late)" : "";
+       await pushNotification(
+         headId,
+         "activity_completed",
+-        `"${updatedAct.title}" (${firstName(owner?.name || "")}) was just completed.`,
++        `"${updatedAct.title}" (${firstName(owner?.name || "")}) was just completed${latePrefix}.`,
++        activityId,
++      );
++    }
++    if (updatedAct.submissionType === "late") {
++      await pushNotification(
++        updatedAct.createdById,
++        "activity_completed",
++        `Your activity "${updatedAct.title}" has been successfully logged and recorded as a late submission.`,
+         activityId,
+       );
+     }
+@@ -1111,7 +1423,8 @@ export async function sendDm(
+   session: SessionUser,
+   toId: string,
+   text: string,
+-  attachments?: any[]
++  attachments?: any[],
++  replyToId?: string | null
+ ): Promise<{ id: string }> {
+   const actor = await requireActor(session);
+   if (toId === session.id) {
+@@ -1189,7 +1502,8 @@ export async function sendCommunity(
+   session: SessionUser,
+   text: string,
+   replyToId?: string | null,
+-  attachments?: any[]
++  attachments?: any[],
++  mentions?: { userId: string; position: number }[]
+ ): Promise<{ id: string }> {
+   await requireActor(session);
+   const trimmed = text.trim();

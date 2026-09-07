@@ -1,0 +1,102 @@
+--- src/lib/db/mappers.ts
++++ src/lib/db/mappers.ts
+@@ -287,3 +287,3 @@
+       displayName: m.user?.profile?.name ?? m.user?.id ?? "Unknown",
+-      position: 0,
++      position: m.position,
+     })),
+--- src/lib/db/service.ts
++++ src/lib/db/service.ts
+@@ -1499,3 +1499,4 @@
+   replyToId?: string | null,
+-  attachments?: any[]
++  attachments?: any[],
++  mentions?: { userId: string; position: number }[]
+ ): Promise<{ id: string }> {
+@@ -1507,7 +1508,2 @@
+ 
+-  // Parse @mentions: @username
+-  const mentionMatches = trimmed.match(/@([A-Za-z0-9_]+)/g) || [];
+-  const mentionedUsernames = [
+-    ...new Set(mentionMatches.map((m) => m.slice(1).toLowerCase())),
+-  ];
+-
+   const msg = await prisma.$transaction(async (tx) => {
+@@ -1532,18 +1528,40 @@
+ 
+-    if (mentionedUsernames.length) {
+-      const users = await tx.user.findMany({
+-        where: {
+-          usernameNormalized: { in: mentionedUsernames },
+-          isActive: true,
+-        },
+-        select: { id: true },
++    if (mentions && mentions.length > 0) {
++      await tx.communityMessageMention.createMany({
++        data: mentions.map((m) => ({
++          messageId: created.id,
++          userId: m.userId,
++          position: m.position,
++        })),
++        skipDuplicates: true,
+       });
+-      if (users.length) {
+-        await tx.communityMessageMention.createMany({
+-          data: users.map((u) => ({
+-            messageId: created.id,
+-            userId: u.id,
+-          })),
+-          skipDuplicates: true,
+-        });
+-        for (const u of users) {
++      
++      const uniqueUserIds = [...new Set(mentions.map(m => m.userId))];
++      for (const uid of uniqueUserIds) {
++        await createNotification(tx, {
++          type: "MENTION",
++          userId: uid,
++          actorId: session.id,
++          text: `mentioned you in the community chat`,
++          link: `#thread`,
++        });
++      }
++    } else {
++      // Fallback: Parse @mentions: @username
++      const mentionMatches = trimmed.match(/@([A-Za-z0-9_]+)/g) || [];
++      const mentionedUsernames = [
++        ...new Set(mentionMatches.map((m) => m.slice(1).toLowerCase())),
++      ];
++      if (mentionedUsernames.length) {
++        const users = await tx.user.findMany({
++          where: {
++            usernameNormalized: { in: mentionedUsernames },
++            isActive: true,
++          },
++          select: { id: true },
++        });
++        if (users.length) {
++          await tx.communityMessageMention.createMany({
++            data: users.map((u) => ({
++              messageId: created.id,
++              userId: u.id,
++              position: 0,
++            })),
++            skipDuplicates: true,
++          });
++          for (const u of users) {
+--- src/context/TrakStore.tsx
++++ src/context/TrakStore.tsx
+@@ -148,3 +148,3 @@
+   sendDm: (toId: string, text: string, attachments?: SendMessageAttachmentInput[], replyToId?: string | null) => Promise<void>;
+-  sendCommunity: (text: string, attachments?: SendMessageAttachmentInput[], mentions?: { userId: string; position: number }[]) => Promise<void>;
++  sendCommunity: (text: string, attachments?: SendMessageAttachmentInput[], mentions?: { userId: string; position: number }[], replyToId?: string | null) => Promise<void>;
+   wipeCommunity: () => Promise<void>;
+@@ -632,3 +632,7 @@
+         replyToId: replyToId || null,
+-        mentions: mentions || [],
++        mentions: (mentions || []).map(m => ({
++          userId: m.userId,
++          position: m.position,
++          displayName: userMap[m.userId]?.name || "Unknown",
++        })),
+         replyTo: replyToId ? (() => {

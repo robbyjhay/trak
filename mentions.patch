@@ -1,0 +1,38 @@
+--- a/prisma/schema.prisma
++++ b/prisma/schema.prisma
+@@ -420,8 +420,9 @@ model CommunityMessage {
+ }
+ 
+ model CommunityMessageMention {
+-  messageId String @map("message_id") @db.Uuid
+-  userId    String @map("user_id") @db.Uuid
++  messageId  String @map("message_id") @db.Uuid
++  userId     String @map("user_id") @db.Uuid
++  position   Int    @default(0)
+ 
+   message CommunityMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+   user    User             @relation("CommunityMessageMentionUser", fields: [userId], references: [id], onDelete: Cascade)
+--- a/src/lib/types.ts
++++ b/src/lib/types.ts
+@@ -162,6 +162,12 @@ export interface CallRecord {
+   at: string;
+ }
+ 
++export interface MessageMention {
++  userId: string;
++  displayName: string;
++  position: number;
++}
++
+ export interface CommunityMessage {
+   isDeleted?: boolean;
+   id: string;
+@@ -169,7 +175,8 @@ export interface CommunityMessage {
+   text: string;
+   at: string;
+   replyToId?: string | null;
+   attachments?: MessageAttachment[];
++  mentions?: MessageMention[];
+ }
+ 
+ export interface Broadcast {

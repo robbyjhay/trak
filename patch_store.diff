@@ -1,0 +1,150 @@
+diff --git a/src/context/TrakStore.tsx b/src/context/TrakStore.tsx
+index 29f3ed1..c8d3958 100644
+--- a/src/context/TrakStore.tsx
++++ b/src/context/TrakStore.tsx
+@@ -148,8 +148,8 @@ interface TrakStoreValue {
+       deliverables: string[];
+     },
+   ) => Promise<Responsibility>;
+-  sendDm: (toId: string, text: string, attachments?: SendMessageAttachmentInput[]) => Promise<void>;
+-  sendCommunity: (text: string, attachments?: SendMessageAttachmentInput[]) => Promise<void>;
++  sendDm: (toId: string, text: string, attachments?: SendMessageAttachmentInput[], replyToId?: string | null) => Promise<void>;
++  sendCommunity: (text: string, attachments?: SendMessageAttachmentInput[], mentions?: { userId: string; position: number }[], replyToId?: string | null) => Promise<void>;
+   wipeCommunity: () => Promise<void>;
+   deleteDmMessage: (messageId: string, forEveryone: boolean) => Promise<void>;
+   deleteCommunityMessage: (messageId: string, forEveryone: boolean) => Promise<void>;
+@@ -160,6 +160,9 @@ interface TrakStoreValue {
+   toggleActivityHidden: (activityId: string) => Promise<void>;
+   softDeleteActivity: (activityId: string) => Promise<void>;
+   deactivateResponsibility: (id: string) => Promise<void>;
++  requestException: (activityId: string, explanation: string) => Promise<void>;
++  approveException: (activityId: string) => Promise<void>;
++  rejectException: (activityId: string) => Promise<void>;
+   activitiesFor: (userId: string) => Activity[];
+   bucket: (userId: string) => ReturnType<typeof bucketMut>;
+   getActivity: (id: string) => Activity | undefined;
+@@ -594,7 +597,7 @@ export function TrakStoreProvider({
+       bump();
+       return res.responsibility;
+     },
+-    sendDm: async (toId, text, attachments) => {
++    sendDm: async (toId, text, attachments, replyToId) => {
+       const tempId = `temp_${Date.now()}`;
+       stateRef.current.db.dms.push({
+         id: tempId,
+@@ -604,20 +607,33 @@ export function TrakStoreProvider({
+         text,
+         attachments: (attachments || []).map((a, i) => ({ ...a, id: `${tempId}_${i}`, messageId: tempId })),
+         at: new Date().toISOString(),
++        replyToId: replyToId || null,
++        replyTo: replyToId ? (() => {
++          const orig = stateRef.current.db.dms.find((m) => m.id === replyToId) as any;
++          if (!orig) return null;
++          return {
++            id: orig.id,
++            from: orig.from,
++            text: orig.text || "",
++            at: orig.at,
++            attachments: orig.attachments,
++            isDeleted: orig.isDeleted,
++          };
++        })() : null,
+       });
+       bump();
+       try {
+         const res = await apiSend<{
+           dms: typeof db.dms;
+           notifications: Notification[];
+-        }>("/api/messages/dms", "POST", { toId, text, attachments });
++        }>("/api/messages/dms", "POST", { toId, text, attachments, replyToId: replyToId || null });
+         stateRef.current.db.dms = res.dms;
+         mergeNotifications(res.notifications);
+       } finally {
+         bump();
+       }
+     },
+-    sendCommunity: async (text, attachments) => {
++    sendCommunity: async (text, attachments, mentions, replyToId) => {
+       const tempId = `temp_${Date.now()}`;
+       stateRef.current.db.community.push({
+         id: tempId,
+@@ -625,14 +641,26 @@ export function TrakStoreProvider({
+         text,
+         attachments: (attachments || []).map((a, i) => ({ ...a, id: `${tempId}_${i}`, messageId: tempId })),
+         at: new Date().toISOString(),
+-        replyToId: null,
++        replyToId: replyToId || null,
++        replyTo: replyToId ? (() => {
++          const orig = stateRef.current.db.community.find((m) => m.id === replyToId) as any;
++          if (!orig) return null;
++          return {
++            id: orig.id,
++            from: orig.from,
++            text: orig.text || "",
++            at: orig.at,
++            attachments: orig.attachments,
++            isDeleted: orig.isDeleted,
++          };
++        })() : null,
+       });
+       bump();
+       try {
+         const res = await apiSend<{ community: typeof db.community }>(
+           "/api/messages/community",
+           "POST",
+-          { text, attachments },
++          { text, attachments, mentions, replyToId: replyToId || null },
+         );
+         stateRef.current.db.community = res.community;
+       } finally {
+@@ -756,6 +784,50 @@ export function TrakStoreProvider({
+       if (r) r.isActive = !r.isActive;
+       bump();
+     },
++    requestException: async (activityId, explanation) => {
++      const res = await apiSend<{
++        activity: Activity;
++        notification: Notification;
++      }>(`/api/activities/${activityId}`, "PATCH", {
++        action: "requestException",
++        explanation,
++      });
++      const actIdx = stateRef.current.db.activities.findIndex(
++        (a) => a.id === activityId,
++      );
++      if (actIdx >= 0) stateRef.current.db.activities[actIdx] = res.activity;
++      mergeNotifications([res.notification]);
++      bump();
++    },
++    approveException: async (activityId) => {
++      const res = await apiSend<{
++        activity: Activity;
++        notificationToMember: Notification;
++        notificationToHead: Notification;
++      }>(`/api/activities/${activityId}`, "PATCH", {
++        action: "approveException",
++      });
++      const actIdx = stateRef.current.db.activities.findIndex(
++        (a) => a.id === activityId,
++      );
++      if (actIdx >= 0) stateRef.current.db.activities[actIdx] = res.activity;
++      mergeNotifications([res.notificationToMember, res.notificationToHead]);
++      bump();
++    },
++    rejectException: async (activityId) => {
++      const res = await apiSend<{
++        activity: Activity;
++        notificationToMember: Notification;
++      }>(`/api/activities/${activityId}`, "PATCH", {
++        action: "rejectException",
++      });
++      const actIdx = stateRef.current.db.activities.findIndex(
++        (a) => a.id === activityId,
++      );
++      if (actIdx >= 0) stateRef.current.db.activities[actIdx] = res.activity;
++      mergeNotifications([res.notificationToMember]);
++      bump();
++    },
+     activitiesFor: (userId) => activitiesForMut(db, userId),
+     bucket: (userId) => bucketMut(db, userId),
+     getActivity: (id) => db.activities.find((a) => a.id === id),
