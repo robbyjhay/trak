@@ -13,6 +13,7 @@ import type { User, UserRole } from "@/lib/types";
 
 function makeUser(role: UserRole, overrides: Partial<User> = {}): User {
   return {
+    email: null,
     id: "test-id",
     name: "Test User",
     username: "testuser",

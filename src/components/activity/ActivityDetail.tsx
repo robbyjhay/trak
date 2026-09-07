@@ -1036,7 +1036,7 @@ function PendingForm({
                       activityDescription: activityDescription.trim(),
                       transcript: speech.transcript.trim(),
                       attendanceCount: String(attendees.length),
-                      attendees,
+                      attendees: attendees as any,
                       attachments: attachedFiles,
                       amountReleasedNgn: amountReleased
                         ? Number(amountReleased)
