@@ -3,13 +3,20 @@
 import { useActionState, useEffect, useState } from "react";
 import { updatePreferencesAction } from "./actions";
 import { Switch } from "@/components/ui/Switch";
-import { requestPushPermissionAndSubscribe } from "@/hooks/usePushNotifications";
+import {
+  getPushUiState,
+  requestPushPermissionAndSubscribe,
+  unsubscribeFromPush,
+  type PushUiState,
+} from "@/hooks/usePushNotifications";
 
 export function NotificationForm({ initialPrefs }: { initialPrefs: any }) {
   const [state, formAction, pending] = useActionState(updatePreferencesAction, null);
   const [success, setSuccess] = useState(false);
   const [masterEnabled, setMasterEnabled] = useState(initialPrefs.notificationsEnabled ?? true);
-  const [pushStatus, setPushStatus] = useState<string>("unsupported");
+  const [pushState, setPushState] = useState<PushUiState>("disabled");
+  const [pushBusy, setPushBusy] = useState(false);
+  const [pushError, setPushError] = useState<string | null>(null);
 
   useEffect(() => {
     if (state?.ok) {
@@ -20,21 +27,51 @@ export function NotificationForm({ initialPrefs }: { initialPrefs: any }) {
   }, [state]);
 
   useEffect(() => {
-    if (typeof window !== "undefined" && "Notification" in window) {
-      setPushStatus(Notification.permission);
-    }
+    let alive = true;
+    void getPushUiState().then((s) => {
+      if (alive) setPushState(s);
+    });
+    return () => {
+      alive = false;
+    };
   }, []);
 
   const handlePushEnable = async () => {
+    setPushBusy(true);
+    setPushError(null);
+    setPushState("enabling");
     try {
       await requestPushPermissionAndSubscribe();
-      setPushStatus(Notification.permission);
-      alert("Push notifications successfully enabled!");
+      setPushState(await getPushUiState());
     } catch (e: any) {
-      if (typeof window !== "undefined" && "Notification" in window) {
-        setPushStatus(Notification.permission);
-      }
-      alert(e.message === "Permission not granted for Notification" ? "Permission denied. Please enable notifications in your browser settings." : "Failed to enable push notifications: " + e.message);
+      const next = await getPushUiState().catch(() => "disabled" as const);
+      // If the browser now reports denied/unsupported, reflect that instead
+      // of a generic error state.
+      setPushState(next === "disabled" ? "disabled" : next);
+      setPushError(
+        typeof e?.message === "string" && e.message
+          ? e.message
+          : "Failed to enable push notifications.",
+      );
+    } finally {
+      setPushBusy(false);
+    }
+  };
+
+  const handlePushDisable = async () => {
+    setPushBusy(true);
+    setPushError(null);
+    try {
+      await unsubscribeFromPush();
+      setPushState(await getPushUiState());
+    } catch (e: any) {
+      setPushError(
+        typeof e?.message === "string" && e.message
+          ? e.message
+          : "Failed to disable push notifications.",
+      );
+    } finally {
+      setPushBusy(false);
     }
   };
 
@@ -57,7 +94,7 @@ export function NotificationForm({ initialPrefs }: { initialPrefs: any }) {
             Enable All Notifications
           </label>
           <p className="text-[12px] text-muted-foreground mt-0.5">
-            Master toggle for all app notifications.
+            Master toggle for push delivery. Your notification history is always kept.
           </p>
         </div>
         <Switch
@@ -67,34 +104,65 @@ export function NotificationForm({ initialPrefs }: { initialPrefs: any }) {
           onChange={(checked) => setMasterEnabled(checked)}
         />
       </div>
-      
-      {pushStatus !== "unsupported" && (
-        <div className="flex items-center justify-between bg-primary/5 p-4 rounded-xl border border-border">
-          <div className="pr-4">
-            <div className="font-medium text-[14px]">Browser Push Notifications</div>
-            <p className="text-[12px] text-muted-foreground mt-0.5">
-              Receive background notifications for calls and messages even when TRAK is closed.
+
+      <div className="flex items-center justify-between bg-primary/5 p-4 rounded-xl border border-border">
+        <div className="pr-4">
+          <div className="font-medium text-[14px]">Browser Push Notifications</div>
+          <p className="text-[12px] text-muted-foreground mt-0.5">
+            Receive background notifications for calls and messages even when TRAK is closed.
+          </p>
+          {pushError && (
+            <p className="text-[12px] text-red-600 mt-1.5" role="alert">
+              {pushError}
             </p>
-          </div>
-          {pushStatus === "granted" ? (
-            <span className="text-[13px] font-bold text-green-600 px-3 py-1.5 bg-green-500/10 rounded-md">Enabled</span>
-          ) : pushStatus === "denied" ? (
-            <div className="flex flex-col items-end text-right">
-              <span className="text-[13px] font-bold text-red-600 px-3 py-1.5 bg-red-500/10 rounded-md inline-block mb-1">Blocked</span>
-              <p className="text-[10px] text-muted-foreground w-40 leading-tight">
-                Please enable notifications manually in your browser or device settings.
-              </p>
-            </div>
-          ) : (
-            <button 
-              type="button" 
-              onClick={handlePushEnable}
-              className="whitespace-nowrap rounded-lg border-none bg-black px-4 py-2 text-[13px] font-bold text-white transition-colors hover:bg-neutral-800 dark:bg-white dark:text-black dark:hover:bg-neutral-200"
-            >
-              Enable Push
-            </button>
+          )}
+          {pushState === "ios-install-required" && (
+            <p className="text-[12px] text-muted-foreground mt-1.5">
+              On iPhone/iPad, push works in the installed app only. In Safari tap
+              Share → Add to Home Screen, open TRAK from the Home Screen, then enable push here.
+            </p>
           )}
         </div>
+        {pushState === "enabled" ? (
+          <button
+            type="button"
+            onClick={handlePushDisable}
+            disabled={pushBusy}
+            className="whitespace-nowrap rounded-lg border border-border bg-transparent px-4 py-2 text-[13px] font-bold transition-colors hover:bg-surface-muted disabled:opacity-60"
+          >
+            {pushBusy ? "Working…" : "Disable Push"}
+          </button>
+        ) : pushState === "enabling" ? (
+          <span className="text-[13px] font-bold text-muted-foreground px-3 py-1.5">Enabling…</span>
+        ) : pushState === "denied" ? (
+          <div className="flex flex-col items-end text-right">
+            <span className="text-[13px] font-bold text-red-600 px-3 py-1.5 bg-red-500/10 rounded-md inline-block mb-1">Blocked</span>
+            <p className="text-[10px] text-muted-foreground w-40 leading-tight">
+              Please enable notifications manually in your browser or device settings.
+            </p>
+          </div>
+        ) : pushState === "unsupported" ? (
+          <div className="flex flex-col items-end text-right">
+            <span className="text-[13px] font-bold text-muted-foreground px-3 py-1.5 bg-surface-muted rounded-md inline-block mb-1">Unsupported</span>
+            <p className="text-[10px] text-muted-foreground w-40 leading-tight">
+              This browser does not support push notifications.
+            </p>
+          </div>
+        ) : pushState === "ios-install-required" ? (
+          <span className="text-[13px] font-bold text-muted-foreground px-3 py-1.5 bg-surface-muted rounded-md whitespace-nowrap">Install App First</span>
+        ) : (
+          <button
+            type="button"
+            onClick={handlePushEnable}
+            disabled={pushBusy}
+            className="whitespace-nowrap rounded-lg border-none bg-black px-4 py-2 text-[13px] font-bold text-white transition-colors hover:bg-neutral-800 dark:bg-white dark:text-black dark:hover:bg-neutral-200 disabled:opacity-60"
+          >
+            {pushBusy ? "Enabling…" : "Enable Push"}
+          </button>
+        )}
+      </div>
+      {pushState === "enabled" && (
+        <p className="-mt-3 text-[12px] text-green-600 font-semibold">Push enabled on this device.</p>
       )}
 
       <hr className="border-border" />
@@ -122,7 +190,7 @@ export function NotificationForm({ initialPrefs }: { initialPrefs: any }) {
               Direct Messages
             </label>
             <p className="text-[12px] text-muted-foreground mt-0.5">
-              Get notified when someone sends you a direct message.
+              Get notified for direct messages, community messages, and mentions.
             </p>
           </div>
           <Switch
@@ -147,7 +215,7 @@ export function NotificationForm({ initialPrefs }: { initialPrefs: any }) {
             defaultChecked={initialPrefs.emailNotifications ?? true}
           />
         </div>
-        
+
         {/* Unit broadcasts are mandatory, no toggle provided */}
         <div className="flex items-center justify-between pt-2">
           <div className="pr-4">
