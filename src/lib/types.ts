@@ -13,6 +13,7 @@ export type NotifType =
   | "activity_created"
   | "activity_completed"
   | "activity_missed"
+  | "activity_reminder"
   | "broadcast"
   | "mention";
 
@@ -20,6 +21,7 @@ export interface User {
   id: string;
   name: string;
   username: string;
+  email: string | null;
   role: UserRole;
   isSecretary: boolean;
   isCorps: boolean;
@@ -96,6 +98,9 @@ export interface Activity {
   submissionType: SubmissionType;
   gracePeriodStartedAt: Date | null;
   gracePeriodExpiresAt: Date | null;
+  dueAt: string | null;
+  reminderStatus: ReminderStatus;
+  reminderVersion: number;
   createdAt: string;
   initiativeTeamwork: string;
   challenges: string;
@@ -105,6 +110,13 @@ export interface Activity {
   estimatedAmountNgn: number | null;
   hidden: boolean;
   softDeletedAt: string | null;
+}
+
+export interface ReminderStatus {
+  morningSent?: boolean;
+  dueSent?: boolean;
+  eodSent?: boolean;
+  cancelled?: boolean;
 }
 
 export interface DailyLog {
@@ -161,7 +173,6 @@ export interface ReplyPreview {
   attachments?: MessageAttachment[];
   isDeleted?: boolean;
 }
-
 
 export interface LinkPreview {
   url: string;
