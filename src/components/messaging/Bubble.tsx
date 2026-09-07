@@ -5,7 +5,8 @@ import { initials, firstName, cn, copyToClipboard } from "@/lib/utils";
 import { parseSegments } from "@/lib/mention-utils";
 import { scrollToMessage } from "@/lib/message-scroll";
 import { PATHS } from "@/components/icons";
-import type { MessageAttachment, MessageMention, ReplyPreview } from "@/lib/types";
+import type { MessageAttachment, MessageMention, ReplyPreview, LinkPreview } from "@/lib/types";
+import { LinkPreviewCard } from "./LinkPreviewCard";
 
 function formatMessageTime(isoString: string): string {
   if (!isoString) return "";
@@ -53,6 +54,7 @@ export function Bubble({
   onDelete,
   canDeleteAny = false,
   isHighlighted = false,
+  linkPreview,
 }: {
   id: string;
   fromId: string;
@@ -75,6 +77,7 @@ export function Bubble({
   onDelete?: (forEveryone: boolean) => void;
   canDeleteAny?: boolean;
   isHighlighted?: boolean;
+  linkPreview?: LinkPreview | null;
 }) {
   const isMe = fromId === me;
   const p = userMap[fromId];
@@ -383,7 +386,10 @@ export function Bubble({
             </div>
           ) : null}
 
-          {attachments && attachments.length > 0 && (
+          {linkPreview && (
+              <LinkPreviewCard preview={linkPreview} me={isMe} />
+            )}
+            {attachments && attachments.length > 0 && (
             <div className="flex flex-col gap-2 mb-1.5">
               {attachments.map((att) => {
                 const isImg = att.contentType.startsWith("image/");

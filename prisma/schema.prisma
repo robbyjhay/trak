@@ -98,6 +98,7 @@ enum NotificationType {
   activity_completed
   activity_missed
   broadcast
+  community
   mention
 }
 
@@ -577,4 +578,22 @@ model PendingCall {
 
   @@index([toUserId])
   @@map("pending_calls")
+}
+
+model LinkPreview {
+  id                   String            @id @default(uuid())
+  url                  String
+  domain               String
+  title                String?
+  description          String?
+  image                String?
+  createdAt            DateTime          @default(now())
+
+  directMessageId      String?           @unique
+  directMessage        DirectMessage?    @relation(fields: [directMessageId], references: [id], onDelete: Cascade)
+
+  communityMessageId   String?           @unique
+  communityMessage     CommunityMessage? @relation(fields: [communityMessageId], references: [id], onDelete: Cascade)
+
+  @@map("link_previews")
 }
