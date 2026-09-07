@@ -4,7 +4,8 @@ export type ActivityStatus = "pending" | "completed" | "missed";
 export type ExceptionStatus = "none" | "requested" | "approved" | "rejected" | "expired";
 export type SubmissionType = "normal" | "late";
 export type DailyLogStatus = "pending" | "submitted";
-export type AttendeeSource = "unit" | "manual" | "link";
+export type AttendeeSource = "unit" | "manual" | "link" | "guest";
+export type AttendeeStatus = "pending" | "verified" | "declined";
 export type NotifType =
   | "comment"
   | "dm"
@@ -53,10 +54,12 @@ export interface Responsibility {
 }
 
 export interface Attendee {
+  userId?: string;
   name: string;
   phone: string;
   email: string;
   source: AttendeeSource;
+  status: AttendeeStatus;
   at?: string;
 }
 
