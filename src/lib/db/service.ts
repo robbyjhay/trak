@@ -2152,3 +2152,90 @@ export async function softDeleteActivity(
 
   return mapActivity(updated);
 }
+export async function processDueReminders(reference: Date = now()): Promise<void> {
+  // Candidate selection must be a SUPERSET of every eligible activity while
+  // remaining bounded. Two categories:
+  //   1. Overdue: dueAt already <= reference (any age, so morning catch-up works).
+  //   2. Due later "today": dueAt still in the future but falls on the user's
+  //      current calendar day, so the midnight/morning trigger can fire before
+  //      the due time. Because users span every IANA timezone, the widest possible
+  //      "today" spans from startUtcDay -14h (UTC+14's earliest local midnight)
+  //      to startUtcDay +48h (latest possible local day end across all zones).
+  // `computeDueTriggers()` remains the source of truth: selecting a candidate here
+  // does NOT fire a reminder by itself.
+  const { todayWindowStart, todayWindowEnd } = buildReminderCandidateWindow(reference);
+
+  const activities = await prisma.activity.findMany({
+    where: {
+      status: "pending",
+      type: "Task",
+      softDeletedAt: null,
+      reminderStatus: { path: ["cancelled"], equals: false },
+      OR: [
+        { dueAt: { lte: reference } },
+        { dueAt: { gte: todayWindowStart, lte: todayWindowEnd } },
+      ],
+    },
+    select: {
+      id: true,
+      createdById: true,
+      title: true,
+      dueAt: true,
+      startTime: true,
+      reminderStatus: true,
+      reminderVersion: true,
+    },
+  });
+
+  for (const act of activities) {
+    const userPrefs = await prisma.userPreferences.findUnique({
+      where: { userId: act.createdById },
+      select: { timezone: true },
+    });
+    const userTimeZone = userPrefs?.timezone || "Africa/Lagos";
+
+    const triggers = computeDueTriggers(
+      {
+        id: act.id,
+        title: act.title,
+        dueAt: act.dueAt,
+        startTime: act.startTime,
+        reminderStatus: act.reminderStatus as any,
+        reminderVersion: act.reminderVersion,
+      },
+      reference,
+      userTimeZone,
+    );
+
+    if (triggers.length === 0) continue;
+
+    const status = parseReminderStatus(act.reminderStatus);
+
+    for (const trigger of triggers) {
+      const dedupeKey = buildDedupeKey(act.id, trigger.type, reference, act.reminderVersion);
+      await notifyUser({
+        userId: act.createdById,
+        type: "activity_reminder",
+        text: trigger.message,
+        activityId: act.id,
+        dedupeKey,
+      });
+      if (trigger.type === "morning") status.morningSent = true;
+      else if (trigger.type === "due_now") status.dueSent = true;
+      else if (trigger.type === "eod") status.eodSent = true;
+    }
+
+    await prisma.activity.update({
+      where: { id: act.id, reminderVersion: act.reminderVersion },
+      data: { reminderStatus: status as any },
+    });
+  }
+}
+
+
+function dateStringOnly(d: Date | string | null | undefined): string {
+  if (!d) return "";
+  if (typeof d === "string") return d.slice(0, 10);
+  return d.toISOString().slice(0, 10);
+}
+
