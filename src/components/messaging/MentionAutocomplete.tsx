@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { initials } from "@/lib/utils";
+import { UserAvatar } from "@/components/ui/UserAvatar";
 import type { User } from "@/lib/types";
 
 export interface MentionData {
@@ -135,14 +135,13 @@ export function MentionAutocomplete({
             onClick={() => handleSelect(user)}
             onMouseDown={(e) => e.preventDefault()}
           >
-            <div
+            <UserAvatar
+              photoUrl={user.photoUrl}
+              name={user.name}
+              color={user.color}
               className="flex h-[32px] w-[32px] shrink-0 items-center justify-center rounded-full font-display text-[11px] font-bold text-white shadow-sm"
-              style={{ background: user.color }}
-            >
-              {user.photoUrl ? (
-                <img src={user.photoUrl} alt="" className="h-full w-full rounded-full object-cover" />
-              ) : initials(user.name)}
-            </div>
+              imgClassName="h-full w-full rounded-full object-cover"
+            />
             <div className="min-w-0 flex-1">
               <div className="truncate text-[13.5px] font-bold text-foreground">{user.name}</div>
               <div className="truncate text-[11px] text-foreground-faint">@{user.username}</div>

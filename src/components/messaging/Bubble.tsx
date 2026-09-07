@@ -1,10 +1,14 @@
 "use no memo";
 
 import React, { useState, useRef, useEffect } from "react";
-import { initials, firstName, cn, copyToClipboard } from "@/lib/utils";
-import { parseSegments } from "@/lib/mention-utils";
+import { firstName, cn } from "@/lib/utils";
+import { useCopy } from "@/hooks/useCopy";
+import { UserAvatar } from "@/components/ui/UserAvatar";
+import { parseSegments, parseSegmentsWithLinks } from "@/lib/mention-utils";
 import { scrollToMessage } from "@/lib/message-scroll";
 import { PATHS } from "@/components/icons";
+
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import type { MessageAttachment, MessageMention, ReplyPreview } from "@/lib/types";
 
 function formatMessageTime(isoString: string): string {
@@ -75,6 +79,7 @@ export function Bubble({
   onDelete?: (forEveryone: boolean) => void;
   canDeleteAny?: boolean;
   isHighlighted?: boolean;
+  linkPreview?: LinkPreview | null;
 }) {
   const isMe = fromId === me;
   const p = userMap[fromId];
@@ -83,6 +88,26 @@ export function Bubble({
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuPos, setMenuPos] = useState({ x: 0, y: 0 });
   const menuRef = useRef<HTMLDivElement>(null);
+  const reduceMotion = useReducedMotion();
+  const { copied: copySuccess, copy: doCopy } = useCopy({ duration: 1600 });
+  const [bubbleCopied, setBubbleCopied] = useState(false);
+  const [showActions, setShowActions] = useState(false);
+  const lastTapRef = useRef<number>(0);
+  const singleTapTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Auto-hide inline More button after 3s on mobile tap
+  useEffect(() => {
+    if (!showActions) return;
+    const t = setTimeout(() => setShowActions(false), 2800);
+    return () => clearTimeout(t);
+  }, [showActions]);
+
+  useEffect(() => {
+    return () => {
+      if (singleTapTimerRef.current) clearTimeout(singleTapTimerRef.current);
+      if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
+    };
+  }, []);
 
   // Swipe state
   const [offsetX, setOffsetX] = useState(0);
@@ -122,6 +147,11 @@ export function Bubble({
     const cy = Math.min(y, window.innerHeight - 140);
     setMenuPos({ x: cx, y: cy });
     setMenuOpen(true);
+    setShowActions(false);
+    if (singleTapTimerRef.current) {
+      clearTimeout(singleTapTimerRef.current);
+      singleTapTimerRef.current = null;
+    }
   }
 
   function openMenu(e: React.MouseEvent) {
@@ -131,21 +161,73 @@ export function Bubble({
     openMenuAt(e.clientX, e.clientY);
   }
 
+  function openMenuFromBubble(e: React.MouseEvent | React.TouchEvent) {
+    // Position menu near the bubble center, clamped to viewport — avoids overflow-hidden clipping
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    const x = rect.left + rect.width / 2;
+    const y = rect.top + rect.height / 2;
+    openMenuAt(x, y);
+  }
+
   function handleReply() {
     setMenuOpen(false);
+    setShowActions(false);
     if (id && onReply) onReply(id);
   }
 
   async function handleCopy() {
-    setMenuOpen(false);
-    try {
-      await copyToClipboard(text || "");
-    } catch {}
+    const ok = await doCopy(text || "");
+    if (ok) {
+      // Show inline success on the menu button + subtle bubble confirmation
+      setBubbleCopied(true);
+      setTimeout(() => setBubbleCopied(false), 1400);
+      // Keep menu open briefly so user sees Copy → Copied transition, then close
+      setTimeout(() => setMenuOpen(false), 950);
+    } else {
+      setMenuOpen(false);
+    }
+    setShowActions(false);
   }
 
   function handleDelete(forEveryone: boolean) {
     setMenuOpen(false);
+    setShowActions(false);
     onDelete?.(forEveryone);
+  }
+
+  function handleBubbleClick(e: React.MouseEvent) {
+    if (isDeleted) return;
+    // Don't interfere with text selection
+    const sel = typeof window !== "undefined" ? window.getSelection()?.toString() : "";
+    if (sel && sel.length > 0) return;
+    // If user was dragging/swiping, don't treat as tap
+    if (hasMovedRef.current || isDragging) return;
+    // Desktop: double-click (detail === 2) opens menu — keeps existing desktop affordance
+    if (e.detail === 2) {
+      e.preventDefault();
+      openMenu(e);
+      return;
+    }
+    // Mobile: single tap shows inline More button, double-tap opens menu
+    // Use a short timer to distinguish single vs double tap without blocking scroll
+    const now = Date.now();
+    const isDouble = now - lastTapRef.current < 300;
+    lastTapRef.current = now;
+    if (isDouble) {
+      if (singleTapTimerRef.current) {
+        clearTimeout(singleTapTimerRef.current);
+        singleTapTimerRef.current = null;
+      }
+      // Double-tap → open menu at bubble center
+      openMenuFromBubble(e);
+      return;
+    }
+    // Single tap: show More button for 2.8s (desktop hover already shows it, this is for mobile)
+    if (singleTapTimerRef.current) clearTimeout(singleTapTimerRef.current);
+    singleTapTimerRef.current = setTimeout(() => {
+      // If not already showing menu, show inline actions
+      if (!menuOpen) setShowActions(true);
+    }, 180);
   }
 
   function handleReplyPreviewClick() {
@@ -186,6 +268,11 @@ export function Bubble({
 
     if (!directionRef.current) {
       if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
+      // Any meaningful move cancels single-tap More button timer
+      if (singleTapTimerRef.current) {
+        clearTimeout(singleTapTimerRef.current);
+        singleTapTimerRef.current = null;
+      }
       if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 10) {
         directionRef.current = "h";
       } else if (Math.abs(dy) > Math.abs(dx) && Math.abs(dy) > 10) {
@@ -255,7 +342,7 @@ export function Bubble({
     }
   }
 
-  const segments = parseSegments(text, isDeleted ? undefined : mentions);
+  const segments = parseSegmentsWithLinks(text, isDeleted ? undefined : mentions);
 
   // Drag progress for icon opacity/scale
   const dragProgress = Math.min(offsetX / THRESHOLD, 1);
@@ -263,8 +350,8 @@ export function Bubble({
   return (
     <div
       className={cn(
-        "flex max-w-[75%] gap-2.5 group relative",
-        isMe ? "flex-row-reverse self-end" : "self-start",
+        "flex max-w-[75%] min-w-0 gap-2.5 group relative w-fit items-end",
+        isMe ? "flex-row-reverse" : "",
         !isFirstInGroup && "mt-[-6px]",
         isHighlighted && "ring-2 ring-primary ring-offset-1 rounded-[18px]"
       )}
@@ -294,14 +381,13 @@ export function Bubble({
       {isGroup && !isMe && (
         <div className="w-[30px] shrink-0 flex flex-col justify-end">
           {showAvatar ? (
-            <div
+            <UserAvatar
+              photoUrl={p?.photoUrl}
+              name={p?.name || "?"}
+              color={p?.color || "#888"}
               className="flex h-[30px] w-[30px] items-center justify-center rounded-full font-display text-[11px] font-bold text-white shadow-sm"
-              style={{ background: p?.color || "#888" }}
-            >
-              {p?.photoUrl ? (
-                <img src={p.photoUrl} alt="" className="h-full w-full rounded-full object-cover" />
-              ) : initials(p?.name || "?")}
-            </div>
+              imgClassName="h-full w-full rounded-full object-cover"
+            />
           ) : (
             <div className="w-[30px] h-[30px]" />
           )}
@@ -325,9 +411,32 @@ export function Bubble({
           </div>
         )}
         
+        {/* Copied confirmation anchored to bubble — absolute, no layout shift */}
+        <AnimatePresence>
+          {bubbleCopied && (
+            <motion.div
+              initial={reduceMotion ? { opacity: 0 } : { opacity: 0, y: 6, scale: 0.96 }}
+              animate={reduceMotion ? { opacity: 1 } : { opacity: 1, y: 0, scale: 1 }}
+              exit={reduceMotion ? { opacity: 0 } : { opacity: 0, y: -4, scale: 0.98 }}
+              transition={{ duration: 0.2, ease: "easeOut" }}
+              className={cn(
+                "pointer-events-none absolute z-10 whitespace-nowrap rounded-full px-2.5 py-1 text-[11px] font-bold tracking-wide shadow-toast flex items-center gap-1",
+                isMe ? "right-0 -top-7 bg-tooltip text-white" : "left-0 -top-7 bg-tooltip text-white"
+              )}
+              role="status"
+              aria-live="polite"
+            >
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" aria-hidden>
+                <path d="M20 6L9 17l-5-5" />
+              </svg>
+              Copied
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         <div
           className={cn(
-            "relative px-3.5 py-2.5 shadow-sm min-w-[60px]",
+            "relative px-3.5 py-2.5 shadow-sm min-w-[60px] transition-all duration-150",
             isMe
               ? "bg-primary text-primary-foreground"
               : "bg-surface text-foreground border border-border/40",
@@ -335,15 +444,12 @@ export function Bubble({
             isMe && isLastInGroup ? "rounded-br-sm" : isMe && "rounded-br-[18px]",
             !isMe && isLastInGroup ? "rounded-bl-sm" : !isMe && "rounded-bl-[18px]",
             !isDeleted && "cursor-pointer",
-            "select-text"
+            "select-text",
+            bubbleCopied && (isMe ? "ring-1 ring-white/30" : "ring-1 ring-success/30")
           )}
           style={{ touchAction: "pan-y" } as any}
           onContextMenu={openMenu}
-          onClick={(e) => {
-            if (!isDeleted && e.detail === 2) {
-              openMenu(e);
-            }
-          }}
+          onClick={handleBubbleClick}
           data-testid={`bubble-${id}`}
         >
           {/* Reply preview inside bubble */}
@@ -422,6 +528,25 @@ export function Bubble({
                 if (seg.type === "text") {
                   return <span key={i}>{seg.value}</span>;
                 }
+                if (seg.type === "link") {
+                  return (
+                    <a
+                      key={`link-${i}`}
+                      href={seg.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className={cn(
+                        "inline no-underline underline-offset-2 hover:underline font-medium break-all",
+                        isMe
+                          ? "text-primary-foreground underline decoration-primary-foreground/40"
+                          : "text-primary decoration-primary/40"
+                      )}
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      {seg.value}
+                    </a>
+                  );
+                }
                 return (
                   <button
                     key={`mention-${i}-${seg.userId}`}
@@ -433,6 +558,12 @@ export function Bubble({
                         : "text-primary bg-primary/10 hover:bg-primary/20"
                     )}
                     onPointerDown={(e) => {
+                      e.stopPropagation();
+                    }}
+                    onPointerUp={(e) => {
+                      e.stopPropagation();
+                    }}
+                    onPointerCancel={(e) => {
                       e.stopPropagation();
                     }}
                     onClick={(e) => {
@@ -447,6 +578,11 @@ export function Bubble({
               })}
             </div>
           )}
+
+          {!isDeleted && linkPreview && (
+            <div className="mt-0.5">
+            </div>
+          )}
           
           <div
             className={cn(
@@ -459,40 +595,120 @@ export function Bubble({
             </span>
           </div>
         </div>
+
+        {/* Inline More button — obvious affordance: desktop hover, mobile single-tap */}
+        {!isDeleted && (onReply || onDelete) && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              openMenuFromBubble(e);
+            }}
+            className={cn(
+              "flex h-8 w-8 shrink-0 self-center items-center justify-center rounded-full bg-surface border border-border shadow-sm text-foreground-secondary hover:bg-surface-hover hover:text-foreground active:scale-95 transition-all duration-150 touch-manipulation",
+              "opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto",
+              (showActions || menuOpen) && "opacity-100 pointer-events-auto",
+              "focus-visible:opacity-100 focus-visible:pointer-events-auto focus-visible:ring-2 focus-visible:ring-primary"
+            )}
+            aria-label="More options"
+            data-testid="more-options"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" aria-hidden>
+              <circle cx="12" cy="12" r="1" />
+              <circle cx="19.5" cy="12" r="1" />
+              <circle cx="4.5" cy="12" r="1" />
+            </svg>
+          </button>
+        )}
       </div>
 
       {/* Context Menu — Reply, Copy, Delete for me/everyone */}
-      {menuOpen && (
-        <div
-          ref={menuRef}
-          className="fixed z-[200] min-w-[180px] rounded-[14px] border border-border bg-surface shadow-xl py-1.5 animate-in fade-in zoom-in-95 duration-100"
-          style={{ left: menuPos.x, top: menuPos.y }}
-          data-testid="message-context-menu"
-        >
-          <button
-            type="button"
-            className="flex w-full items-center gap-2.5 px-4 py-2.5 text-[13px] font-medium text-foreground hover:bg-surface-hover cursor-pointer border-none bg-transparent text-left transition-colors"
-            onClick={handleReply}
-            data-testid="reply-action"
+      <AnimatePresence>
+        {menuOpen && (
+          <motion.div
+            ref={menuRef}
+            initial={reduceMotion ? { opacity: 0 } : { opacity: 0, scale: 0.96, y: 4 }}
+            animate={reduceMotion ? { opacity: 1 } : { opacity: 1, scale: 1, y: 0 }}
+            exit={reduceMotion ? { opacity: 0 } : { opacity: 0, scale: 0.97, y: 2 }}
+            transition={{ duration: 0.16, ease: "easeOut" }}
+            className="fixed z-[200] min-w-[180px] rounded-[14px] border border-border bg-surface shadow-xl py-1.5"
+            style={{ left: menuPos.x, top: menuPos.y }}
+            data-testid="message-context-menu"
           >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <polyline points="9 14 4 9 9 4" />
-              <path d="M20 20v-7a4 4 0 0 0-4-4H4" />
-            </svg>
-            Reply
-          </button>
-          <button
-            type="button"
-            className="flex w-full items-center gap-2.5 px-4 py-2.5 text-[13px] font-medium text-foreground hover:bg-surface-hover cursor-pointer border-none bg-transparent text-left transition-colors"
-            onClick={handleCopy}
-            data-testid="copy-action"
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
-              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v3" />
-            </svg>
-            Copy message
-          </button>
+            <button
+              type="button"
+              className="flex w-full items-center gap-2.5 px-4 py-2.5 text-[13px] font-medium text-foreground hover:bg-surface-hover cursor-pointer border-none bg-transparent text-left transition-colors"
+              onClick={handleReply}
+              data-testid="reply-action"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <polyline points="9 14 4 9 9 4" />
+                <path d="M20 20v-7a4 4 0 0 0-4-4H4" />
+              </svg>
+              Reply
+            </button>
+            <button
+              type="button"
+              className={cn(
+                "flex w-full items-center gap-2.5 px-4 py-2.5 text-[13px] font-medium cursor-pointer border-none bg-transparent text-left transition-colors",
+                copySuccess ? "text-success bg-success-surface" : "text-foreground hover:bg-surface-hover"
+              )}
+              onClick={handleCopy}
+              data-testid={copySuccess ? "copy-success" : "copy-action"}
+              aria-live="polite"
+            >
+              <span className="relative flex h-4 w-4 shrink-0 items-center justify-center" aria-hidden>
+                <AnimatePresence mode="wait" initial={false}>
+                  {copySuccess ? (
+                    <motion.svg
+                      key="check"
+                      width="16"
+                      height="16"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2.5"
+                      initial={reduceMotion ? { opacity: 0 } : { opacity: 0, scale: 0.6 }}
+                      animate={reduceMotion ? { opacity: 1 } : { opacity: 1, scale: 1 }}
+                      exit={reduceMotion ? { opacity: 0 } : { opacity: 0, scale: 0.6 }}
+                      transition={{ duration: 0.16, ease: "easeOut" }}
+                      className="absolute text-success"
+                    >
+                      <path d="M20 6L9 17l-5-5" />
+                    </motion.svg>
+                  ) : (
+                    <motion.svg
+                      key="copy"
+                      width="16"
+                      height="16"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      initial={reduceMotion ? { opacity: 0 } : { opacity: 0, scale: 0.85 }}
+                      animate={reduceMotion ? { opacity: 1 } : { opacity: 1, scale: 1 }}
+                      exit={reduceMotion ? { opacity: 0 } : { opacity: 0, scale: 0.85 }}
+                      transition={{ duration: 0.14, ease: "easeOut" }}
+                      className="absolute"
+                    >
+                      <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v3" />
+                    </motion.svg>
+                  )}
+                </AnimatePresence>
+              </span>
+              <AnimatePresence mode="wait" initial={false}>
+                <motion.span
+                  key={copySuccess ? "copied" : "copy"}
+                  initial={reduceMotion ? { opacity: 0 } : { opacity: 0, y: 2 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={reduceMotion ? { opacity: 0 } : { opacity: 0, y: -2 }}
+                  transition={{ duration: 0.14, ease: "easeOut" }}
+                >
+                  {copySuccess ? "Copied" : "Copy message"}
+                </motion.span>
+              </AnimatePresence>
+            </button>
           {onDelete && (
             <button
               type="button"
@@ -519,8 +735,9 @@ export function Bubble({
               Delete for everyone
             </button>
           )}
-        </div>
-      )}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

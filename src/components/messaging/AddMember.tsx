@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useTrak } from "@/context/TrakStore";
 import { firstName, suggestUsername } from "@/lib/utils";
 import { ModalBackdrop, ModalPanel } from "@/components/ui/Modal";
+import { CopyButton } from "@/components/ui/CopyButton";
 
 const FIELD_INPUT =
   "w-full rounded-[10px] border-[1.5px] border-input-border bg-input px-3.5 py-2.5 text-[13px] text-foreground placeholder-input-placeholder outline-none focus:border-border-strong";
@@ -81,21 +82,16 @@ export function AddMember({ onClose }: { onClose: () => void }) {
               </div>
             </div>
             <div className="flex flex-col gap-3">
-              <button
-                type="button"
-                className="w-full cursor-pointer rounded-xl border-none bg-primary py-3.5 font-bold text-primary-foreground transition-colors hover:bg-primary-hover"
-                onClick={async () => {
-                  try {
-                    const { copyToClipboard } = await import("@/lib/utils");
-                    await copyToClipboard(successCredentials.starterPassword);
-                    showToast("Password copied", "You can now paste it securely.");
-                  } catch {
-                    showToast("Copy failed", "Please copy manually.");
-                  }
-                }}
-              >
-                Copy Password
-              </button>
+              <CopyButton
+                text={successCredentials.starterPassword}
+                label="Copy Password"
+                successLabel="Copied"
+                variant="primary"
+                size="md"
+                className="w-full justify-center py-3.5 rounded-xl"
+                onCopied={() => showToast("Password copied", "You can now paste it securely.")}
+                onError={() => showToast("Copy failed", "Please copy manually.")}
+              />
               <button
                 type="button"
                 className="w-full cursor-pointer rounded-[10px] border-[1.5px] border-border bg-surface-interactive py-3.5 font-bold transition-colors hover:border-primary hover:text-foreground"

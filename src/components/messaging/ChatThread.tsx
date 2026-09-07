@@ -2,9 +2,10 @@ import React, { useRef, useEffect, useState } from "react";
 import { Bubble } from "./Bubble";
 import { CallRecord, Dm, MessageMention } from "@/lib/types";
 import { PATHS } from "@/components/icons";
-import { formatDuration } from "@/lib/utils";
+import { cn, formatDuration } from "@/lib/utils";
 import { formatRelativeDate } from "@/lib/dates";
 import { scrollToMessage } from "@/lib/message-scroll";
+import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 
 type ThreadItem =
   | { kind: "dm"; id: string; dm: Dm; mentions?: MessageMention[] }
@@ -38,6 +39,7 @@ export function ChatThread({
   canDeleteAny = false,
   onMentionClick,
   highlightedId: externalHighlightedId,
+  unreadDivider,
 }: {
   items: ThreadItem[];
   me: string;
@@ -48,9 +50,11 @@ export function ChatThread({
   canDeleteAny?: boolean;
   onMentionClick?: (userId: string) => void;
   highlightedId?: string | null;
+  unreadDivider?: { firstUnreadId: string; count: number };
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [highlightedId, setHighlightedId] = useState<string | null>(null);
+  const reduceMotion = useReducedMotion();
 
   // Scroll to bottom on new messages — but not if a reply highlight is active
   useEffect(() => {
@@ -77,19 +81,24 @@ export function ChatThread({
 
   if (!items.length) {
     return (
-      <div className="flex flex-1 flex-col items-center justify-center bg-background px-4 py-8">
-        <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-surface-muted text-foreground-faint">
+      <div className="flex min-h-0 flex-1 flex-col items-center justify-center bg-background px-4 py-8">
+        <motion.div
+          initial={reduceMotion ? { opacity: 0 } : { opacity: 0, scale: 0.97, y: 6 }}
+          animate={reduceMotion ? { opacity: 1 } : { opacity: 1, scale: 1, y: 0 }}
+          transition={{ duration: 0.22, ease: "easeOut" }}
+          className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-surface-muted text-foreground-faint"
+        >
           <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <path d={PATHS.messages} />
           </svg>
-        </div>
+        </motion.div>
         <div className="text-[14.5px] font-bold text-foreground">No messages yet</div>
         <div className="mt-1 text-[13px] text-foreground-secondary">Say hello to start the conversation</div>
       </div>
     );
   }
 
-  // Grouping logic
+  // Grouping logic — each entry wrapped in motion for enter/exit (delete/send)
   const grouped: React.ReactNode[] = [];
   let lastDate = "";
   
@@ -103,20 +112,56 @@ export function ChatThread({
     
     if (dateStr !== lastDate) {
       grouped.push(
-        <div key={`date-${dateStr}`} className="my-6 flex justify-center">
+        <motion.div
+          key={`date-${dateStr}`}
+          layout={reduceMotion ? false : "position"}
+          initial={reduceMotion ? false : { opacity: 0, y: 6 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={reduceMotion ? { opacity: 0 } : { opacity: 0, y: -4 }}
+          transition={{ duration: 0.2, ease: "easeOut" }}
+          className="my-6 flex justify-center"
+        >
           <div className="rounded-full bg-surface-muted px-3 py-1 text-[11px] font-bold tracking-tight text-foreground-faint shadow-xs">
             {formatDateSeparator(itemTime)}
           </div>
-        </div>
+        </motion.div>
       );
       lastDate = dateStr;
     }
 
+    if (unreadDivider && unreadDivider.firstUnreadId === item.id) {
+      grouped.push(
+        <motion.div
+          key={`unread-${item.id}`}
+          layout={reduceMotion ? false : "position"}
+          initial={reduceMotion ? false : { opacity: 0, scale: 0.97 }}
+          animate={{ opacity: 1, scale: 1 }}
+          exit={reduceMotion ? { opacity: 0 } : { opacity: 0, scale: 0.98 }}
+          transition={{ duration: 0.2, ease: "easeOut" }}
+          className="my-6 flex items-center gap-3"
+        >
+          <div className="h-px flex-1 bg-primary/20"></div>
+          <div className="rounded-full bg-primary/10 px-3 py-1 text-[11px] font-extrabold uppercase tracking-widest text-primary shadow-xs border border-primary/20">
+            {unreadDivider.count} new message{unreadDivider.count !== 1 ? 's' : ''}
+          </div>
+          <div className="h-px flex-1 bg-primary/20"></div>
+        </motion.div>
+      );
+    }
+
     if (item.kind === "call") {
       grouped.push(
-        <div key={item.id} className="my-2 flex justify-center">
+        <motion.div
+          key={item.id}
+          layout={reduceMotion ? false : "position"}
+          initial={reduceMotion ? false : { opacity: 0, y: 8, scale: 0.99 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          exit={reduceMotion ? { opacity: 0 } : { opacity: 0, y: -6, scale: 0.97 }}
+          transition={{ duration: 0.22, ease: "easeOut" }}
+          className="my-2 flex justify-center"
+        >
           <CallPill call={item.call} me={me} />
-        </div>
+        </motion.div>
       );
     } else {
       const fromId = item.dm.from;
@@ -132,38 +177,52 @@ export function ChatThread({
 
       const isHighlighted = highlightedId === item.id;
 
+      const isOutgoing = fromId === me;
+
       grouped.push(
-        <Bubble
+        <motion.div
           key={item.id}
-          id={item.id}
-          fromId={fromId}
-          text={item.dm.text}
-          time={item.dm.at}
-          me={me}
-          userMap={userMap}
-          showName={isGroup ? isFirstInGroup : false}
-          showAvatar={isGroup ? isLastInGroup : false}
-          isFirstInGroup={isFirstInGroup}
-          isLastInGroup={isLastInGroup}
-          isGroup={isGroup}
-          attachments={item.dm.attachments}
-          mentions={item.mentions}
-          onMentionClick={onMentionClick}
-          isDeleted={(item.dm as any).isDeleted}
-          replyTo={item.dm.replyTo ?? null}
-          replyToId={(item.dm as any).replyToId ?? null}
-          onReply={handleBubbleReply}
-          onDelete={onDeleteMessage ? (forEveryone) => handleBubbleDelete(item.id, forEveryone) : undefined}
-          canDeleteAny={canDeleteAny}
-          isHighlighted={isHighlighted}
-        />
+          layout={reduceMotion ? false : "position"}
+          initial={reduceMotion ? false : { opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={reduceMotion ? { opacity: 0 } : { opacity: 0, y: -6, scale: 0.98 }}
+          transition={{ duration: 0.22, ease: [0.2, 0.8, 0.2, 1] }}
+          className={cn("flex w-full", isOutgoing ? "justify-end" : "justify-start")}
+        >
+          <Bubble
+            id={item.id}
+            fromId={fromId}
+            text={item.dm.text}
+            time={item.dm.at}
+            me={me}
+            userMap={userMap}
+            showName={isGroup ? isFirstInGroup : false}
+            showAvatar={isGroup ? isLastInGroup : false}
+            isFirstInGroup={isFirstInGroup}
+            isLastInGroup={isLastInGroup}
+            isGroup={isGroup}
+            attachments={item.dm.attachments}
+            mentions={item.mentions}
+            onMentionClick={onMentionClick}
+            isDeleted={(item.dm as any).isDeleted}
+            replyTo={item.dm.replyTo ?? null}
+            replyToId={(item.dm as any).replyToId ?? null}
+            linkPreview={(item.dm as any).linkPreview ?? null}
+            onReply={handleBubbleReply}
+            onDelete={onDeleteMessage ? (forEveryone) => handleBubbleDelete(item.id, forEveryone) : undefined}
+            canDeleteAny={canDeleteAny}
+            isHighlighted={isHighlighted}
+          />
+        </motion.div>
       );
     }
   }
 
   return (
-    <div ref={scrollRef} className="flex flex-1 flex-col gap-2 overflow-y-auto bg-background px-4 py-5 sm:px-6 md:px-8 scroll-smooth scrollbar-thin">
-      {grouped}
+    <div ref={scrollRef} className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto overscroll-contain bg-background px-4 py-5 sm:px-6 md:px-8 scroll-smooth scrollbar-thin">
+      <AnimatePresence initial={false} mode="popLayout">
+        {grouped}
+      </AnimatePresence>
     </div>
   );
 }

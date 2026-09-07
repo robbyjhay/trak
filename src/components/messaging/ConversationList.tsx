@@ -1,9 +1,12 @@
 import React, { useMemo, useState } from "react";
 import { useTrak } from "@/context/TrakStore";
 import { useCall } from "@/context/CallContext";
-import { cn, formatDuration, initials } from "@/lib/utils";
+import { cn, formatDuration } from "@/lib/utils";
+import { getPresenceStatus } from "@/lib/presence";
+import { UserAvatar } from "@/components/ui/UserAvatar";
 import { PATHS } from "@/components/icons";
 import { TrakDb, CallRecord, Dm } from "@/lib/types";
+import { motion, useReducedMotion } from "framer-motion";
 
 type ThreadItem =
   | { kind: "dm"; id: string; dm: Dm }
@@ -15,8 +18,11 @@ function getCreatedAt(item: ThreadItem): number {
   return 0;
 }
 
-function getMessageSnippet(text: string, attachments?: { contentType?: string }[]): string {
-  if (text.trim()) return text;
+function getMessageSnippet(dm: any): string {
+  if (dm.isDeleted) return "This message was deleted";
+  const text = dm.text;
+  const attachments = dm.attachments;
+  if (text?.trim()) return text;
   if (attachments && attachments.length > 0) {
     const type = attachments[0].contentType || "";
     if (type.startsWith("image/")) return "Photo";
@@ -58,7 +64,7 @@ export function ConversationList({
   canBc,
   onNewConv,
 }: {
-  activeConv: string;
+  activeConv: string | null;
   setActiveConv: (id: string) => void;
   mobilePane: "list" | "thread";
   setMobilePane: (v: "list" | "thread") => void;
@@ -66,10 +72,11 @@ export function ConversationList({
   onNewConv: () => void;
 }) {
   const { sessionUser, users, userMap, db, myNotifications } = useTrak();
-  const { activeCall, elapsedSec } = useCall();
+  const { activeCall, elapsedSec, onlineUsers, signalingConnected, presenceSynced } = useCall();
   const me = sessionUser.id;
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<"all" | "unread">("all");
+  const reduceMotion = useReducedMotion();
 
   const notifs = myNotifications();
   
@@ -86,6 +93,9 @@ export function ConversationList({
       }
       if (!n.read && n.type === "broadcast") {
         map["broadcast"] = (map["broadcast"] || 0) + 1;
+      }
+      if (!n.read && n.type === "community") {
+        map["community"] = (map["community"] || 0) + 1;
       }
     }
     return map;
@@ -113,6 +123,10 @@ export function ConversationList({
       if (filter === "unread" && !unreadMap[pid]) return false;
       return true;
     }).sort((a, b) => {
+      // Self-chat is permanently pinned to the top, before all other conversations.
+      if (a === me) return -1;
+      if (b === me) return 1;
+
       const aItems = threadItems(db, me, a);
       const bItems = threadItems(db, me, b);
       const aLast = aItems[aItems.length - 1];
@@ -128,11 +142,15 @@ export function ConversationList({
   return (
     <div
       className={cn(
-        "relative w-full shrink-0 flex-col border-r border-border bg-surface md:flex md:w-[350px]",
+        // Viewport-constrained sidebar: flex-1 + min-h-0 pins height to the
+        // available viewport region above MobileNav (not to content height).
+        // Desktop FAB anchors to this viewport-height box via md:relative;
+        // mobile FAB is viewport-fixed and independent of scroll content.
+        "relative flex w-full flex-1 min-h-0 flex-col border-r border-border bg-surface md:flex md:w-[320px] lg:w-[360px] xl:w-[400px] md:relative",
         mobilePane === "thread" ? "hidden" : "flex",
       )}
     >
-      <div className="flex flex-col gap-3 border-b border-border p-5 pb-4">
+      <div className="flex shrink-0 flex-col gap-3 border-b border-border p-5 pb-4">
         <div className="relative">
           <svg className="absolute left-3.5 top-1/2 -translate-y-1/2 text-foreground-faint" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
             <circle cx="11" cy="11" r="8"></circle>
@@ -148,22 +166,20 @@ export function ConversationList({
           />
         </div>
         <div className="flex gap-2">
-          <button
-            onClick={() => setFilter("all")}
-            className={cn("rounded-full px-3.5 py-1.5 text-[11.5px] font-bold transition-colors cursor-pointer", filter === "all" ? "bg-foreground text-background" : "bg-surface-muted text-foreground-secondary hover:bg-surface-hover hover:text-foreground")}
-          >
-            All
-          </button>
-          <button
-            onClick={() => setFilter("unread")}
-            className={cn("rounded-full px-3.5 py-1.5 text-[11.5px] font-bold transition-colors cursor-pointer", filter === "unread" ? "bg-foreground text-background" : "bg-surface-muted text-foreground-secondary hover:bg-surface-hover hover:text-foreground")}
-          >
-            Unread
-          </button>
+          {(["all", "unread"] as const).map((f) => (
+            <motion.button
+              key={f}
+              onClick={() => setFilter(f)}
+              whileTap={reduceMotion ? undefined : { scale: 0.95 }}
+              className={cn("rounded-full px-3.5 py-1.5 text-[11.5px] font-bold transition-colors cursor-pointer", filter === f ? "bg-foreground text-background" : "bg-surface-muted text-foreground-secondary hover:bg-surface-hover hover:text-foreground")}
+            >
+              {f === "all" ? "All" : "Unread"}
+            </motion.button>
+          ))}
         </div>
       </div>
       
-      <div className="flex-1 overflow-y-auto p-3 pb-20 md:pb-3 scrollbar-thin">
+      <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-3 pb-[96px] md:pb-3 scrollbar-thin">
         {filter === "all" && !search && (
           <>
             <ConvItem
@@ -181,8 +197,9 @@ export function ConversationList({
                 </div>
               }
               name="Community Chat"
-              snippet={db.community[db.community.length - 1] ? getMessageSnippet(db.community[db.community.length - 1].text, db.community[db.community.length - 1].attachments) : "No messages yet"}
+              snippet={db.community[db.community.length - 1] ? (db.community[db.community.length - 1].from === me ? "You: " : "") + getMessageSnippet(db.community[db.community.length - 1]) : "No messages yet"}
               time={db.community[db.community.length - 1] ? formatListTime(db.community[db.community.length - 1].at) : undefined}
+              unreadCount={unreadMap["community"]}
             />
             {canBc && (
               <ConvItem
@@ -210,7 +227,7 @@ export function ConversationList({
           </>
         )}
 
-        {partners.map((pid) => {
+        {partners.map((pid, index) => {
           const p = userMap[pid];
           if (!p) return null;
           const items = threadItems(db, me, pid);
@@ -223,7 +240,7 @@ export function ConversationList({
             : last
               ? last.kind === "call"
                 ? `${last.call.from === me ? "You called" : "Missed call"} · ${formatDuration(last.call.durationSec)}`
-                : getMessageSnippet(last.dm.text, last.dm.attachments)
+                : (last.dm.from === me ? "You: " : "") + getMessageSnippet(last.dm)
               : "Say hello 👋";
           
           let lastTime: string | undefined;
@@ -232,16 +249,19 @@ export function ConversationList({
           }
 
           const Avatar = (
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full font-display text-[15px] font-bold text-white shadow-sm" style={{ background: p.color }}>
-              {p.photoUrl ? (
-                <img src={p.photoUrl} alt="" className="h-full w-full rounded-full object-cover" />
-              ) : initials(p.name)}
-            </div>
+            <UserAvatar
+              photoUrl={p.photoUrl}
+              name={p.name}
+              color={p.color}
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full font-display text-[15px] font-bold text-white shadow-sm"
+              imgClassName="h-full w-full rounded-full object-cover"
+            />
           );
 
           return (
             <ConvItem
               key={pid}
+              index={index}
               active={activeConv === pid}
               onClick={() => {
                 setActiveConv(pid);
@@ -255,26 +275,41 @@ export function ConversationList({
               snippet={pid === me && !last ? "Message yourself" : snippet}
               time={lastTime ? formatListTime(lastTime) : undefined}
               unreadCount={unreadMap[pid]}
+              pinned={pid === me}
+              isOnline={pid !== me ? getPresenceStatus(pid, onlineUsers, signalingConnected, presenceSynced) === "online" : undefined}
             />
           );
         })}
         {partners.length === 0 && search && (
-          <div className="py-10 text-center text-[13px] text-foreground-faint">
-            No matches found
+          <div className="flex flex-col items-center justify-center gap-2 py-12 text-center animate-in fade-in duration-500">
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-surface-muted text-foreground-faint">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d={PATHS.search} />
+              </svg>
+            </div>
+            <div className="text-[13.5px] font-semibold text-foreground">No matches found</div>
+            <div className="text-xs text-foreground-secondary">Try searching for a different name.</div>
           </div>
         )}
       </div>
 
-      <button
+      {/* FAB: viewport-fixed on mobile (independent of DM list height),
+           anchored above MobileNav (76px + 16px gap + safe-area).
+           On desktop it anchors to the viewport-constrained sidebar via md:absolute. */}
+      <motion.button
         type="button"
         onClick={onNewConv}
-        className="absolute right-5 bottom-6 z-10 flex h-[52px] w-[52px] cursor-pointer items-center justify-center rounded-full border-none bg-primary text-primary-foreground shadow-lg transition-transform hover:scale-105 active:scale-95"
+        whileTap={reduceMotion ? undefined : { scale: 0.9 }}
+        whileHover={reduceMotion ? undefined : { scale: 1.05 }}
+        className="fixed md:absolute right-5 bottom-[calc(76px+16px+env(safe-area-inset-bottom))] md:bottom-6 z-20 flex h-[52px] w-[52px] cursor-pointer items-center justify-center rounded-full border-none bg-primary text-primary-foreground shadow-lg transition-transform"
         aria-label="New conversation"
       >
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-          <path d={PATHS.plus} />
-        </svg>
-      </button>
+        <motion.span whileTap={reduceMotion ? undefined : { scale: 0.9 }} aria-hidden>
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+            <path d={PATHS.plus} />
+          </svg>
+        </motion.span>
+      </motion.button>
     </div>
   );
 }
@@ -287,6 +322,9 @@ function ConvItem({
   snippet,
   time,
   unreadCount,
+  pinned,
+  isOnline,
+  index = 0,
 }: {
   active: boolean;
   onClick: () => void;
@@ -295,20 +333,32 @@ function ConvItem({
   snippet: string;
   time?: string;
   unreadCount?: number;
+  pinned?: boolean;
+  isOnline?: boolean;
+  index?: number;
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
+      style={{ animationDelay: `${Math.min(index, 8) * 40}ms` }}
       className={cn(
-        "mb-1 flex w-full cursor-pointer items-center gap-3.5 rounded-[18px] border-none p-3 text-left transition-all",
+        "mb-1 flex w-full cursor-pointer items-center gap-3.5 rounded-[18px] border-none p-3 text-left transition-all animate-in fade-in slide-in-from-bottom-2 duration-300 fill-mode-backwards",
         active
           ? "bg-surface-interactive text-foreground shadow-xs"
-          : "bg-transparent text-foreground hover:bg-surface-hover"
+          : "bg-transparent text-foreground hover:bg-surface-hover hover:translate-x-0.5"
       )}
     >
       <div className="relative">
         {avatar}
+        {isOnline !== undefined && (
+          <span
+            className={cn(
+              "absolute bottom-0 right-0 block h-[10px] w-[10px] rounded-full ring-2 ring-surface transition-colors duration-200",
+              isOnline ? "bg-emerald-500" : "bg-gray-400",
+            )}
+          />
+        )}
       </div>
       
       <div className="min-w-0 flex-1 flex flex-col justify-center">
@@ -334,6 +384,17 @@ function ConvItem({
           )}
         </div>
       </div>
+      {pinned && (
+        <div
+          className="shrink-0 text-foreground-faint"
+          title="Pinned"
+          aria-label="Pinned"
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d={PATHS.pushpin} />
+          </svg>
+        </div>
+      )}
     </button>
   );
 }
