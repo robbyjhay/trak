@@ -136,7 +136,7 @@ export function Messaging({
 
         const idsToMark = partnerNotifs.map(n => n.id);
         if (false) {
-           console.log(idsToMark).catch(() => {});
+           console.log(idsToMark);
         }
       }
     }
