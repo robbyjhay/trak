@@ -63,6 +63,10 @@ export async function loginAction(
     if (result.mustChangePassword) {
       redirect("/set-password");
     }
+    const callbackUrl = String(formData.get("callbackUrl") || "");
+    if (callbackUrl && callbackUrl.startsWith("/") && !callbackUrl.startsWith("//")) {
+      redirect(callbackUrl);
+    }
     redirect("/dashboard");
   } catch (err) {
     if (err instanceof Error && err.name === "AuthError") {

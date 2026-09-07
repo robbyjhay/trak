@@ -11,6 +11,7 @@ import {
   passwordPolicyMessage,
 } from "@/lib/auth/password";
 import { getEnv } from "@/lib/env";
+import { sessionExpiryDate } from "@/lib/auth/session-cookie";
 import type { SessionUser } from "@/lib/types";
 import type { User, UserProfile, UserRole as DbUserRole } from "@prisma/client";
 
@@ -87,9 +88,9 @@ export async function createSession(
   const env = getEnv();
   const rawToken = generateOpaqueToken();
   const tokenHash = hashToken(rawToken);
-  const expiresAt = new Date(
-    Date.now() + env.SESSION_TTL_DAYS * 24 * 60 * 60 * 1000,
-  );
+  // Single authoritative TTL: DB expiresAt aligns with cookie maxAge/expires
+  // (see setSessionCookie). Both derive from env.SESSION_TTL_DAYS.
+  const expiresAt = sessionExpiryDate(env.SESSION_TTL_DAYS);
 
   const session = await prisma.session.create({
     data: {
