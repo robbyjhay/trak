@@ -84,6 +84,7 @@ enum AttendeeSource {
   unit
   manual
   link
+  guest
 }
 
 enum AttachmentKind {
