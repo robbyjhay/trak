@@ -97,6 +97,7 @@ enum NotificationType {
   activity_created
   activity_completed
   activity_missed
+  activity_reminder
   broadcast
   mention
 }
@@ -263,7 +264,10 @@ model Activity {
   exceptionReason    String         @default("") @map("exception_reason") @db.Text
   submissionType     SubmissionType @default(normal)
   gracePeriodStartedAt DateTime? @map("grace_period_started_at")
-  gracePeriodExpiresAt DateTime? @map("grace_period_expires_at")
+  gracePeriodExpiresAt DateTime?
+  dueAt                DateTime?
+  reminderStatus       Json       @default("{}")
+  reminderVersion      Int        @default(1) @map("grace_period_expires_at")
   hidden             Boolean        @default(false)
   hasBudget          Boolean        @default(false) @map("has_budget")
   estimatedAmountNgn Decimal?       @map("estimated_amount_ngn") @db.Decimal(14, 2)
