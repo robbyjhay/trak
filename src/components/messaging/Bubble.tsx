@@ -7,9 +7,9 @@ import { UserAvatar } from "@/components/ui/UserAvatar";
 import { parseSegments, parseSegmentsWithLinks } from "@/lib/mention-utils";
 import { scrollToMessage } from "@/lib/message-scroll";
 import { PATHS } from "@/components/icons";
-
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import type { MessageAttachment, MessageMention, ReplyPreview } from "@/lib/types";
+import { LinkPreviewCard } from "./LinkPreviewCard";
+>>>>>>> feature/link-previews
 
 function formatMessageTime(isoString: string): string {
   if (!isoString) return "";
@@ -57,6 +57,7 @@ export function Bubble({
   onDelete,
   canDeleteAny = false,
   isHighlighted = false,
+  linkPreview,
 }: {
   id: string;
   fromId: string;
@@ -489,7 +490,10 @@ export function Bubble({
             </div>
           ) : null}
 
-          {attachments && attachments.length > 0 && (
+          {linkPreview && (
+              <LinkPreviewCard preview={linkPreview} me={isMe} />
+            )}
+            {attachments && attachments.length > 0 && (
             <div className="flex flex-col gap-2 mb-1.5">
               {attachments.map((att) => {
                 const isImg = att.contentType.startsWith("image/");
@@ -579,10 +583,7 @@ export function Bubble({
             </div>
           )}
 
-          {!isDeleted && linkPreview && (
-            <div className="mt-0.5">
-            </div>
-          )}
+
           
           <div
             className={cn(

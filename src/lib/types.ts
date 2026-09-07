@@ -8,6 +8,7 @@ export type AttendeeSource = "unit" | "manual" | "link";
 export type NotifType =
   | "comment"
   | "dm"
+  | "community"
   | "activity_created"
   | "activity_completed"
   | "activity_missed"
@@ -158,6 +159,15 @@ export interface ReplyPreview {
   isDeleted?: boolean;
 }
 
+
+export interface LinkPreview {
+  url: string;
+  domain: string;
+  title?: string;
+  description?: string;
+  image?: string;
+}
+
 export interface Dm {
   isDeleted?: boolean;
   id: string;
@@ -169,6 +179,7 @@ export interface Dm {
   attachments?: MessageAttachment[];
   replyToId?: string | null;
   replyTo?: ReplyPreview | null;
+  linkPreview?: LinkPreview | null;
 }
 
 export interface CallRecord {
@@ -197,6 +208,7 @@ export interface CommunityMessage {
   replyTo?: ReplyPreview | null;
   attachments?: MessageAttachment[];
   mentions?: MessageMention[];
+  linkPreview?: LinkPreview | null;
 }
 
 export interface Broadcast {
