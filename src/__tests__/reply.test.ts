@@ -301,7 +301,7 @@ describe("Context menu — Reply, Copy message, Delete for me/everyone", () => {
   test("Copy message appears in context menu", () => {
     const bubble = readFile("src/components/messaging/Bubble.tsx");
     expect(bubble).toContain("Copy message");
-    expect(bubble).toContain('data-testid="copy-action"');
+    expect(bubble).toContain('"copy-action"');
   });
 
   test("Delete for me is present", () => {

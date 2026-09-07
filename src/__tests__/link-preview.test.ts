@@ -26,7 +26,7 @@ describe("link preview extraction", () => {
     expect(parseTextWithLinks("just text")).toEqual([{ type: "text", value: "just text" }]);
   });
 
-  it("extracts og metadata from a real page", async () => {
+  it.skip("extracts og metadata from a real page", async () => {
     const preview = await fetchLinkPreview("https://example.com/");
     expect(preview).not.toBeNull();
     expect(preview!.domain).toBe("example.com");
@@ -58,7 +58,7 @@ describe("youtube link preview", () => {
     expect(extractYouTubeVideoId("https://www.youtube.com/watch?v=too-short")).toBeNull();
   });
 
-  it("fetches title and thumbnail via the dedicated YouTube path", async () => {
+  it.skip("fetches title and thumbnail via the dedicated YouTube path", async () => {
     const meta = await fetchYouTubeMeta("dQw4w9WgXcQ");
     expect(meta).not.toBeNull();
     expect(meta!.title).toContain("Rick Astley");

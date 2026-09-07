@@ -54,7 +54,7 @@ function isPublicPage(pathname: string): boolean {
 
 function isStaticOrInternal(pathname: string): boolean {
   return (pathname.startsWith("/_next") ||
-  pathname.startsWith("/favicon") || /\.(?:svg|png|jpg|jpeg|gif|webp|ico)$/i.test(pathname));
+  pathname.startsWith("/favicon") || pathname === "/sw.js" || pathname === "/manifest.webmanifest" || /\.(?:svg|png|jpg|jpeg|gif|webp|ico)$/i.test(pathname));
 }
 
 /**

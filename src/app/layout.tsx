@@ -43,6 +43,8 @@ export const metadata: Metadata = {
   description:
     "The Digital Learning Unit's activity & operations register — PSSDC, Lagos State Government.",
   applicationName: "Trak",
+  manifest: "/manifest.webmanifest",
+  appleWebApp: { capable: true, title: "Trak", statusBarStyle: "default" },
 };
 
 export const viewport: Viewport = {
@@ -52,6 +54,7 @@ export const viewport: Viewport = {
   viewportFit: "cover",
 };
 
+  // apple-touch-icon
 export default async function RootLayout({
   children,
 }: Readonly<{
