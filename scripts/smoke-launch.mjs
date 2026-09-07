@@ -35,6 +35,7 @@ async function jsonFetch(path, opts = {}) {
     headers: {
       ...(opts.body ? { "Content-Type": "application/json" } : {}),
       ...(opts.headers || {}),
+      "Origin": BASE,
     },
   });
   const text = await res.text();

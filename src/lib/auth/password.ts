@@ -2,7 +2,7 @@
  * Password hashing (bcrypt cost 12 per AUDIT_05).
  * Never log plaintext passwords. Never return passwordHash to clients.
  */
-import "server-only";
+
 import bcrypt from "bcryptjs";
 import { randomBytes } from "node:crypto";
 import crypto from "node:crypto";

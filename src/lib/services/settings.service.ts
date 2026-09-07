@@ -1,4 +1,4 @@
-import "server-only";
+
 import { prisma } from "@/lib/db/prisma";
 import { encryptString, decryptString } from "@/lib/auth/password";
 

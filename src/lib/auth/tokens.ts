@@ -1,7 +1,7 @@
 /**
  * auth_tokens helpers — opaque one-time tokens hashed at rest.
  */
-import "server-only";
+
 import { createHash, randomBytes } from "node:crypto";
 import type { AuthTokenType, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db/prisma";

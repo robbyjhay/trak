@@ -2,7 +2,7 @@
  * Object storage for avatars, evidence, invoices (Phase 3).
  * Uses S3-compatible storage when configured; otherwise local disk under .data/uploads.
  */
-import "server-only";
+
 import { createHash, randomBytes } from "node:crypto";
 import { promises as fs, createWriteStream } from "node:fs";
 import path from "node:path";

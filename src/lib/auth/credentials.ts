@@ -3,7 +3,7 @@
  * Kept for call-site compatibility with set-password page and layout.
  * Passwords never exposed to the client.
  */
-import "server-only";
+
 import {
   findById,
   findByUsername,

@@ -4,7 +4,7 @@
  * Request correlation is driven by the `x-request-id` header set in
  * middleware; route handlers can also wrap work in withRequestContext().
  */
-import "server-only";
+
 import { AsyncLocalStorage } from "node:async_hooks";
 import { captureError } from "@/lib/errorTracking";
 

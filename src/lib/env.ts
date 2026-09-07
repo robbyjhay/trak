@@ -2,7 +2,7 @@
  * Environment validation — fail fast when required vars are missing.
  * Import from server code only (route handlers, server actions, prisma).
  */
-import "server-only";
+
 import { z } from "zod";
 
 const envSchema = z.object({

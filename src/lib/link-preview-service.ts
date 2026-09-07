@@ -1,4 +1,4 @@
-import "server-only";
+
 import { saveLinkPreview } from "@/lib/db/service";
 import { extractFirstUrl, fetchLinkPreview } from "@/lib/link-preview";
 import { sendToUser } from "@/lib/realtime";

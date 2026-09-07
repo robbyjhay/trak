@@ -5,7 +5,7 @@
  * Edge middleware only checks cookie presence; full DB validation happens here
  * in server layouts, route handlers, and server actions.
  */
-import "server-only";
+
 import { cookies } from "next/headers";
 import type { SessionUser } from "@/lib/types";
 import {

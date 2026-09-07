@@ -2,7 +2,7 @@
  * Rate limiter — Redis when REDIS_URL is set, in-memory fallback for local dev.
  * Production should always configure REDIS_URL (AUDIT_03 / AUDIT_08).
  */
-import "server-only";
+
 
 type Bucket = { count: number; resetAt: number };
 

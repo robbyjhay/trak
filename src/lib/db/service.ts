@@ -4,7 +4,7 @@ import { notifyMany, notifyUser } from "@/lib/notifications";
  * Domain service layer — PostgreSQL via Prisma (Phase 1+).
  * Replaces the legacy JSON file store for all product data.
  */
-import "server-only";
+
 import { createHash, randomBytes } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db/prisma";

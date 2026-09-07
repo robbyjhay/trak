@@ -5,7 +5,7 @@
  * Uses an explicit pg Pool so concurrent bootstrap queries share connections
  * instead of thrashing SSL handshakes on remote Postgres.
  */
-import "server-only";
+
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { Pool } from "pg";

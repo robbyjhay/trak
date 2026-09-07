@@ -11,6 +11,7 @@ import { Toast } from "@/components/ui/Toast";
 import { ReportPreviewProvider } from "@/components/reports/ReportPreview";
 import { ConnectNavProvider } from "@/context/ConnectNav";
 import { CallProvider } from "@/context/CallContext";
+import { CallUiProvider } from "@/components/call/CallUiContext";
 import { IncomingCallOverlay } from "@/components/call/IncomingCallOverlay";
 import { getScopedBootstrap } from "@/lib/db/service";
 
@@ -54,18 +55,20 @@ export default async function AppLayout({
       <ReportPreviewProvider>
         <ConnectNavProvider>
           <CallProvider userId={session.id}>
-            <IncomingCallOverlay />
-            <div className="flex h-[100dvh] overflow-hidden w-full">
-              <div className="hidden md:block">
-                <Rail />
+            <CallUiProvider>
+              <IncomingCallOverlay />
+              <div className="flex h-[100dvh] overflow-hidden w-full">
+                <div className="hidden md:block">
+                  <Rail />
+                </div>
+                <div className="flex min-w-0 flex-1 flex-col">
+                  <Topbar />
+                  {children}
+                </div>
               </div>
-              <div className="flex min-w-0 flex-1 flex-col">
-                <Topbar />
-                {children}
-              </div>
-            </div>
-            <MobileNav />
-            <Toast />
+              <MobileNav />
+              <Toast />
+            </CallUiProvider>
           </CallProvider>
         </ConnectNavProvider>
       </ReportPreviewProvider>

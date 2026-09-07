@@ -6,7 +6,7 @@
  *
  * Format: https://<publicKey>@<host>/<projectId>
  */
-import "server-only";
+
 import { hostname } from "node:os";
 import { randomUUID } from "node:crypto";
 
