@@ -782,6 +782,14 @@ export function TrakStoreProvider({
       if (act) act.softDeletedAt = new Date().toISOString();
       bump();
     },
+    deleteActivity: async (activityId) => {
+      await apiSend(`/api/activities/${activityId}`, "PATCH", {
+        action: "softDelete",
+      });
+      const act = stateRef.current.db.activities.find((a) => a.id === activityId);
+      if (act) act.softDeletedAt = new Date().toISOString();
+      bump();
+    },
     deactivateResponsibility: async (id) => {
       await apiSend(`/api/responsibilities/${id}`, "PATCH", {
         action: "toggleActive",

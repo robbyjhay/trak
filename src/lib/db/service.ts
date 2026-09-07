@@ -2092,3 +2092,63 @@ export async function deleteDmMessage(session: SessionUser, id: string, forEvery
   }
   return true;
 }
+
+
+export async function hardDeleteActivity(
+  session: SessionUser,
+  activityId: string,
+): Promise<void> {
+  const actor = await requireActor(session);
+  if (actor.role !== "head") {
+    throw new ServiceError(403, "Only the Unit Head can delete activities.");
+  }
+  const act = await prisma.activity.findUnique({
+    where: { id: activityId },
+  });
+  if (!act) throw new ServiceError(404, "Activity not found.");
+  if (act.status !== "missed") {
+    throw new ServiceError(400, "Only missed activities can be deleted.");
+  }
+
+  await prisma.notification.deleteMany({
+    where: { activityId },
+  });
+
+  await prisma.activity.delete({
+    where: { id: activityId },
+  });
+
+  await recordAuditEvent({
+    userId: session.authUserId,
+    action: "activity_delete",
+    targetId: activityId,
+    targetType: "activity",
+    meta: {
+      title: act.title,
+    },
+  });
+}
+
+export async function softDeleteActivity(
+  session: SessionUser,
+  activityId: string,
+): Promise<ActivityPayload> {
+  const actor = await requireActor(session);
+  if (actor.role !== "head") {
+    throw new ServiceError(403, "Only the Unit Head can soft-delete activities.");
+  }
+  const act = await prisma.activity.findUnique({
+    where: { id: activityId },
+  });
+  if (!act) throw new ServiceError(404, "Activity not found.");
+
+  const updated = await prisma.activity.update({
+    where: { id: activityId },
+    data: { 
+      softDeletedAt: new Date(),
+    },
+    include: activityInclude,
+  });
+
+  return mapActivity(updated);
+}
