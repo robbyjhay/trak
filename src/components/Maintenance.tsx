@@ -12,7 +12,7 @@ export function Maintenance() {
           .aura-layer-3 { filter: blur(180px); }
         }
       `}</style>
-      <main className="relative flex min-h-[100dvh] items-center justify-center overflow-hidden px-6 py-16">
+      <main className="dark relative flex min-h-[100dvh] items-center justify-center overflow-hidden px-6 py-16">
         <div
           style={{
             position: "absolute",
@@ -55,20 +55,12 @@ export function Maintenance() {
 
         <div className="relative z-10 flex w-full max-w-xl flex-col items-center gap-7 text-center">
           <Image
-            src="/logo-black.png"
-            alt="Trak"
-            width={96}
-            height={96}
-            priority
-            className="h-20 w-20 object-contain dark:hidden"
-          />
-          <Image
             src="/logo-white.png"
             alt="Trak"
             width={96}
             height={96}
             priority
-            className="hidden h-20 w-20 object-contain dark:block"
+            className="h-20 w-20 object-contain"
           />
 
           <div className="flex flex-col items-center gap-4">
