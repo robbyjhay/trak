@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect, useState, useCallback, useRef } from "react";
+import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { useTrak } from "@/context/TrakStore";
 import { useConnectNav } from "@/context/ConnectNav";
 import {
-  canBroadcast,
   canDeleteAnyCommunityMessage,
   canManageTeamProfiles,
   canWipeCommunity,
@@ -14,7 +14,6 @@ import { cn, firstName } from "@/lib/utils";
 import { UserAvatar } from "@/components/ui/UserAvatar";
 import { PATHS } from "@/components/icons";
 import { ANNOUNCEMENT_CHANNEL } from "@/lib/announcements";
-import { PrimaryBtn } from "@/components/ui/Buttons";
 import { NewConversation } from "@/components/messaging/NewConversation";
 import { AddMember } from "@/components/messaging/AddMember";
 import { useCall } from "@/context/CallContext";
@@ -70,7 +69,6 @@ export function Messaging({
     sendDm,
     sendCommunity,
     wipeCommunity,
-    sendBroadcast,
     deleteDmMessage,
     deleteCommunityMessage,
     showToast,
@@ -81,11 +79,11 @@ export function Messaging({
   const { isExpanded, setIsExpanded } = useCallUi();
   
   const me = sessionUser.id;
+  const isDesktop = useMediaQuery("(min-width: 768px)");
   
   const [activeConv, setActiveConv] = useState<string | null>(null);
   const [mobilePane, setMobilePane] = useState<"list" | "thread">("list");
   const [input, setInput] = useState("");
-  const [bcText, setBcText] = useState("");
   const [wipeOpen, setWipeOpen] = useState(false);
   const [newConvOpen, setNewConvOpen] = useState(false);
   const [newConvKey, setNewConvKey] = useState(0);
@@ -103,7 +101,7 @@ export function Messaging({
   }, [activeConv]);
 
   useEffect(() => {
-    if (activeConv !== "broadcast" && activeConv) {
+    if (activeConv) {
       if (activeConv === ANNOUNCEMENT_CHANNEL) {
         const annNotifs = db.notifications.filter(
           (n) => n.userId === me && !n.read && n.type === "announcement",
@@ -185,7 +183,7 @@ export function Messaging({
         // Check if reply belongs to community — if not, clear
         // But if user started reply in community then switched to DM, clear it
         if (isDmReply) setReplyingTo(null);
-      } else if (activeConv !== "community" && activeConv !== "broadcast") {
+      } else if (activeConv !== "community") {
         if (isCommunityReply) setReplyingTo(null);
         else if (isDmReply) {
           const dm = db.dms.find((m) => m.id === replyingTo.id);
@@ -200,7 +198,6 @@ export function Messaging({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeConv]);
 
-  const canBc = canBroadcast(sessionUser);
   const canWipe = canWipeCommunity(sessionUser);
   const canDeleteAny = canDeleteAnyCommunityMessage(sessionUser);
 
@@ -250,7 +247,7 @@ export function Messaging({
                MobileNav (h-full + min-h-0), not the DM list content height. */}
           <div
             className={cn(
-              "flex w-full min-h-0 h-full flex-col border-r border-border bg-surface transition-all md:w-[320px] lg:w-[360px] xl:w-[400px] md:shrink-0",
+              "relative flex w-full min-h-0 h-full flex-col border-r border-border bg-surface transition-all md:w-[320px] lg:w-[360px] xl:w-[400px] md:shrink-0",
               mobilePane === "thread" && "hidden md:flex",
             )}
           >
@@ -259,11 +256,17 @@ export function Messaging({
               setActiveConv={setActiveConv}
               mobilePane={mobilePane}
               setMobilePane={setMobilePane}
-              canBc={canBc}
               onNewConv={() => {
                 setNewConvKey((k) => k + 1);
                 setNewConvOpen(true);
               }}
+            />
+            <NewConversation
+              key={newConvKey}
+              open={newConvOpen}
+              onClose={() => setNewConvOpen(false)}
+              onSelect={openThread}
+              contained={isDesktop}
             />
           </div>
 
@@ -412,64 +415,7 @@ export function Messaging({
               </div>
             )}
 
-            {activeConv === "broadcast" && (
-              <div className="flex min-h-0 flex-1 flex-col bg-surface">
-                <div className="flex shrink-0 items-center gap-3 border-b border-border bg-surface px-4 py-3 sm:px-6 md:px-8 shadow-sm md:hidden z-10">
-                  <BackBtn onClick={handleBack} />
-                  <div className="text-[15px] font-bold text-foreground">Broadcast</div>
-                </div>
-                <div className="flex flex-1 flex-col items-center justify-start overflow-y-auto p-6 text-center sm:p-10 max-w-2xl mx-auto">
-                  <div className="mb-6 flex h-[72px] w-[72px] items-center justify-center rounded-[24px] bg-linear-to-br from-amber-500 to-orange-500 text-white shadow-xl">
-                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                      <path d={PATHS.send} />
-                    </svg>
-                  </div>
-                  <h3 className="m-0 mb-3 font-display text-2xl font-bold text-foreground tracking-tight">
-                    Broadcast to the unit
-                  </h3>
-                  <p className="mb-8 max-w-[420px] text-[14px] leading-relaxed text-foreground-secondary">
-                    Only the Unit Head and the Secretary can send this. It reaches all{" "}
-                    <strong className="text-foreground">{users.length} members</strong> at once and triggers a push notification.
-                  </p>
-                  <textarea
-                    value={bcText}
-                    onChange={(e) => setBcText(e.target.value)}
-                    placeholder="Write your announcement…"
-                    className="mb-5 min-h-[140px] w-full max-w-[500px] rounded-[18px] border-[1.5px] border-input-border bg-input px-5 py-4 text-[14.5px] text-foreground placeholder-input-placeholder outline-none focus-visible:outline-none focus:border-border-strong shadow-sm transition-colors resize-none"
-                    suppressHydrationWarning
-                  />
-                  <PrimaryBtn
-                    className="h-[48px] px-8 rounded-full text-[14px] font-bold shadow-md hover:scale-105 active:scale-95 transition-transform"
-                    onClick={() => {
-                      if (!bcText.trim()) return;
-                      const text = bcText.trim();
-                      void sendBroadcast(text)
-                        .then(() => {
-                          setBcText("");
-                          showToast(
-                            "Broadcast sent",
-                            `Delivered to all ${users.length} unit members.`,
-                          );
-                        })
-                        .catch(() =>
-                          showToast(
-                            "Could not send broadcast",
-                            "Please try again.",
-                          ),
-                        );
-                    }}
-                  >
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="-ml-1 mr-1.5">
-                      <path d={PATHS.send} />
-                    </svg>
-                    Send to all {users.length} members
-                  </PrimaryBtn>
-                </div>
-              </div>
-            )}
-
             {activeConv !== "community" &&
-              activeConv !== "broadcast" &&
               activeConv !== null &&
               userMap[activeConv] && (
                 <div className="flex flex-1 flex-col h-full min-h-0">
@@ -787,13 +733,6 @@ export function Messaging({
           )}
         </div>
       )}
-
-      <NewConversation
-        key={newConvKey}
-        open={newConvOpen}
-        onClose={() => setNewConvOpen(false)}
-        onSelect={openThread}
-      />
 
       {addMemberOpen && (
         <AddMember onClose={() => setAddMemberOpen(false)} />

@@ -119,13 +119,13 @@ export function SubmitInnovationModal({
       labelledBy="submit-innovation-title"
       bottomSheetOnMobile
     >
-      <ModalPanel bottomSheetOnMobile>
+      <ModalPanel wide bottomSheetOnMobile className="sm:w-[900px] sm:max-w-[95vw]">
         {/* Header */}
         <div className="mb-5 flex items-center gap-3">
           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[12px] bg-gradient-to-br from-aztec-3 to-aztec text-white">
             <BulbIcon size={20} />
           </div>
-          <div>
+          <div className="min-w-0 flex-1">
             <h2
               id="submit-innovation-title"
               className="font-display text-[20px] font-bold text-foreground"

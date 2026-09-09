@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ModalBackdrop, ModalPanel } from "@/components/ui/Modal";
 import { LibraryIcon } from "@/components/icons";
 import { apiSend } from "@/lib/api/client";
@@ -18,8 +18,10 @@ const ORDER: LibraryCategory[] = [...LIBRARY_CATEGORIES];
 const MAX_COVER_BYTES = 5 * 1024 * 1024;
 const ACCEPTED_TYPES = ["image/jpeg", "image/png", "image/webp"];
 
-const inputClass =
-  "w-full rounded-[12px] border-[1.5px] border-border bg-surface-muted px-3.5 py-3 text-[14px] text-foreground placeholder:text-foreground-faint focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary";
+const inputClass = (hasErr: boolean) =>
+  `w-full rounded-[12px] border-[1.5px] ${
+    hasErr ? "border-critical" : "border-border"
+  } bg-surface-muted px-3.5 py-3 text-[14px] text-foreground placeholder:text-foreground-faint focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary`;
 
 export function AddResourceModal({
   open,
@@ -66,22 +68,17 @@ export function AddResourceModal({
   const thumbnailSatisfied = Boolean(thumbnailKey) || Boolean(youtubeThumb);
   const needsUpload = Boolean(category) && !isYouTube && urlValid;
 
-  const errors = useMemo(() => {
-    const list: string[] = [];
-    if (!cleanTitle) list.push("Enter a resource name.");
-    else if (cleanTitle.length > 300) list.push("Name must be 300 characters or fewer.");
-    if (!category) list.push("Choose a resource type.");
-    if (!cleanUrl) list.push("Paste the resource link.");
-    else if (!urlValid) list.push("Enter a valid http(s) link.");
-    if (description.trim().length > 5000) list.push("Description must be 5000 characters or fewer.");
-    if (urlValid && category && !thumbnailSatisfied) {
-      list.push("Add a cover image for this resource.");
-    }
-    return list;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cleanTitle, category, cleanUrl, urlValid, description, thumbnailSatisfied]);
+  const titleErr = !cleanTitle;
+  const titleTooLong = cleanTitle.length > 300;
+  const categoryErr = !category;
+  const urlMissing = !cleanUrl;
+  const urlInvalid = Boolean(cleanUrl) && !urlValid;
+  const descTooLong = description.trim().length > 5000;
+  const thumbErr = urlValid && category && !thumbnailSatisfied;
 
-  const canSubmit = errors.length === 0 && !submitting && uploadState !== "uploading";
+  const hasErrors =
+    titleErr || titleTooLong || categoryErr || urlMissing || urlInvalid || descTooLong || thumbErr;
+  const canSubmit = !hasErrors && !submitting && uploadState !== "uploading";
 
   async function handleFilePicked(file: File | undefined) {
     if (!file) return;
@@ -144,39 +141,33 @@ export function AddResourceModal({
 
   return (
     <ModalBackdrop open={open} onClose={onClose} labelledBy="add-resource-title" describedBy="add-resource-desc" bottomSheetOnMobile>
-      <ModalPanel bottomSheetOnMobile className="flex flex-col overflow-hidden p-0">
-        {/* ── header (sticky so the X stays visible) ─────────────── */}
-        <div className="flex items-start justify-between gap-3 shrink-0 px-7 pt-[max(28px,env(safe-area-inset-top))]">
-          <div className="flex items-center gap-3">
-            <div
-              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[12px] bg-gradient-to-br from-aztec-3 to-aztec text-white"
-              aria-hidden
-            >
-              <LibraryIcon size={20} />
-            </div>
-            <div>
-              <h2 id="add-resource-title" className="font-display text-[20px] font-bold text-foreground">
-                Add a resource
-              </h2>
-              <p id="add-resource-desc" className="text-[12.5px] text-foreground-secondary">
-                Share a link to a useful resource. The file stays where it is — TRAK only keeps the link and details.
-              </p>
-            </div>
-          </div>
-          <button
-            type="button"
-            aria-label="Close"
-            onClick={onClose}
-            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-surface-muted text-foreground-secondary transition-colors hover:bg-surface-hover hover:text-foreground focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none"
+      <ModalPanel wide bottomSheetOnMobile className="sm:w-[900px] sm:max-w-[95vw]">
+        {/* Header */}
+        <div className="mb-5 flex items-center gap-3">
+          <div
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[12px] bg-gradient-to-br from-aztec-3 to-aztec text-white"
+            aria-hidden
           >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden>
-              <path d="M18 6L6 18M6 6l12 12" />
-            </svg>
-          </button>
+            <LibraryIcon size={20} />
+          </div>
+          <div className="min-w-0 flex-1">
+            <h2 id="add-resource-title" className="font-display text-[20px] font-bold text-foreground">
+              Add a resource
+            </h2>
+            <p id="add-resource-desc" className="text-[12.5px] text-foreground-secondary">
+              Share a link to a useful resource. The file stays where it is — TRAK only keeps the link and details.
+            </p>
+          </div>
         </div>
 
-        {/* ── scrollable form body ────────────────────────────────── */}
-        <div className="mt-5 flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto overscroll-contain px-7">
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            void handleSubmit();
+          }}
+          noValidate
+          className="flex flex-col gap-4"
+        >
           <div>
             <label htmlFor="lib-title" className="mb-1.5 block text-[12.5px] font-bold text-foreground">
               Name / Title <span aria-hidden className="text-critical-semantic">*</span>
@@ -188,9 +179,19 @@ export function AddResourceModal({
               onChange={(e) => setTitle(e.target.value)}
               placeholder="e.g. Effective Meeting Facilitation"
               maxLength={320}
-              className={inputClass}
+              className={inputClass(titleErr || titleTooLong)}
               autoComplete="off"
             />
+            {titleErr && (
+              <p className="mt-1 text-[11.5px] text-critical-semantic">
+                Enter a resource name.
+              </p>
+            )}
+            {!titleErr && titleTooLong && (
+              <p className="mt-1 text-[11.5px] text-critical-semantic">
+                Name must be 300 characters or fewer.
+              </p>
+            )}
           </div>
 
           {/* Type — dropdown */}
@@ -202,7 +203,7 @@ export function AddResourceModal({
               id="lib-type"
               value={category}
               onChange={(e) => setCategory(e.target.value as LibraryCategory | "")}
-              className={`${inputClass} appearance-none cursor-pointer`}
+              className={`${inputClass(categoryErr)} appearance-none cursor-pointer`}
             >
               <option value="">Select a type…</option>
               {ORDER.map((c) => (
@@ -211,6 +212,11 @@ export function AddResourceModal({
                 </option>
               ))}
             </select>
+            {categoryErr && (
+              <p className="mt-1 text-[11.5px] text-critical-semantic">
+                Choose a resource type.
+              </p>
+            )}
           </div>
 
           <div>
@@ -223,8 +229,13 @@ export function AddResourceModal({
               onChange={(e) => setDescription(e.target.value)}
               placeholder="What is this resource about, and who is it for?"
               rows={3}
-              className={`${inputClass} resize-y`}
+              className={`${inputClass(descTooLong)} resize-y`}
             />
+            {descTooLong && (
+              <p className="mt-1 text-[11.5px] text-critical-semantic">
+                Description must be 5000 characters or fewer.
+              </p>
+            )}
           </div>
 
           <div>
@@ -239,16 +250,24 @@ export function AddResourceModal({
               placeholder="https://…"
               inputMode="url"
               autoComplete="off"
-              className={inputClass}
-              aria-describedby="lib-url-hint"
+              className={inputClass(urlMissing || urlInvalid)}
+              aria-describedby={urlInvalid ? undefined : "lib-url-hint"}
             />
-            <p id="lib-url-hint" className="mt-1 text-[11.5px] text-foreground-faint">
-              {cleanUrl && !urlValid
-                ? "That link doesn't look valid — use a full http(s) address."
-                : isYouTube
+            {urlMissing ? (
+              <p className="mt-1 text-[11.5px] text-critical-semantic">
+                Paste the resource link.
+              </p>
+            ) : urlInvalid ? (
+              <p className="mt-1 text-[11.5px] text-critical-semantic">
+                Enter a valid http(s) link.
+              </p>
+            ) : (
+              <p id="lib-url-hint" className="mt-1 text-[11.5px] text-foreground-faint">
+                {isYouTube
                   ? "YouTube link detected — the video thumbnail will be used automatically."
                   : "Paste the share link from Drive, YouTube, Dropbox or any trusted host."}
-            </p>
+              </p>
+            )}
           </div>
 
           <div>
@@ -310,6 +329,11 @@ export function AddResourceModal({
                 </p>
               </div>
             </div>
+            {thumbErr && (
+              <p className="mt-1 text-[11.5px] text-critical-semantic">
+                Add a cover image for this resource.
+              </p>
+            )}
           </div>
 
           {formError ? (
@@ -318,34 +342,24 @@ export function AddResourceModal({
             </p>
           ) : null}
 
-          {!canSubmit && (cleanTitle || category || cleanUrl) ? (
-            <ul className="list-disc space-y-0.5 pl-5 text-[12px] text-foreground-secondary" aria-live="polite">
-              {errors.map((e) => (
-                <li key={e}>{e}</li>
-              ))}
-            </ul>
-          ) : null}
-        </div>
-
-        {/* ── footer (sticky so Cancel/Submit stay visible) ───────── */}
-        <div className="flex shrink-0 flex-col-reverse gap-2 border-t border-border/50 px-7 pt-4 pb-[max(28px,env(safe-area-inset-bottom))] sm:flex-row sm:justify-end">
-          <button
-            type="button"
-            onClick={onClose}
-            disabled={submitting}
-            className="rounded-[11px] border border-border bg-surface-muted px-[26px] py-3.5 text-[13.5px] font-bold text-foreground-secondary transition-colors hover:bg-surface-hover disabled:opacity-50"
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            onClick={handleSubmit}
-            disabled={!canSubmit}
-            className="rounded-[11px] bg-primary px-[26px] py-3.5 text-[13.5px] font-bold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90 disabled:opacity-50"
-          >
-            {submitting ? "Submitting…" : "Submit for review"}
-          </button>
-        </div>
+          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end mt-2">
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={submitting}
+              className="rounded-[11px] border border-border bg-surface-muted px-[26px] py-3.5 text-[13.5px] font-bold text-foreground-secondary transition-colors hover:bg-surface-hover disabled:opacity-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={!canSubmit}
+              className="rounded-[11px] bg-primary px-[26px] py-3.5 text-[13.5px] font-bold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90 disabled:opacity-50"
+            >
+              {submitting ? "Submitting…" : "Submit for review"}
+            </button>
+          </div>
+        </form>
       </ModalPanel>
     </ModalBackdrop>
   );

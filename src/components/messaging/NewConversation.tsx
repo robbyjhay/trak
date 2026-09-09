@@ -10,10 +10,12 @@ export function NewConversation({
   open,
   onClose,
   onSelect,
+  contained,
 }: {
   open: boolean;
   onClose: () => void;
   onSelect: (userId: string) => void;
+  contained?: boolean;
 }) {
   const { sessionUser, users } = useTrak();
   const me = sessionUser.id;
@@ -33,8 +35,8 @@ export function NewConversation({
   );
 
   return (
-    <ModalBackdrop open={open} onClose={onClose} bottomSheetOnMobile={true}>
-      <ModalPanel className="p-6" bottomSheetOnMobile={true}>
+    <ModalBackdrop open={open} onClose={onClose} bottomSheetOnMobile={!contained} contained={contained}>
+      <ModalPanel className="p-6" bottomSheetOnMobile={!contained} contained={contained}>
         <div className="mb-4 flex items-center justify-between">
           <h2 className="m-0 font-display text-[20px] font-semibold text-foreground">
             New conversation

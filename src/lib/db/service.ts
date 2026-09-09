@@ -163,6 +163,10 @@ async function recomputeActivityStatus(
 }
 
 export async function markActivitiesMissed(reference: Date = now()): Promise<void> {
+  // Missed-activity processing is paused via ACTIVITY_RECOVERY_ENABLED.
+  // No-op while paused so no caller (scheduler, boot, admin) can flag backlog.
+  if (isActivityRecoveryEnabled()) return;
+
   const activities = await prisma.activity.findMany({
     where: {
       status: "pending",

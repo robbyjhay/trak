@@ -22,6 +22,7 @@ export function ModalBackdrop({
   labelledBy,
   describedBy,
   bottomSheetOnMobile,
+  contained,
 }: {
   open: boolean;
   onClose?: () => void;
@@ -32,6 +33,8 @@ export function ModalBackdrop({
   /** id of supporting description text */
   describedBy?: string;
   bottomSheetOnMobile?: boolean;
+  /** When true, positions relative to parent (absolute) instead of viewport (fixed). Parent must be relative. */
+  contained?: boolean;
 }) {
   const panelRef = useRef<HTMLDivElement>(null);
   const previousFocus = useRef<HTMLElement | null>(null);
@@ -92,15 +95,19 @@ export function ModalBackdrop({
 
     document.addEventListener("keydown", onKey);
     const prevOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
+    if (!contained) {
+      document.body.style.overflow = "hidden";
+    }
 
     return () => {
       window.clearTimeout(t);
       document.removeEventListener("keydown", onKey);
-      document.body.style.overflow = prevOverflow;
+      if (!contained) {
+        document.body.style.overflow = prevOverflow;
+      }
       previousFocus.current?.focus?.();
     };
-  }, [open, trapFocus]);
+  }, [open, trapFocus, contained]);
 
   const reduce = useReducedMotion();
 
@@ -120,7 +127,9 @@ export function ModalBackdrop({
           exit={reduce ? { opacity: 0 } : { opacity: 0 }}
           transition={{ duration: 0.18, ease: "easeOut" }}
           className={cn(
-            "fixed inset-0 z-[100] flex bg-overlay backdrop-blur-[2px]",
+            contained
+              ? "absolute inset-0 z-[100] flex bg-overlay p-4 backdrop-blur-[2px]"
+              : "fixed inset-0 z-[100] flex bg-overlay backdrop-blur-[2px]",
             bottomSheetOnMobile ? "items-end sm:items-center justify-center" : "items-center justify-center",
             className,
           )}
@@ -163,20 +172,25 @@ export function ModalPanel({
   className,
   wide,
   bottomSheetOnMobile,
+  contained,
 }: {
   children: ReactNode;
   className?: string;
   wide?: boolean;
   bottomSheetOnMobile?: boolean;
+  /** When true, sizes to its parent container instead of the viewport. */
+  contained?: boolean;
 }) {
   return (
     <div
       className={cn(
-        "overflow-y-auto bg-modal text-foreground p-7 shadow-modal border border-border",
-        wide ? "w-[900px] max-w-[95vw] p-0" : "w-[460px] max-w-[92vw]",
+        "overflow-y-auto bg-modal text-foreground shadow-modal border border-border",
+        contained ? "p-6" : "p-7",
+        wide ? "w-[900px] max-w-[95vw]" : "w-[460px] max-w-[92vw]",
         bottomSheetOnMobile
           ? "max-h-[92dvh] rounded-t-[24px] rounded-b-none sm:rounded-[20px] pb-[max(env(safe-area-inset-bottom),28px)] sm:pb-7 max-w-full w-full"
           : "max-h-[88vh] rounded-[20px]",
+        contained && "w-full max-w-full",
         className,
       )}
     >

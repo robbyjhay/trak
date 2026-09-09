@@ -62,14 +62,12 @@ export function ConversationList({
   setActiveConv,
   mobilePane,
   setMobilePane,
-  canBc,
   onNewConv,
 }: {
   activeConv: string | null;
   setActiveConv: (id: string) => void;
   mobilePane: "list" | "thread";
   setMobilePane: (v: "list" | "thread") => void;
-  canBc: boolean;
   onNewConv: () => void;
 }) {
   const { sessionUser, users, userMap, db, myNotifications } = useTrak();
@@ -92,9 +90,7 @@ export function ConversationList({
           map[dm.from] = (map[dm.from] || 0) + 1;
         }
       }
-      if (!n.read && n.type === "broadcast") {
-        map["broadcast"] = (map["broadcast"] || 0) + 1;
-      }
+
       if (!n.read && n.type === "community") {
         map["community"] = (map["community"] || 0) + 1;
       }
@@ -187,25 +183,6 @@ export function ConversationList({
         {filter === "all" && !search && (
           <>
             <ConvItem
-              active={activeConv === "community"}
-              onClick={() => { 
-                setActiveConv("community"); 
-                if (window.innerWidth < 768) window.history.pushState(null, "", "#thread");
-                setMobilePane("thread"); 
-              }}
-              avatar={
-                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-surface-interactive text-foreground shadow-sm border border-border/50">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d={PATHS.users} />
-                  </svg>
-                </div>
-              }
-              name="Community Chat"
-              snippet={db.community[db.community.length - 1] ? (db.community[db.community.length - 1].from === me ? "You: " : "") + getMessageSnippet(db.community[db.community.length - 1]) : "No messages yet"}
-              time={db.community[db.community.length - 1] ? formatListTime(db.community[db.community.length - 1].at) : undefined}
-              unreadCount={unreadMap["community"]}
-            />
-            <ConvItem
               active={activeConv === ANNOUNCEMENT_CHANNEL}
               onClick={() => {
                 setActiveConv(ANNOUNCEMENT_CHANNEL);
@@ -224,26 +201,25 @@ export function ConversationList({
               time={db.announcements[db.announcements.length - 1] ? formatListTime(db.announcements[db.announcements.length - 1].at) : undefined}
               unreadCount={unreadMap[ANNOUNCEMENT_CHANNEL]}
             />
-            {canBc && (
-              <ConvItem
-                active={activeConv === "broadcast"}
-                onClick={() => { 
-                  setActiveConv("broadcast"); 
-                  if (window.innerWidth < 768) window.history.pushState(null, "", "#thread");
-                  setMobilePane("thread"); 
-                }}
-                avatar={
-                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-linear-to-br from-amber-500 to-orange-500 text-white shadow-sm border border-border/50">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                      <path d={PATHS.send} />
-                    </svg>
-                  </div>
-                }
-                name="Broadcast"
-                snippet="Send an announcement to all"
-                unreadCount={unreadMap["broadcast"]}
-              />
-            )}
+            <ConvItem
+              active={activeConv === "community"}
+              onClick={() => { 
+                setActiveConv("community"); 
+                if (window.innerWidth < 768) window.history.pushState(null, "", "#thread");
+                setMobilePane("thread"); 
+              }}
+              avatar={
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-surface-interactive text-foreground shadow-sm border border-border/50">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d={PATHS.users} />
+                  </svg>
+                </div>
+              }
+              name="Community Chat"
+              snippet={db.community[db.community.length - 1] ? (db.community[db.community.length - 1].from === me ? "You: " : "") + getMessageSnippet(db.community[db.community.length - 1]) : "No messages yet"}
+              time={db.community[db.community.length - 1] ? formatListTime(db.community[db.community.length - 1].at) : undefined}
+              unreadCount={unreadMap["community"]}
+            />
             <div className="px-3 pt-5 pb-2 text-[10.5px] font-bold tracking-widest text-foreground-faint uppercase">
               Direct Messages
             </div>

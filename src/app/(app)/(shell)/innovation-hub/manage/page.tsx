@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { useTrak } from "@/context/TrakStore";
 import { apiGet, apiSend } from "@/lib/api/client";
 import { PATHS } from "@/components/icons";
@@ -214,6 +215,15 @@ export default function ManageInnovationPage() {
   return (
     <div className="pb-24">
       {/* Page head */}
+      <Link
+        href="/innovation-hub"
+        className="mb-4 inline-flex items-center gap-2 text-[14px] font-semibold text-primary transition-colors hover:text-primary-hover"
+      >
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden>
+          <path d={PATHS.chevronLeft} />
+        </svg>
+        Innovation Hub
+      </Link>
       <div className="mb-6 flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
         <div>
           <h1 className="text-[26px] font-extrabold tracking-tight text-foreground">
