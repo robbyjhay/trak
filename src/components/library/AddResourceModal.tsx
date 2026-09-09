@@ -15,7 +15,7 @@ import type { LibraryCategory, LibraryResource } from "@/lib/types";
 import { LIBRARY_CATEGORIES } from "@/lib/types";
 
 const ORDER: LibraryCategory[] = [...LIBRARY_CATEGORIES];
-const MAX_COVER_BYTES = 5 * 1024 * 1024;
+const MAX_COVER_BYTES = 1 * 1024 * 1024;
 const ACCEPTED_TYPES = ["image/jpeg", "image/png", "image/webp"];
 
 const inputClass = (hasErr: boolean) =>
@@ -90,7 +90,7 @@ export function AddResourceModal({
     }
     if (file.size <= 0 || file.size > MAX_COVER_BYTES) {
       setUploadState("error");
-      setUploadError("Cover must be 5 MB or smaller.");
+      setUploadError("Cover must be 1 MB or smaller.");
       return;
     }
     setUploadState("uploading");
@@ -325,7 +325,7 @@ export function AddResourceModal({
                   )}
                 </div>
                 <p className="text-[11.5px] text-foreground-faint" role={uploadState === "error" ? "alert" : undefined}>
-                  {uploadState === "error" ? uploadError : "JPG, PNG or WebP up to 5 MB."}
+                  {uploadState === "error" ? uploadError : "JPG, PNG or WebP up to 1 MB."}
                 </p>
               </div>
             </div>

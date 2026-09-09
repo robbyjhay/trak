@@ -38,7 +38,7 @@ const MAX_SIZE: Record<UploadPurpose, number> = {
   avatar: 2 * 1024 * 1024,
   evidence: 10 * 1024 * 1024,
   invoice: 10 * 1024 * 1024,
-  library_thumbnail: 5 * 1024 * 1024,
+  library_thumbnail: 1 * 1024 * 1024,
   message_attachment: 25 * 1024 * 1024, // 25 MB
 };
 
