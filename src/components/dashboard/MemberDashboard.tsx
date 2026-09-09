@@ -9,6 +9,8 @@ import { PATHS } from "@/components/icons";
 import type { User, Activity } from "@/lib/types";
 import { useEffect, useState } from "react";
 
+const MONTH_ABBR = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
 export function MemberDashboard({ user }: { user: User }) {
   const router = useRouter();
   const { now, bucket, activitiesFor } = useTrak();
@@ -239,11 +241,7 @@ function WeeklyChart({ userId }: { userId: string | null }) {
       (a) => a.createdAt >= iso(start) && a.createdAt <= iso(end),
     ).length;
     weekly.push({
-      label: start.toLocaleDateString("en-GB", {
-        day: "2-digit",
-        month: "short",
-        timeZone: "UTC",
-      }),
+      label: `${String(start.getUTCDate()).padStart(2, "0")} ${MONTH_ABBR[start.getUTCMonth()]}`,
       v: count,
     });
   }

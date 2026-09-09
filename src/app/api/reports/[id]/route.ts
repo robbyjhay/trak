@@ -46,6 +46,7 @@ export async function GET(
       calls: [],
       community: [],
       broadcasts: [],
+      announcements: [],
       notifications: [],
     };
 

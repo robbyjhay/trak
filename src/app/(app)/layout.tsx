@@ -42,6 +42,7 @@ export default async function AppLayout({
         calls: snap.calls,
         community: snap.community,
         broadcasts: snap.broadcasts,
+        announcements: snap.announcements,
         notifications: snap.notifications,
       },
       responsibilities: snap.responsibilities,

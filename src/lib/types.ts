@@ -15,6 +15,7 @@ export type NotifType =
   | "activity_missed"
   | "activity_reminder"
   | "broadcast"
+  | "announcement"
   | "profile_updated"
   | "mention"
   | "library_submitted"
@@ -241,6 +242,22 @@ export interface Broadcast {
   at: string;
 }
 
+export interface AnnouncementReaction {
+  emoji: string;
+  count: number;
+  reactors: string[];
+  reactedByMe: boolean;
+}
+
+export interface Announcement {
+  id: string;
+  unitId: string;
+  from: string;
+  text: string;
+  at: string;
+  reactions: AnnouncementReaction[];
+}
+
 export interface Notification {
   id: string;
   userId: string;
@@ -352,6 +369,7 @@ export interface TrakDb {
   calls: CallRecord[];
   community: CommunityMessage[];
   broadcasts: Broadcast[];
+  announcements: Announcement[];
   notifications: Notification[];
 }
 

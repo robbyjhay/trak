@@ -5,6 +5,8 @@
 import type {
   Activity as DbActivity,
   ActivityResponsibility,
+  Announcement as DbAnnouncement,
+  AnnouncementReaction as DbAnnouncementReaction,
   Attachment as DbAttachment,
   Attendee as DbAttendee,
   Broadcast as DbBroadcast,
@@ -25,6 +27,7 @@ import type {
 } from "@prisma/client";
 import type {
   Activity,
+  Announcement,
   Attachment,
   Attendee,
   Broadcast,
@@ -46,6 +49,7 @@ import type {
   SpendingItem,
   User,
 } from "@/lib/types";
+import { summarizeReactions } from "@/lib/announcements";
 
 function dateOnly(d: Date | string): string {
   if (typeof d === "string") return d.slice(0, 10);
@@ -327,6 +331,20 @@ export function mapBroadcast(row: DbBroadcast): Broadcast {
     from: row.fromUserId,
     text: row.text,
     at: row.createdAt.toISOString(),
+  };
+}
+
+export function mapAnnouncement(
+  row: DbAnnouncement & { reactions?: DbAnnouncementReaction[] },
+  viewerId: string,
+): Announcement {
+  return {
+    id: row.id,
+    unitId: row.unitId,
+    from: row.fromUserId,
+    text: row.text,
+    at: row.createdAt.toISOString(),
+    reactions: summarizeReactions(row.reactions ?? [], viewerId),
   };
 }
 

@@ -5,6 +5,7 @@ import { cn, formatDuration } from "@/lib/utils";
 import { getPresenceStatus } from "@/lib/presence";
 import { UserAvatar } from "@/components/ui/UserAvatar";
 import { PATHS } from "@/components/icons";
+import { ANNOUNCEMENT_CHANNEL } from "@/lib/announcements";
 import { TrakDb, CallRecord, Dm } from "@/lib/types";
 import { motion, useReducedMotion } from "framer-motion";
 
@@ -96,6 +97,9 @@ export function ConversationList({
       }
       if (!n.read && n.type === "community") {
         map["community"] = (map["community"] || 0) + 1;
+      }
+      if (!n.read && n.type === "announcement") {
+        map[ANNOUNCEMENT_CHANNEL] = (map[ANNOUNCEMENT_CHANNEL] || 0) + 1;
       }
     }
     return map;
@@ -200,6 +204,25 @@ export function ConversationList({
               snippet={db.community[db.community.length - 1] ? (db.community[db.community.length - 1].from === me ? "You: " : "") + getMessageSnippet(db.community[db.community.length - 1]) : "No messages yet"}
               time={db.community[db.community.length - 1] ? formatListTime(db.community[db.community.length - 1].at) : undefined}
               unreadCount={unreadMap["community"]}
+            />
+            <ConvItem
+              active={activeConv === ANNOUNCEMENT_CHANNEL}
+              onClick={() => {
+                setActiveConv(ANNOUNCEMENT_CHANNEL);
+                if (window.innerWidth < 768) window.history.pushState(null, "", "#thread");
+                setMobilePane("thread");
+              }}
+              avatar={
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-linear-to-br from-sky-500 to-indigo-600 text-white shadow-sm border border-border/50">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3">
+                    <path d={PATHS.megaphone} />
+                  </svg>
+                </div>
+              }
+              name="Announcements"
+              snippet={db.announcements[db.announcements.length - 1] ? getMessageSnippet(db.announcements[db.announcements.length - 1]) : "Unit-wide updates from Head and Secretary"}
+              time={db.announcements[db.announcements.length - 1] ? formatListTime(db.announcements[db.announcements.length - 1].at) : undefined}
+              unreadCount={unreadMap[ANNOUNCEMENT_CHANNEL]}
             />
             {canBc && (
               <ConvItem

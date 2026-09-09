@@ -15,6 +15,8 @@ import {
 import { createNow } from "@/lib/dates";
 import type {
   Activity,
+  Announcement,
+  AnnouncementReaction,
   Attendee,
   Attachment,
   Comment,
@@ -68,6 +70,7 @@ function normalizeDb(db: Partial<TrakDb> | null | undefined): TrakDb {
     calls: db?.calls ?? empty.calls,
     community: db?.community ?? empty.community,
     broadcasts: db?.broadcasts ?? empty.broadcasts,
+    announcements: db?.announcements ?? empty.announcements,
     notifications: db?.notifications ?? empty.notifications,
   };
 }
@@ -158,6 +161,9 @@ interface TrakStoreValue {
   deleteDmMessage: (messageId: string, forEveryone: boolean) => Promise<void>;
   deleteCommunityMessage: (messageId: string, forEveryone: boolean) => Promise<void>;
   sendBroadcast: (text: string) => Promise<void>;
+  sendAnnouncement: (text: string) => Promise<void>;
+  deleteAnnouncement: (announcementId: string) => Promise<void>;
+  reactToAnnouncement: (announcementId: string, emoji: string) => Promise<void>;
   recordCall: (partnerId: string, durationSec: number) => Promise<void>;
   addRsvpAttendee: (logId: string, attendee: Attendee) => Promise<void>;
   setLogRsvpToken: (logId: string, token?: string) => Promise<string>;
@@ -409,7 +415,7 @@ export function TrakStoreProvider({
           const path = window.location.pathname || "";
           const target = latest.activityId
             ? `/activity/${latest.activityId}`
-            : latest.type === "dm" || latest.type === "mention" || latest.type === "community" || latest.type === "broadcast"
+            : latest.type === "dm" || latest.type === "mention" || latest.type === "community" || latest.type === "broadcast" || latest.type === "announcement"
               ? "/messages"
               : null;
           const onTarget = !!target && (path === target || path.startsWith(target + "/"));
@@ -437,12 +443,17 @@ export function TrakStoreProvider({
       }
       apiGet<{
         notifications: Notification[];
+        announcements: Announcement[];
         unreadNotifications: number;
         serverTime: string;
       }>("/api/bootstrap?mode=poll")
         .then((data) => {
           if (data.notifications) {
             mergeNotifications(data.notifications);
+            bump();
+          }
+          if (data.announcements) {
+            stateRef.current.db.announcements = data.announcements;
             bump();
           }
           if (data.serverTime) {
@@ -805,6 +816,92 @@ export function TrakStoreProvider({
       stateRef.current.db.broadcasts = res.broadcasts;
       mergeNotifications(res.notifications);
       bump();
+    },
+    sendAnnouncement: async (text) => {
+      const res = await apiSend<{
+        announcements: typeof db.announcements;
+        notifications: Notification[];
+      }>("/api/messages/announcements", "POST", { text });
+      stateRef.current.db.announcements = res.announcements;
+      mergeNotifications(res.notifications);
+      bump();
+    },
+    deleteAnnouncement: async (announcementId) => {
+      stateRef.current.db.announcements = stateRef.current.db.announcements.filter(
+        (a) => a.id !== announcementId,
+      );
+      bump();
+      try {
+        const res = await apiSend<{ announcements: typeof db.announcements }>(
+          `/api/messages/announcements/${announcementId}`,
+          "DELETE",
+        );
+        stateRef.current.db.announcements = res.announcements;
+      } finally {
+        bump();
+      }
+    },
+    reactToAnnouncement: async (announcementId, emoji) => {
+      const list = stateRef.current.db.announcements;
+      const idx = list.findIndex((a) => a.id === announcementId);
+      const existing = idx >= 0 ? (list[idx].reactions as AnnouncementReaction[]) : [];
+      const cur = existing.find((r) => r.emoji === emoji && r.reactedByMe);
+      const next =
+        idx < 0
+          ? existing
+          : cur
+            ? existing
+                .map((r) =>
+                  r.emoji === emoji
+                    ? {
+                        ...r,
+                        count: r.count - 1,
+                        reactors: r.reactors.filter((id) => id !== session.id),
+                        reactedByMe: false,
+                      }
+                    : r,
+                )
+                .filter((r) => r.count > 0)
+            : existing.find((r) => r.emoji === emoji)
+              ? existing
+                  .map((r) =>
+                    r.emoji === emoji
+                      ? {
+                          ...r,
+                          count: r.count + 1,
+                          reactors: [...r.reactors, session.id],
+                          reactedByMe: true,
+                        }
+                      : r,
+                  )
+                  .sort((a, b) => a.emoji.localeCompare(b.emoji))
+              : [...existing, { emoji, count: 1, reactors: [session.id], reactedByMe: true }]
+                  .sort((a, b) => a.emoji.localeCompare(b.emoji));
+      if (idx >= 0) list[idx] = { ...list[idx], reactions: next };
+      bump();
+      try {
+        const res = await apiSend<{ announcement: Announcement }>(
+          `/api/messages/announcements/${announcementId}/reactions`,
+          "POST",
+          { emoji },
+        );
+        const i = stateRef.current.db.announcements.findIndex(
+          (a) => a.id === announcementId,
+        );
+        if (i >= 0) stateRef.current.db.announcements[i] = res.announcement;
+      } catch {
+        // Optimistic toggle was wrong — revert by refetching the whole list.
+        try {
+          const fresh = await apiGet<{ announcements: Announcement[] }>(
+            "/api/messages/announcements",
+          );
+          stateRef.current.db.announcements = fresh.announcements;
+        } catch {
+          /* best-effort revert */
+        }
+      } finally {
+        bump();
+      }
     },
     addRsvpAttendee: async (logId, attendee) => {
       await apiSend("/api/rsvp", "POST", {

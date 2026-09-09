@@ -1,5 +1,6 @@
 import { broadcast } from "@/lib/realtime";
 import { notifyMany, notifyUser } from "@/lib/notifications";
+import { isActivityRecoveryEnabled } from "@/lib/activityRecovery";
 /**
  * Domain service layer — PostgreSQL via Prisma (Phase 1+).
  * Replaces the legacy JSON file store for all product data.
@@ -26,6 +27,7 @@ import {
 import { recordAuditEvent } from "@/lib/services/audit.service";
 import {
   mapActivity,
+  mapAnnouncement,
   mapBroadcast,
   mapCall,
   mapComment,
@@ -38,8 +40,16 @@ import {
   type UserWithProfile,
 } from "@/lib/db/mappers";
 import { getDefaultMemberPassword } from "@/lib/services/settings.service";
+import {
+  canDeleteAnnouncement,
+  canSendAnnouncement,
+  DEFAULT_UNIT_ID,
+  isAllowedAnnouncementReaction,
+  MAX_ANNOUNCEMENT_LENGTH,
+} from "@/lib/announcements";
 import type {
   Activity,
+  Announcement,
   Attendee,
   Comment,
   CreateActivityInput,
@@ -138,7 +148,7 @@ async function recomputeActivityStatus(
   let status: "pending" | "completed" | "missed" = "pending";
   if (logs.every((l) => l.status === "submitted")) {
     status = "completed";
-  } else {
+  } else if (!isActivityRecoveryEnabled()) {
     const today = iso(reference);
     const anyMissed = logs.some(
       (l) => l.status === "pending" && iso(l.date) < today,
@@ -1910,6 +1920,152 @@ export async function sendBroadcast(
   return { id: msg.id };
 }
 
+// ---------------------------------------------------------------------------
+// Unit Announcements
+// ---------------------------------------------------------------------------
+
+export async function listAnnouncements(
+  session: SessionUser,
+  opts?: { page?: number; limit?: number; unitId?: string },
+): Promise<{ announcements: Announcement[]; total: number }> {
+  await requireActor(session);
+  const page = opts?.page ?? 1;
+  const limit = Math.min(opts?.limit ?? 50, 100);
+  const skip = (page - 1) * limit;
+  const unitId = opts?.unitId ?? DEFAULT_UNIT_ID;
+
+  const where: Prisma.AnnouncementWhereInput = {
+    unitId,
+    deletedAt: null,
+  };
+
+  const [rows, total] = await Promise.all([
+    prisma.announcement.findMany({
+      where,
+      orderBy: { createdAt: "desc" },
+      skip,
+      take: limit,
+      include: { reactions: true },
+    }),
+    prisma.announcement.count({ where }),
+  ]);
+
+  return {
+    announcements: rows.map((r) => mapAnnouncement(r, session.id)),
+    total,
+  };
+}
+
+export async function postAnnouncement(
+  session: SessionUser,
+  text: string,
+  unitId: string = DEFAULT_UNIT_ID,
+): Promise<{ id: string }> {
+  const actor = await requireActor(session);
+  if (!canSendAnnouncement(mapUser(actor))) {
+    throw new ServiceError(
+      403,
+      "Only the Unit Head and Secretary can post announcements.",
+    );
+  }
+  const trimmed = text.trim();
+  if (!trimmed) throw new ServiceError(400, "Announcement text is required.");
+  if (trimmed.length > MAX_ANNOUNCEMENT_LENGTH) {
+    throw new ServiceError(
+      400,
+      `Announcements are limited to ${MAX_ANNOUNCEMENT_LENGTH} characters.`,
+    );
+  }
+
+  const row = await prisma.announcement.create({
+    data: { unitId, fromUserId: session.id, text: trimmed },
+  });
+
+  const others = await prisma.user.findMany({
+    where: { isActive: true, id: { not: session.id } },
+    select: { id: true },
+  });
+  if (others.length) {
+    const textPreview = `Announcement from ${mapUser(actor).name}: ${trimmed}`;
+    // Centralized pipeline: persistent history always; push follows the
+    // messages preference (announcements are not mandatory like broadcasts).
+    await notifyMany(
+      others.map((u) => ({
+        userId: u.id,
+        type: "announcement" as const,
+        text: textPreview,
+        messageId: row.id,
+      })),
+    );
+  }
+
+  return { id: row.id };
+}
+
+export async function deleteAnnouncement(
+  session: SessionUser,
+  id: string,
+): Promise<boolean> {
+  const actor = await requireActor(session);
+  const row = await prisma.announcement.findUnique({ where: { id } });
+  if (!row) throw new ServiceError(404, "Announcement not found.");
+  if (row.unitId !== DEFAULT_UNIT_ID) {
+    throw new ServiceError(403, "Announcement does not belong to your unit.");
+  }
+  const user = mapUser(actor);
+  if (!canDeleteAnnouncement(user, { from: row.fromUserId })) {
+    throw new ServiceError(
+      403,
+      "Only the author and the Unit Head can delete this announcement.",
+    );
+  }
+  await prisma.announcement.update({
+    where: { id },
+    data: { deletedAt: new Date() },
+  });
+  return true;
+}
+
+export async function reactToAnnouncement(
+  session: SessionUser,
+  id: string,
+  emoji: string,
+): Promise<Announcement> {
+  await requireActor(session);
+  if (!isAllowedAnnouncementReaction(emoji)) {
+    throw new ServiceError(
+      400,
+      "Unsupported reaction. Choose one of the available reactions.",
+    );
+  }
+  const row = await prisma.announcement.findUnique({
+    where: { id },
+    include: { reactions: true },
+  });
+  if (!row) throw new ServiceError(404, "Announcement not found.");
+  if (row.unitId !== DEFAULT_UNIT_ID) {
+    throw new ServiceError(403, "Announcement does not belong to your unit.");
+  }
+
+  const existing = row.reactions.find(
+    (r) => r.userId === session.id && r.emoji === emoji,
+  );
+  if (existing) {
+    await prisma.announcementReaction.delete({ where: { id: existing.id } });
+  } else {
+    await prisma.announcementReaction.create({
+      data: { announcementId: id, userId: session.id, emoji },
+    });
+  }
+
+  const updated = await prisma.announcement.findUnique({
+    where: { id },
+    include: { reactions: true },
+  });
+  if (!updated) throw new ServiceError(404, "Announcement not found.");
+  return mapAnnouncement(updated, session.id);
+}
+
 export async function listCallsForUser(
   session: SessionUser,
 ): Promise<ReturnType<typeof mapCall>[]> {
@@ -1994,9 +2150,10 @@ export async function markAllNotificationsRead(
 export async function getPollSnapshot(session: SessionUser): Promise<{
   unreadNotifications: number;
   notifications: Notification[];
+  announcements: Announcement[];
   serverTime: string;
 }> {
-  const [unread, recent] = await Promise.all([
+  const [unread, recent, announcementRows] = await Promise.all([
     prisma.notification.count({
       where: { userId: session.id, readAt: null },
     }),
@@ -2005,11 +2162,18 @@ export async function getPollSnapshot(session: SessionUser): Promise<{
       orderBy: { createdAt: "desc" },
       take: 20,
     }),
+    prisma.announcement.findMany({
+      where: { unitId: DEFAULT_UNIT_ID, deletedAt: null },
+      orderBy: { createdAt: "desc" },
+      take: 50,
+      include: { reactions: true },
+    }),
   ]);
 
   return {
     unreadNotifications: unread,
     notifications: recent.map(mapNotification),
+    announcements: announcementRows.map((r) => mapAnnouncement(r, session.id)),
     serverTime: new Date().toISOString(),
   };
 }
@@ -2259,6 +2423,7 @@ export async function getScopedBootstrap(session: SessionUser): Promise<{
   calls: ReturnType<typeof mapCall>[];
   community: ReturnType<typeof mapCommunity>[];
   broadcasts: ReturnType<typeof mapBroadcast>[];
+  announcements: Announcement[];
   notifications: Notification[];
   responsibilities: Responsibility[];
   serverTime: string;
@@ -2282,6 +2447,7 @@ export async function getScopedBootstrap(session: SessionUser): Promise<{
     callRows,
     communityRows,
     broadcastRows,
+    announcementRows,
     notifRows,
   ] = await Promise.all([
     listUsers(),
@@ -2327,6 +2493,12 @@ export async function getScopedBootstrap(session: SessionUser): Promise<{
       orderBy: { createdAt: "desc" },
       take: 50,
     }),
+    prisma.announcement.findMany({
+      where: { unitId: DEFAULT_UNIT_ID, deletedAt: null },
+      orderBy: { createdAt: "desc" },
+      take: 50,
+      include: { reactions: true },
+    }),
     prisma.notification.findMany({
       where: { userId: session.id },
       orderBy: { createdAt: "desc" },
@@ -2360,6 +2532,7 @@ export async function getScopedBootstrap(session: SessionUser): Promise<{
     calls: callRows.map(mapCall),
     community: communityRows.map(r => mapCommunity(r, (r as any).deletedBy?.length ? new Set([r.id]) : undefined)),
     broadcasts: broadcastRows.map(mapBroadcast),
+    announcements: announcementRows.map((r) => mapAnnouncement(r, session.id)),
     notifications: notifRows.map(mapNotification),
     responsibilities,
     serverTime: new Date().toISOString(),

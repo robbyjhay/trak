@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
+import Link from "next/link";
 import { useTrak } from "@/context/TrakStore";
 import { apiGet } from "@/lib/api/client";
 import { PATHS } from "@/components/icons";
@@ -121,14 +122,27 @@ export default function InnovationHubPage() {
         <p className="text-[15px] text-foreground-secondary">
           Browse and submit ideas to improve the unit.
         </p>
-        <button
-          type="button"
-          onClick={() => setSubmitOpen(true)}
-          className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-full bg-primary px-5 py-2.5 text-[13px] font-bold text-primary-foreground shadow-sm transition-transform active:scale-95 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
-        >
-          <BulbIcon size={16} />
-          Submit Idea
-        </button>
+        <div className="flex items-center gap-2">
+          {sessionUser?.role === "head" && (
+            <Link
+              href="/innovation-hub/manage"
+              className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-full border border-border bg-surface px-5 py-2.5 text-[13px] font-bold text-foreground shadow-sm transition-transform hover:bg-surface-hover active:scale-95 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+                <path d={PATHS.inbox} />
+              </svg>
+              Review submissions
+            </Link>
+          )}
+          <button
+            type="button"
+            onClick={() => setSubmitOpen(true)}
+            className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-full bg-primary px-5 py-2.5 text-[13px] font-bold text-primary-foreground shadow-sm transition-transform active:scale-95 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+          >
+            <BulbIcon size={16} />
+            Submit Idea
+          </button>
+        </div>
       </div>
 
       {/* Filters — hub tab only */}

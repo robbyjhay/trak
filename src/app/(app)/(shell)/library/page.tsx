@@ -1,8 +1,10 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import Link from "next/link";
 import { apiGet } from "@/lib/api/client";
 import { cn } from "@/lib/utils";
+import { useTrak } from "@/context/TrakStore";
 import { LibraryIcon, PATHS } from "@/components/icons";
 import { ResourceCard } from "@/components/library/ResourceCard";
 import { AddResourceModal } from "@/components/library/AddResourceModal";
@@ -160,6 +162,7 @@ function TabContent({
 /* ── page ───────────────────────────────────────────────────────────── */
 export default function LibraryPage() {
   const reducedMotion = useReducedMotion();
+  const { sessionUser } = useTrak();
 
   const [activeTab, setActiveTab] = useState<"library" | "mine">("library");
 
@@ -205,16 +208,29 @@ export default function LibraryPage() {
         <p className="text-[15px] text-foreground-secondary">
           Shared resources contributed by members of the unit.
         </p>
-        <button
-          type="button"
-          onClick={() => setAddOpen(true)}
-          className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-full bg-primary px-5 py-2.5 text-[13px] font-bold text-primary-foreground shadow-sm transition-transform active:scale-95 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
-        >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-            <path d={PATHS.plus} />
-          </svg>
-          Add Resource
-        </button>
+        <div className="flex items-center gap-2">
+          {sessionUser?.role === "head" && (
+            <Link
+              href="/library/manage"
+              className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-full border border-border bg-surface px-5 py-2.5 text-[13px] font-bold text-foreground shadow-sm transition-transform hover:bg-surface-hover active:scale-95 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+                <path d={PATHS.inbox} />
+              </svg>
+              Review submissions
+            </Link>
+          )}
+          <button
+            type="button"
+            onClick={() => setAddOpen(true)}
+            className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-full bg-primary px-5 py-2.5 text-[13px] font-bold text-primary-foreground shadow-sm transition-transform active:scale-95 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <path d={PATHS.plus} />
+            </svg>
+            Add Resource
+          </button>
+        </div>
       </div>
 
       {/* ── filters (library tab only) ────────────────────────────── */}

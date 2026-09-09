@@ -101,6 +101,7 @@ enum NotificationType {
   activity_missed
   activity_reminder
   broadcast
+  announcement
   mention
   profile_updated
   library_submitted
@@ -179,6 +180,8 @@ model User {
   communityMessages   CommunityMessage[]        @relation("CommunityMessageSender")
   communityMentions   CommunityMessageMention[] @relation("CommunityMessageMentionUser")
   broadcasts          Broadcast[]               @relation("BroadcastSender")
+  announcements       Announcement[]            @relation("AnnouncementSender")
+  announcementReactions AnnouncementReaction[]  @relation("AnnouncementReactionUser")
   callRecordsAsA      CallRecord[]              @relation("CallParticipantA")
   callRecordsAsB      CallRecord[]              @relation("CallParticipantB")
   callRecordsFrom     CallRecord[]              @relation("CallFrom")
@@ -566,6 +569,36 @@ model Broadcast {
 
   @@index([createdAt])
   @@map("broadcasts")
+}
+
+model Announcement {
+  id         String    @id @default(uuid()) @db.Uuid
+  unitId     String    @default("dlu") @map("unit_id") @db.VarChar(64)
+  fromUserId String    @map("from_user_id") @db.Uuid
+  text       String    @db.Text
+  deletedAt  DateTime? @map("deleted_at") @db.Timestamptz(3)
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  sender    User                   @relation("AnnouncementSender", fields: [fromUserId], references: [id], onDelete: Cascade)
+  reactions AnnouncementReaction[]
+
+  @@index([unitId, createdAt])
+  @@map("announcements")
+}
+
+model AnnouncementReaction {
+  id             String   @id @default(uuid()) @db.Uuid
+  announcementId String   @map("announcement_id") @db.Uuid
+  userId         String   @map("user_id") @db.Uuid
+  emoji          String   @db.VarChar(16)
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  announcement Announcement @relation(fields: [announcementId], references: [id], onDelete: Cascade)
+  user         User          @relation("AnnouncementReactionUser", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([announcementId, userId, emoji])
+  @@index([userId])
+  @@map("announcement_reactions")
 }
 
 model CallRecord {

@@ -15,6 +15,7 @@ const ALL_TYPES: NotifType[] = [
   "activity_missed",
   "activity_reminder",
   "broadcast",
+  "announcement",
   "mention",
 ];
 
@@ -61,7 +62,7 @@ describe("notification preferences gate delivery, never history", () => {
 
 describe("push deep links", () => {
   test("message types link to /messages", () => {
-    for (const t of ["dm", "community", "mention", "broadcast"] as NotifType[]) {
+    for (const t of ["dm", "community", "mention", "broadcast", "announcement"] as NotifType[]) {
       expect(resolvePushContent(t, "hello").url).toBe("/messages");
     }
   });

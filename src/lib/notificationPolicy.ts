@@ -17,7 +17,7 @@ export function prefAllowsPush(prefs: PushPrefs | null, type: NotifType): boolea
   if (type === "broadcast") return true;
   if (!prefs) return true;
   if (!prefs.notificationsEnabled) return false;
-  if (type === "dm" || type === "community" || type === "mention") {
+  if (type === "dm" || type === "community" || type === "mention" || type === "announcement") {
     return prefs.dmNotifications;
   }
   // activity_* | comment | profile_updated | library_*
@@ -40,6 +40,9 @@ export function resolvePushContent(
   }
   if (type === "broadcast") {
     return { title: "Unit announcement", body: text, url: "/messages" };
+  }
+  if (type === "announcement") {
+    return { title: "New unit announcement", body: text, url: "/messages" };
   }
   if (type === "comment") {
     return {
@@ -166,6 +169,13 @@ export const NOTIFICATION_TAXONOMY: Record<
     title: "Unit announcement",
     deepLink: "/messages",
     prefCategory: "mandatory",
+    dedupe: "one record per messageId per recipient",
+  },
+  announcement: {
+    recipient: "Every active unit member except the author (react/read-only channel)",
+    title: "New unit announcement",
+    deepLink: "/messages",
+    prefCategory: "messages",
     dedupe: "one record per messageId per recipient",
   },
   library_submitted: {

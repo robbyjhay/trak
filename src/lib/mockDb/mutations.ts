@@ -1,4 +1,5 @@
 import { addDays, daysBetween, iso } from "@/lib/dates";
+import { isActivityRecoveryEnabled } from "@/lib/activityRecovery";
 import type {
   Activity,
   CreateActivityInput,
@@ -29,6 +30,7 @@ export function createEmptyDb(): TrakDb {
     calls: [],
     community: [],
     broadcasts: [],
+    announcements: [],
     notifications: [],
   };
 }
@@ -43,15 +45,17 @@ export function recomputeStatus(db: TrakDb, activityId: string, now: Date): void
     act.status = "completed";
     return;
   }
-  const today = iso(now);
-  const anyMissed = logs.some((l) => l.status === "pending" && l.date < today);
-  act.status = anyMissed ? "missed" : "pending";
-  if (act.status === "missed") {
-    act.exceptionStatus = "none";
-    act.exceptionReason = "";
-    act.submissionType = "normal";
-    act.gracePeriodStartedAt = null;
-    act.gracePeriodExpiresAt = null;
+  if (!isActivityRecoveryEnabled()) {
+    const today = iso(now);
+    const anyMissed = logs.some((l) => l.status === "pending" && l.date < today);
+    act.status = anyMissed ? "missed" : "pending";
+    if (act.status === "missed") {
+      act.exceptionStatus = "none";
+      act.exceptionReason = "";
+      act.submissionType = "normal";
+      act.gracePeriodStartedAt = null;
+      act.gracePeriodExpiresAt = null;
+    }
   }
 }
 

@@ -13,6 +13,7 @@ import {
 import { cn, firstName } from "@/lib/utils";
 import { UserAvatar } from "@/components/ui/UserAvatar";
 import { PATHS } from "@/components/icons";
+import { ANNOUNCEMENT_CHANNEL } from "@/lib/announcements";
 import { PrimaryBtn } from "@/components/ui/Buttons";
 import { NewConversation } from "@/components/messaging/NewConversation";
 import { AddMember } from "@/components/messaging/AddMember";
@@ -27,6 +28,7 @@ import { ConversationList } from "./ConversationList";
 import { ChatThread } from "./ChatThread";
 import { Composer, type ReplyingTo } from "./Composer";
 import { KeyboardSpacer } from "./KeyboardSpacer";
+import { AnnouncementsPanel } from "./Announcements";
 
 type ThreadItem =
   | { kind: "dm"; id: string; dm: Dm }
@@ -102,6 +104,15 @@ export function Messaging({
 
   useEffect(() => {
     if (activeConv !== "broadcast" && activeConv) {
+      if (activeConv === ANNOUNCEMENT_CHANNEL) {
+        const annNotifs = db.notifications.filter(
+          (n) => n.userId === me && !n.read && n.type === "announcement",
+        );
+        if (annNotifs.length > 0) {
+          void markNotifsRead(annNotifs.map((n) => n.id));
+        }
+        return;
+      }
       let partnerNotifs;
       if (activeConv === "community") {
         partnerNotifs = db.notifications.filter(n => n.userId === me && !n.read && n.type === "community" && n.messageId);
@@ -378,6 +389,26 @@ export function Messaging({
                     );
                   }}
                 />
+              </div>
+            )}
+
+            {activeConv === ANNOUNCEMENT_CHANNEL && (
+              <div className="flex flex-1 flex-col h-full min-h-0">
+                <div className="flex shrink-0 items-center gap-4 border-b border-border bg-surface px-4 py-3 sm:px-6 md:px-8 shadow-sm z-10">
+                  <BackBtn onClick={handleBack} />
+                  <div className="flex h-[42px] w-[42px] items-center justify-center rounded-full bg-linear-to-br from-sky-500 to-indigo-600 text-white border border-border/50">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3">
+                      <path d={PATHS.megaphone} />
+                    </svg>
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-[15px] font-bold text-foreground tracking-tight">Unit Announcements</div>
+                    <div className="truncate text-[11.5px] font-medium text-foreground-secondary mt-0.5">
+                      Updates from the Head and Secretary for all {users.length} unit members
+                    </div>
+                  </div>
+                </div>
+                <AnnouncementsPanel />
               </div>
             )}
 

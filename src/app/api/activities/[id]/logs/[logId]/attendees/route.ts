@@ -6,8 +6,9 @@ export async function GET(
   req: Request,
   { params }: { params: Promise<{ id: string; logId: string }> },
 ) {
-  try { console.log("Running attendees GET route, id:", params);
+  try {
     const { id, logId } = await params;
+    console.log("Running attendees GET route:", { id, logId });
     const session = await readSession();
     if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 

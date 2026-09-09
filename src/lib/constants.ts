@@ -52,6 +52,8 @@ export const NOTIF_PATHS: Record<NotifType, string> = {
     "M12 2v10l4.5 4.5 M22 12A10 10 0 1 1 12 2a10 10 0 0 1 10 10z",
   broadcast:
     "M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9 M13.73 21a2 2 0 0 1-3.46 0",
+  announcement:
+    "M3 11l18-5v12L3 14v-3z M11.6 16.8a3 3 0 1 1-5.8-1.6",
   profile_updated: "",
   library_submitted:
     "M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM14 2v6h6",

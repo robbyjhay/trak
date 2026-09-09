@@ -10,6 +10,10 @@ import { PATHS } from "@/components/icons";
 import { formatRelativeDate } from "@/lib/dates";
 import { logoutAction } from "@/lib/auth/actions";
 import { NOTIF_PATHS } from "@/lib/constants";
+import {
+  APP_RECOVERY_NOTIFICATION,
+  APP_RECOVERY_ICON_PATH,
+} from "@/lib/appRecoveryNotification";
 import { cn } from "@/lib/utils";
 import { useConnectNav } from "@/context/ConnectNav";
 import { ConnectTabs } from "@/components/messaging/ConnectTabs";
@@ -113,6 +117,21 @@ export function Topbar() {
                 )}
               </div>
               <div className="overflow-y-auto">
+                <div className="flex w-full items-start gap-2.5 border-b border-border bg-surface px-4 py-3 text-left">
+                  <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-[9px] bg-primary/10 text-primary">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d={APP_RECOVERY_ICON_PATH} />
+                    </svg>
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="text-[12.5px] leading-snug">
+                      {APP_RECOVERY_NOTIFICATION.text}
+                    </div>
+                    <div className="mt-0.5 flex items-center gap-1.5 text-[10.5px] font-semibold uppercase tracking-wide text-primary">
+                      System notice
+                    </div>
+                  </div>
+                </div>
                 {notifs.length === 0 ? (
                   <div className="px-4 py-[26px] text-center text-[13px] text-foreground-faint">
                     No notifications yet.
