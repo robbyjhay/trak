@@ -103,6 +103,44 @@ enum NotificationType {
   broadcast
   mention
   profile_updated
+  library_submitted
+  library_new
+  library_approved
+  library_declined
+  innovation_submitted
+  innovation_approved
+  innovation_declined
+  innovation_implemented
+}
+
+enum LibraryResourceStatus {
+  PENDING
+  APPROVED
+  DECLINED
+}
+
+enum LibraryResourceCategory {
+  BOOK
+  VIDEO
+  AUDIO
+  MEMO
+  OTHER
+}
+
+enum InnovationStatus {
+  PENDING
+  APPROVED
+  IMPLEMENTED
+  DECLINED
+}
+
+enum InnovationCategory {
+  PROCESS
+  TECHNOLOGY
+  COMMUNITY
+  TRAINING
+  COMMUNICATION
+  OTHER
 }
 
 // ---------------------------------------------------------------------------
@@ -149,6 +187,10 @@ model User {
   deletedMessages     DeletedMessage[]
   pushSubscriptions   PushSubscription[]        @relation("UserPushSubscriptions")
   attendances         Attendee[]
+  librarySubmitted    LibraryResource[]         @relation("LibrarySubmittedBy")
+  libraryReviewed     LibraryResource[]         @relation("LibraryReviewedBy")
+  innovationsSubmitted Innovation[]             @relation("InnovationSubmittedBy")
+  innovationsReviewed  Innovation[]             @relation("InnovationReviewedBy")
 
   @@index([role])
   @@index([isActive])
@@ -620,4 +662,65 @@ model PendingCall {
 
   @@index([toUserId])
   @@map("pending_calls")
+}
+
+// ---------------------------------------------------------------------------
+// DLU Library (member-contributed external resources)
+// ---------------------------------------------------------------------------
+
+model LibraryResource {
+  id            String                 @id @default(uuid()) @db.Uuid
+  title         String                 @db.VarChar(300)
+  description   String                 @default("") @db.Text
+  category      LibraryResourceCategory
+  externalUrl   String                 @map("external_url") @db.VarChar(2048)
+  thumbnailKey  String?                @map("thumbnail_key") @db.VarChar(512)
+  thumbnailUrl  String?                @map("thumbnail_url") @db.VarChar(2048)
+  submittedById String                 @map("submitted_by_id") @db.Uuid
+  status        LibraryResourceStatus  @default(PENDING)
+  declineReason String                 @default("") @map("decline_reason") @db.Text
+  reviewerId    String?                @map("reviewer_id") @db.Uuid
+  reviewedAt    DateTime?              @map("reviewed_at") @db.Timestamptz(3)
+  createdAt     DateTime               @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt     DateTime               @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  submittedBy User  @relation("LibrarySubmittedBy", fields: [submittedById], references: [id], onDelete: Restrict)
+  reviewer    User? @relation("LibraryReviewedBy", fields: [reviewerId], references: [id], onDelete: SetNull)
+
+  @@index([status])
+  @@index([submittedById])
+  @@index([category])
+  @@index([createdAt])
+  @@index([status, createdAt(sort: Desc)])
+  @@map("library_resources")
+}
+
+// ---------------------------------------------------------------------------
+// Innovation Hub (member-submitted ideas for unit improvement)
+// ---------------------------------------------------------------------------
+
+model Innovation {
+  id            String             @id @default(uuid()) @db.Uuid
+  title         String             @db.VarChar(300)
+  description   String             @db.Text
+  category      InnovationCategory
+  details       String             @default("") @db.Text
+  submittedById String             @map("submitted_by_id") @db.Uuid
+  status        InnovationStatus   @default(PENDING)
+  declineReason String             @default("") @map("decline_reason") @db.Text
+  reviewerId    String?            @map("reviewer_id") @db.Uuid
+  reviewedAt    DateTime?          @map("reviewed_at") @db.Timestamptz(3)
+  implementedAt DateTime?          @map("implemented_at") @db.Timestamptz(3)
+  createdAt     DateTime           @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt     DateTime           @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  submittedBy User  @relation("InnovationSubmittedBy", fields: [submittedById], references: [id], onDelete: Restrict)
+  reviewer    User? @relation("InnovationReviewedBy", fields: [reviewerId], references: [id], onDelete: SetNull)
+
+  @@index([status])
+  @@index([submittedById])
+  @@index([category])
+  @@index([createdAt])
+  @@index([status, createdAt(sort: Desc)])
+  @@map("innovations")
 }

@@ -20,7 +20,7 @@ export function prefAllowsPush(prefs: PushPrefs | null, type: NotifType): boolea
   if (type === "dm" || type === "community" || type === "mention") {
     return prefs.dmNotifications;
   }
-  // activity_created | activity_completed | activity_missed | comment
+  // activity_* | comment | profile_updated | library_*
   return prefs.activityNotifications;
 }
 
@@ -54,6 +54,27 @@ export function resolvePushContent(
       body: text,
       url: activityId ? `/activity/${activityId}` : "/activities",
     };
+  }
+  if (type === "library_submitted") {
+    return { title: "New Library submission", body: text, url: "/library/manage" };
+  }
+  if (type === "library_new") {
+    return { title: "New Library resource", body: text, url: "/library" };
+  }
+  if (type === "library_approved" || type === "library_declined") {
+    return { title: "Library update", body: text, url: "/library" };
+  }
+  if (type === "innovation_submitted") {
+    return { title: "New Innovation submitted", body: text, url: "/innovation-hub/manage" };
+  }
+  if (type === "innovation_approved") {
+    return { title: "Innovation approved!", body: text, url: "/innovation-hub" };
+  }
+  if (type === "innovation_declined") {
+    return { title: "Innovation update", body: text, url: "/innovation-hub" };
+  }
+  if (type === "innovation_implemented") {
+    return { title: "Innovation implemented!", body: text, url: "/innovation-hub" };
   }
   // activity_created | activity_completed | activity_missed
   return {
@@ -146,5 +167,61 @@ export const NOTIFICATION_TAXONOMY: Record<
     deepLink: "/messages",
     prefCategory: "mandatory",
     dedupe: "one record per messageId per recipient",
+  },
+  library_submitted: {
+    recipient: "Unit Head(s) on member submission",
+    title: "New Library submission",
+    deepLink: "/library/manage",
+    prefCategory: "activities",
+    dedupe: "60s identical-event window + submission key",
+  },
+  library_new: {
+    recipient: "Every active member (except submitter) on submission",
+    title: "New Library resource",
+    deepLink: "/library",
+    prefCategory: "activities",
+    dedupe: "60s identical-event window + submission key",
+  },
+  library_approved: {
+    recipient: "Submitting member on approval",
+    title: "Library update",
+    deepLink: "/library",
+    prefCategory: "activities",
+    dedupe: "60s identical-event window + review key",
+  },
+  library_declined: {
+    recipient: "Submitting member on decline (with reason)",
+    title: "Library update",
+    deepLink: "/library",
+    prefCategory: "activities",
+    dedupe: "60s identical-event window + review key",
+  },
+  innovation_submitted: {
+    recipient: "Unit Head(s) on member submission",
+    title: "New Innovation submitted",
+    deepLink: "/innovation-hub/manage",
+    prefCategory: "activities",
+    dedupe: "60s identical-event window + submission key",
+  },
+  innovation_approved: {
+    recipient: "Submitting member on approval",
+    title: "Innovation approved!",
+    deepLink: "/innovation-hub",
+    prefCategory: "activities",
+    dedupe: "60s identical-event window + review key",
+  },
+  innovation_declined: {
+    recipient: "Submitting member on decline (with reason)",
+    title: "Innovation update",
+    deepLink: "/innovation-hub",
+    prefCategory: "activities",
+    dedupe: "60s identical-event window + review key",
+  },
+  innovation_implemented: {
+    recipient: "Submitting member when marked implemented",
+    title: "Innovation implemented!",
+    deepLink: "/innovation-hub",
+    prefCategory: "activities",
+    dedupe: "60s identical-event window + implement key",
   },
 };

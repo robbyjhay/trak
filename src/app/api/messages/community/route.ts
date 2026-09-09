@@ -12,6 +12,7 @@ import {
 } from "@/lib/db/service";
 import { parsePagination, pageMeta } from "@/lib/api/pagination";
 import { checkRateLimit } from "@/lib/auth/rate-limit";
+import { processLinkPreviewAsync } from "@/lib/link-preview-service";
 
 export async function GET(req: Request) {
   try {
@@ -41,8 +42,13 @@ export async function POST(req: Request) {
     const body = await parseJsonBody<{ text?: string; replyToId?: string; attachments?: any[]; mentions?: { userId: string; position: number }[] }>(
       req,
     );
-    await sendCommunity(session, body.text || "", body.replyToId, body.attachments, body.mentions);
+    const result = await sendCommunity(session, body.text || "", body.replyToId, body.attachments, body.mentions);
     const { community } = await listCommunity({ limit: 100, userId: session.id });
+
+    if (body.text) {
+      void processLinkPreviewAsync(result.id, "community", body.text, session.id);
+    }
+
     return jsonOk({ community });
   } catch (err) {
     return handleServiceError(err);

@@ -26,6 +26,7 @@ import type { CallRecord, Dm, TrakDb, MessageAttachment } from "@/lib/types";
 import { ConversationList } from "./ConversationList";
 import { ChatThread } from "./ChatThread";
 import { Composer, type ReplyingTo } from "./Composer";
+import { KeyboardSpacer } from "./KeyboardSpacer";
 
 type ThreadItem =
   | { kind: "dm"; id: string; dm: Dm }
@@ -71,6 +72,7 @@ export function Messaging({
     deleteDmMessage,
     deleteCommunityMessage,
     showToast,
+    markNotifsRead,
       } = useTrak();
   const { view, setView, setMobileThreadOpen } = useConnectNav();
   const { activeCall, startCall, elapsedSec, onlineUsers, signalingConnected, presenceSynced } = useCall();
@@ -135,12 +137,12 @@ export function Messaging({
         }
 
         const idsToMark = partnerNotifs.map(n => n.id);
-        if (false) {
-           console.log(idsToMark);
+        if (idsToMark.length > 0) {
+          void markNotifsRead(idsToMark);
         }
       }
     }
-  }, [activeConv, db.notifications, db.dms, me, unreadDividers, console.log]);
+  }, [activeConv, db.notifications, db.dms, me, unreadDividers, markNotifsRead]);
 
   useEffect(() => {
     setView(initialView);
@@ -259,14 +261,14 @@ export function Messaging({
               so fixed inset-0 automatically stays above the keyboard. */}
           <div
             className={cn(
-              "min-w-0 min-h-0 flex-1 flex-col bg-background shadow-[-10px_0_20px_-15px_rgba(0,0,0,0.1)] z-10",
+              "min-w-0 min-h-0 flex-1 flex-col bg-surface shadow-[-10px_0_20px_-15px_rgba(0,0,0,0.1)] z-10",
               mobilePane === "list"
                 ? "hidden md:flex"
                 : "fixed inset-0 z-[100] flex pt-[env(safe-area-inset-top)] md:static md:z-auto md:pt-0",
             )}
           >
             {!activeConv && (
-              <div className="flex flex-1 flex-col items-center justify-center p-8 text-center bg-background">
+              <div className="flex flex-1 flex-col items-center justify-center p-8 text-center bg-surface">
                 <div className="flex h-[64px] w-[64px] items-center justify-center rounded-full bg-surface-interactive text-foreground-secondary mb-5 border border-border/50">
                   <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <path d={PATHS.messages} />
@@ -282,7 +284,7 @@ export function Messaging({
             )}
 
             {activeConv === "community" && (
-              <>
+              <div className="flex flex-1 flex-col h-full min-h-0">
                 <div className="flex shrink-0 items-center gap-4 border-b border-border bg-surface px-4 py-3 sm:px-6 md:px-8 shadow-sm z-10">
                   <BackBtn onClick={handleBack} />
                   <div className="flex h-[42px] w-[42px] items-center justify-center rounded-full bg-surface-interactive text-primary border border-border/50">
@@ -376,7 +378,7 @@ export function Messaging({
                     );
                   }}
                 />
-              </>
+              </div>
             )}
 
             {activeConv === "broadcast" && (
@@ -402,7 +404,7 @@ export function Messaging({
                     value={bcText}
                     onChange={(e) => setBcText(e.target.value)}
                     placeholder="Write your announcement…"
-                    className="mb-5 min-h-[140px] w-full max-w-[500px] rounded-[18px] border-[1.5px] border-input-border bg-input px-5 py-4 text-[14.5px] text-foreground placeholder-input-placeholder outline-none focus:border-border-strong shadow-sm transition-colors resize-none"
+                    className="mb-5 min-h-[140px] w-full max-w-[500px] rounded-[18px] border-[1.5px] border-input-border bg-input px-5 py-4 text-[14.5px] text-foreground placeholder-input-placeholder outline-none focus-visible:outline-none focus:border-border-strong shadow-sm transition-colors resize-none"
                     suppressHydrationWarning
                   />
                   <PrimaryBtn
@@ -439,7 +441,7 @@ export function Messaging({
               activeConv !== "broadcast" &&
               activeConv !== null &&
               userMap[activeConv] && (
-                <>
+                <div className="flex flex-1 flex-col h-full min-h-0">
                   {(() => {
                     const p = userMap[activeConv];
                     const items = threadItems(db, me, activeConv);
@@ -587,8 +589,9 @@ export function Messaging({
                       </>
                     );
                   })()}
-                </>
+                </div>
               )}
+          <KeyboardSpacer />
           </div>
         </div>
       ) : (
@@ -596,7 +599,7 @@ export function Messaging({
         // pins the outer height to the viewport strip above MobileNav.
         // FAB below is viewport-fixed and therefore invariant to grid length.
         <div className="relative flex min-h-0 flex-1 flex-col px-4 py-5 sm:px-6 md:px-8 max-w-7xl mx-auto w-full">
-          <div className="mb-6 flex flex-wrap items-center justify-between gap-4 border-b border-border pb-5">
+          <div className="mb-6 hidden flex-wrap items-center justify-between gap-4 border-b border-border pb-5 md:flex">
             <div className="flex flex-wrap items-center gap-4">
               <h1 className="m-0 text-2xl font-extrabold text-foreground tracking-tight">Contacts</h1>
               <div className="relative w-full sm:w-auto">
@@ -630,6 +633,28 @@ export function Messaging({
                 Add member
               </button>
             )}
+          </div>
+
+          {/* Mobile header — no duplicate heading; compact search-left + member-count-right */}
+          <div className="mb-4 flex items-center gap-2.5 border-b border-border pb-4 md:hidden">
+            <div className="relative min-w-0 flex-1">
+              <svg className="absolute left-3.5 top-1/2 -translate-y-1/2 text-foreground-faint" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <circle cx="11" cy="11" r="8"></circle>
+                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+              </svg>
+              <input
+                type="search"
+                placeholder="Search the unit…"
+                value={contactsSearch}
+                onChange={(e) => setContactsSearch(e.target.value)}
+                className="w-full rounded-full border border-input-border bg-input pl-10 pr-4 py-2 text-[14px] text-foreground placeholder-input-placeholder outline-none focus:border-border-strong transition-colors shadow-sm"
+                aria-label="Search the unit"
+                suppressHydrationWarning
+              />
+            </div>
+            <span className="shrink-0 rounded-full bg-surface-muted border border-border/50 px-3 py-1.5 text-[12.5px] font-bold text-foreground-secondary">
+              {users.length - 1} members
+            </span>
           </div>
           <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain pb-[96px] md:pb-6 scrollbar-thin">
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">

@@ -2,7 +2,7 @@
  * Object storage for avatars, evidence, invoices (Phase 3).
  * Uses S3-compatible storage when configured; otherwise local disk under .data/uploads.
  */
-
+import "server-only";
 import { createHash, randomBytes } from "node:crypto";
 import { promises as fs, createWriteStream } from "node:fs";
 import path from "node:path";
@@ -17,12 +17,13 @@ class StorageError extends Error {
   }
 }
 
-export type UploadPurpose = "avatar" | "evidence" | "invoice" | "message_attachment";
+export type UploadPurpose = "avatar" | "evidence" | "invoice" | "message_attachment" | "library_thumbnail";
 
 const ALLOWED_MIME: Record<UploadPurpose, string[]> = {
   avatar: ["image/jpeg", "image/png", "image/webp"],
   evidence: ["image/jpeg", "image/png", "image/webp", "application/pdf"],
   invoice: ["image/jpeg", "image/png", "image/webp", "application/pdf"],
+  library_thumbnail: ["image/jpeg", "image/png", "image/webp"],
   message_attachment: [
     "image/jpeg", "image/png", "image/webp", 
     "application/pdf", 
@@ -37,15 +38,27 @@ const MAX_SIZE: Record<UploadPurpose, number> = {
   avatar: 2 * 1024 * 1024,
   evidence: 10 * 1024 * 1024,
   invoice: 10 * 1024 * 1024,
+  library_thumbnail: 5 * 1024 * 1024,
   message_attachment: 25 * 1024 * 1024, // 25 MB
 };
 
-function isS3Configured(): boolean {
-  return Boolean(
-    process.env.S3_BUCKET &&
-      process.env.S3_ACCESS_KEY_ID &&
-      process.env.S3_SECRET_ACCESS_KEY,
-  );
+/**
+ * Required S3 env vars. S3_REGION/S3_ENDPOINT/S3_PUBLIC_BASE_URL are optional
+ * depending on provider (see resolveS3PublicBaseUrl); the three below are not.
+ */
+const S3_REQUIRED_VARS = ["S3_BUCKET", "S3_ACCESS_KEY_ID", "S3_SECRET_ACCESS_KEY"] as const;
+
+export function isS3Configured(): boolean {
+  return S3_REQUIRED_VARS.every((k) => Boolean(process.env[k]));
+}
+
+/** Which backend createSignedUpload() will route to. */
+export function getStorageMode(): "s3" | "local" {
+  return isS3Configured() ? "s3" : "local";
+}
+
+function isProdEnv(): boolean {
+  return process.env.NODE_ENV === "production";
 }
 
 function localUploadDir(): string {
@@ -133,6 +146,29 @@ export function validateUpload(
   }
 }
 
+/**
+ * Stable public URL base for S3 objects. Preference order:
+ * 1. S3_PUBLIC_BASE_URL (CDN or custom domain — set this in production)
+ * 2. S3_ENDPOINT + bucket (R2/MinIO-style path: <endpoint>/<bucket>)
+ * 3. AWS regional virtual-hosted URL (requires a real S3_REGION)
+ * Throws instead of producing a broken "undefined/..." URL.
+ */
+export function resolveS3PublicBaseUrl(): string {
+  const bucket = process.env.S3_BUCKET!;
+  const direct = process.env.S3_PUBLIC_BASE_URL?.replace(/\/$/, "");
+  if (direct) return direct;
+  const endpoint = process.env.S3_ENDPOINT?.replace(/\/$/, "");
+  if (endpoint) return `${endpoint}/${bucket}`;
+  const region = process.env.S3_REGION;
+  if (region && region !== "auto") {
+    return `https://${bucket}.s3.${region}.amazonaws.com`;
+  }
+  throw new StorageError(
+    500,
+    "S3 public URL cannot be built: set S3_PUBLIC_BASE_URL (or S3_ENDPOINT, or a real S3_REGION)",
+  );
+}
+
 export { StorageError };
 
 export async function createSignedUpload(input: {
@@ -178,12 +214,23 @@ export async function createSignedUpload(input: {
     });
 
     const uploadUrl = await getSignedUrl(client, command, { expiresIn: 900 });
-    const publicBase =
-      process.env.S3_PUBLIC_BASE_URL ||
-      `${process.env.S3_ENDPOINT?.replace(/\/$/, "")}/${process.env.S3_BUCKET}`;
-    const publicUrl = `${publicBase.replace(/\/$/, "")}/${key}`;
+    // Stable (non-signed) object URL is what callers persist in the DB —
+    // the signed uploadUrl above expires in 15 minutes and must NOT be stored.
+    const publicUrl = `/api/uploads/file?key=${encodeURIComponent(key)}`;
 
     return { key, uploadUrl, publicUrl, expiresAt, method: "PUT" };
+  }
+
+  // Production must never silently store uploads on ephemeral local disk
+  // (.data/uploads does not survive container restarts/redeploys). Fail
+  // loudly so the missing S3 configuration is fixed instead of producing
+  // data that is known to be non-persistent. Local disk stays available
+  // for development/test only.
+  if (isProdEnv()) {
+    throw new StorageError(
+      503,
+      "Object storage is not configured: set S3_BUCKET, S3_ACCESS_KEY_ID and S3_SECRET_ACCESS_KEY in production",
+    );
   }
 
   // Local dev: signed path token for our own upload route

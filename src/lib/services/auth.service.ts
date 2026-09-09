@@ -1,7 +1,7 @@
 /**
  * Auth service — opaque sessions, login/logout, password ops (Phase 0).
  */
-
+import "server-only";
 import { createHash, randomBytes } from "node:crypto";
 import { prisma } from "@/lib/db/prisma";
 import {

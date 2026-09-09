@@ -414,7 +414,7 @@ export function Composer({
 
       {/* Real messaging composer — pill input that belongs to the conversation, not a form card */}
       <div className="flex items-end gap-2 px-3 py-2.5 pb-[calc(8px+env(safe-area-inset-bottom))] sm:px-4 sm:py-3 bg-background">
-        <div className="flex flex-1 items-end gap-1.5 rounded-[28px] bg-surface border border-border/60 shadow-sm px-1.5 py-1.5 focus-within:border-primary/30 focus-within:shadow-md transition-all">
+        <div className="flex flex-1 items-end gap-1.5 rounded-[28px] bg-surface border border-border/60 shadow-sm px-1.5 py-1.5 focus-within:border-primary/40 focus-within:ring-2 focus-within:ring-primary/25 focus-within:shadow-md transition-all">
           <input
             type="file"
             ref={fileInputRef}
@@ -452,7 +452,7 @@ export function Composer({
             spellCheck
             rows={1}
             disabled={uploading}
-            className="flex-1 min-h-[20px] max-h-[120px] w-full resize-none border-none bg-transparent px-2 py-2.5 text-[16px] leading-5 placeholder:text-foreground-muted focus:outline-none focus:ring-0 sm:text-[15px] sm:leading-5 scrollbar-thin overflow-y-auto touch-manipulation"
+            className="flex-1 min-h-[20px] max-h-[120px] w-full resize-none border-none bg-transparent px-2 py-2.5 text-[16px] leading-5 placeholder:text-foreground-muted focus:outline-none focus:ring-0 focus-visible:outline-none sm:text-[15px] sm:leading-5 scrollbar-thin overflow-y-auto touch-manipulation"
             onKeyDown={(e) => {
               if (e.key === "Enter" && !e.shiftKey) {
                 if (mentionOpen) return;

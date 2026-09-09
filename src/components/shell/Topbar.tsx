@@ -31,6 +31,8 @@ export function Topbar() {
   const isConnect = pathname === "/messages" || pathname === "/contacts";
   const isSettings = pathname.startsWith("/settings");
   const isActivities = pathname === "/activities" || pathname.startsWith("/member/");
+  const isLibrary = pathname === "/library" || pathname.startsWith("/library/");
+  const isInnovation = pathname === "/innovation-hub" || pathname.startsWith("/innovation-hub/");
 
   useEffect(() => {
     function onDoc(e: MouseEvent) {
@@ -56,9 +58,14 @@ export function Topbar() {
   return (
     <header className="sticky top-0 z-40 flex h-[var(--topbar-height)] shrink-0 items-center justify-between gap-4 bg-[#F8F9FA] dark:bg-[color:var(--aztec)] border-b border-border/50 dark:border-transparent px-6 sm:px-10 pt-[env(safe-area-inset-top)] relative">
       <div className="flex flex-col justify-center">
-        <h1 className="text-[22px] font-extrabold tracking-tight text-foreground">
-          {isSettings ? "Settings" : isConnect ? "Connect" : isActivities ? "Activities" : greeting}
+        <h1 className={cn("text-[22px] font-extrabold tracking-tight text-foreground", isConnect && "hidden md:block")}>
+          {isSettings ? "Settings" : isConnect ? "Connect" : isActivities ? "Activities" : isLibrary ? "Library" : isInnovation ? "Innovation Hub" : greeting}
         </h1>
+        {isConnect && (
+          <div className="md:hidden">
+            <ConnectTabs />
+          </div>
+        )}
       </div>
 
       {isConnect && (
@@ -90,7 +97,7 @@ export function Topbar() {
           </button>
 
           {notifOpen && (
-            <div className="absolute top-[42px] right-[-10px] sm:right-[-6px] z-[70] flex max-h-[420px] w-[340px] max-w-[calc(100vw-36px)] flex-col overflow-hidden rounded-[18px] border border-border bg-surface-elevated text-foreground shadow-modal">
+            <div className="fixed right-3 top-[calc(var(--topbar-height)+env(safe-area-inset-top)+10px)] z-[70] flex max-h-[50dvh] w-[340px] max-w-[calc(100vw-24px)] flex-col overflow-hidden rounded-[18px] border border-border bg-surface-elevated text-foreground shadow-modal sm:absolute sm:top-[42px] sm:right-[-6px] sm:max-h-[420px] sm:max-w-[400px]">
               <div className="flex items-center justify-between border-b border-border px-4 py-3.5 text-[12.5px] font-extrabold">
                 <span>Notifications</span>
                 {unread > 0 && (
@@ -123,6 +130,10 @@ export function Topbar() {
                         setNotifOpen(false);
                         if (n.activityId) router.push(`/activity/${n.activityId}`);
                         else if (n.type === "dm" || n.type === "mention" || n.type === "broadcast") router.push("/messages");
+                        else if (n.type === "innovation_submitted") router.push("/innovation-hub/manage");
+                        else if (n.type === "innovation_approved" || n.type === "innovation_declined" || n.type === "innovation_implemented") router.push("/innovation-hub");
+                        else if (n.type === "library_submitted") router.push("/library/manage");
+                        else if (n.type === "library_new" || n.type === "library_approved" || n.type === "library_declined") router.push("/library");
                       }}
                     >
                       <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-[9px] bg-navigation-hover text-primary">

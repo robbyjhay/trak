@@ -12,6 +12,7 @@ import {
 } from "@/lib/db/service";
 import { parsePagination, pageMeta } from "@/lib/api/pagination";
 import { checkRateLimit } from "@/lib/auth/rate-limit";
+import { processLinkPreviewAsync } from "@/lib/link-preview-service";
 
 export async function GET(req: Request) {
   try {
@@ -51,6 +52,10 @@ export async function POST(req: Request) {
     const result = await sendDm(session, body.toId, body.text || "", body.attachments, body.replyToId ?? null);
     const { dms } = await listDmsForUser(session, { limit: 200 });
     const notifications = await myNotifications(session);
+
+    if (body.text) {
+      void processLinkPreviewAsync(result.id, "dm", body.text, session.id);
+    }
 
     return jsonOk({
       id: result.id,

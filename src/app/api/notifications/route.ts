@@ -28,15 +28,20 @@ export async function PATCH(req: Request) {
     if (error) return error;
     const body = await parseJsonBody<{
       id?: string;
+      ids?: string[];
       all?: boolean;
     }>(req);
 
     if (body.all) {
       await markAllNotificationsRead(session);
+    } else if (body.ids && Array.isArray(body.ids)) {
+      for (const id of body.ids) {
+        await markNotificationRead(session, id);
+      }
     } else if (body.id) {
       await markNotificationRead(session, body.id);
     } else {
-      throw new ServiceError(400, "id or all is required");
+      throw new ServiceError(400, "id, ids, or all is required");
     }
 
     const notifications = await myNotifications(session);

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTrak } from "@/context/TrakStore";
 import { roleLabel } from "@/lib/permissions";
 import { initials } from "@/lib/utils";
@@ -19,6 +19,12 @@ export function NewConversation({
   const me = sessionUser.id;
   const [search, setSearch] = useState("");
 
+  useEffect(() => {
+    if (!open) {
+      document.activeElement instanceof HTMLElement && document.activeElement.blur();
+    }
+  }, [open]);
+
   const q = search.trim().toLowerCase();
   const matches = users.filter(
     (u) =>
@@ -35,7 +41,10 @@ export function NewConversation({
           </h2>
           <button
             type="button"
-            onClick={onClose}
+            onClick={() => {
+              document.activeElement instanceof HTMLElement && document.activeElement.blur();
+              onClose();
+            }}
             className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-full border-none bg-transparent text-xl text-foreground-secondary hover:bg-surface-hover hover:text-foreground transition-colors"
             aria-label="Close"
           >

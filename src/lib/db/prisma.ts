@@ -5,7 +5,7 @@
  * Uses an explicit pg Pool so concurrent bootstrap queries share connections
  * instead of thrashing SSL handshakes on remote Postgres.
  */
-
+import "server-only";
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { Pool } from "pg";
@@ -41,14 +41,7 @@ function createPrismaClient(): PrismaClient {
   });
 }
 
-export const prisma = globalForPrisma.prisma ?? new Proxy({} as PrismaClient, {
-  get(target, prop) {
-    if (!globalForPrisma.prisma) {
-      globalForPrisma.prisma = createPrismaClient();
-    }
-    return (globalForPrisma.prisma as any)[prop];
-  }
-});
+export const prisma = globalForPrisma.prisma ?? createPrismaClient();
 
 if (process.env.NODE_ENV !== "production") {
   globalForPrisma.prisma = prisma;

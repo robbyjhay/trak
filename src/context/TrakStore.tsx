@@ -20,6 +20,7 @@ import type {
   Comment,
   CreateActivityInput,
   DailyLog,
+  LinkPreview,
   Notification,
   NotifType,
   Responsibility,
@@ -40,6 +41,7 @@ import {
   deactivateResponsibility as deactivateRespMut,
 } from "@/lib/mockDb";
 import { apiGet, apiSend, ApiError } from "@/lib/api/client";
+import { useSignaling } from "@/hooks/useSignaling";
 
 interface ToastState {
   title: string;
@@ -120,6 +122,7 @@ interface TrakStoreValue {
     authorId?: string,
   ) => Promise<void>;
   markNotifRead: (id: string) => Promise<void>;
+  markNotifsRead: (ids: string[]) => Promise<void>;
   markAllNotifsRead: () => Promise<void>;
   updateUserProfile: (userId: string, patch: Partial<User>) => Promise<void>;
   addUser: (u: {
@@ -160,6 +163,7 @@ interface TrakStoreValue {
   setLogRsvpToken: (logId: string, token?: string) => Promise<string>;
   toggleActivityHidden: (activityId: string) => Promise<void>;
   softDeleteActivity: (activityId: string) => Promise<void>;
+  deleteActivity: (activityId: string) => Promise<void>;
   deactivateResponsibility: (id: string) => Promise<void>;
   requestException: (activityId: string, explanation: string) => Promise<void>;
   approveException: (activityId: string) => Promise<void>;
@@ -267,6 +271,48 @@ export function TrakStoreProvider({
   const refreshRef = useRef(refresh);
   refreshRef.current = refresh;
 
+  const { onMessage } = useSignaling(session.id);
+
+  // Patch link previews onto already-rendered messages as soon as the server
+  // finishes fetching Open Graph metadata (fire-and-forget after send).
+  useEffect(() => {
+    onMessage((msg) => {
+      const data = msg as unknown as {
+        type?: string;
+        messageId?: string;
+        linkPreview?: LinkPreview;
+        user?: User;
+      };
+
+      if (data.type === "profile_updated" && data.user) {
+        const u = data.user;
+        const users = stateRef.current.users;
+        const idx = users.findIndex((x) => x.id === u.id);
+        if (idx >= 0) {
+          users[idx] = u;
+        } else {
+          users.push(u);
+        }
+        bump();
+        return;
+      }
+
+      if (data.type !== "link_preview_ready" || !data.messageId || !data.linkPreview) return;
+      const dms = stateRef.current.db.dms;
+      const comm = stateRef.current.db.community;
+      const dm = dms.find((m) => m.id === data.messageId);
+      const cm = comm.find((m) => m.id === data.messageId);
+      if (dm) {
+        (dm as any).linkPreview = data.linkPreview;
+      } else if (cm) {
+        (cm as any).linkPreview = data.linkPreview;
+      } else {
+        return;
+      }
+      bump();
+    });
+  }, [onMessage, bump]);
+
   // Client fetch only when the server did not already provide a snapshot.
   // Do NOT abort on unmount — Strict Mode abort was leaving ready=false forever.
   useEffect(() => {
@@ -308,9 +354,12 @@ export function TrakStoreProvider({
     id: session.id,
     name: session.name,
     username: session.username,
+    email: null,
     role: session.role,
     isSecretary: session.isSecretary,
     isCorps: session.isCorps,
+    isIntern: false,
+    isActive: true,
     photoUrl: null,
     color: "#8a6a1f",
     phone: "",
@@ -519,34 +568,49 @@ export function TrakStoreProvider({
       bump();
     },
     markNotifRead: async (id) => {
+      // Optimistic update
+      for (const n of stateRef.current.db.notifications) {
+        if (n.id === id && n.userId === session.id) n.read = true;
+      }
+      bump();
+
       const res = await apiSend<{ notifications: Notification[] }>(
         "/api/notifications",
         "PATCH",
         { id },
       );
-      // Merge only this user's notifs into full list
-      const others = stateRef.current.db.notifications.filter(
-        (n) => n.userId !== session.id,
+      mergeNotifications(res.notifications);
+      bump();
+    },
+    markNotifsRead: async (ids) => {
+      if (ids.length === 0) return;
+      // Optimistic update
+      for (const n of stateRef.current.db.notifications) {
+        if (ids.includes(n.id) && n.userId === session.id) n.read = true;
+      }
+      bump();
+
+      const res = await apiSend<{ notifications: Notification[] }>(
+        "/api/notifications",
+        "PATCH",
+        { ids },
       );
-      stateRef.current.db.notifications = [
-        ...others,
-        ...(res.notifications || []),
-      ];
+      mergeNotifications(res.notifications);
       bump();
     },
     markAllNotifsRead: async () => {
+      // Optimistic update
+      for (const n of stateRef.current.db.notifications) {
+        if (n.userId === session.id) n.read = true;
+      }
+      bump();
+
       const res = await apiSend<{ notifications: Notification[] }>(
         "/api/notifications",
         "PATCH",
         { all: true },
       );
-      const others = stateRef.current.db.notifications.filter(
-        (n) => n.userId !== session.id,
-      );
-      stateRef.current.db.notifications = [
-        ...others,
-        ...(res.notifications || []),
-      ];
+      mergeNotifications(res.notifications);
       bump();
     },
     updateUserProfile: async (userId, patch) => {
@@ -780,6 +844,14 @@ export function TrakStoreProvider({
       bump();
     },
     softDeleteActivity: async (activityId) => {
+      await apiSend(`/api/activities/${activityId}`, "PATCH", {
+        action: "softDelete",
+      });
+      const act = stateRef.current.db.activities.find((a) => a.id === activityId);
+      if (act) act.softDeletedAt = new Date().toISOString();
+      bump();
+    },
+    deleteActivity: async (activityId) => {
       await apiSend(`/api/activities/${activityId}`, "PATCH", {
         action: "softDelete",
       });

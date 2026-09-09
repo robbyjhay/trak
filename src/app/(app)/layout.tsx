@@ -13,6 +13,7 @@ import { ConnectNavProvider } from "@/context/ConnectNav";
 import { CallProvider } from "@/context/CallContext";
 import { CallUiProvider } from "@/components/call/CallUiContext";
 import { IncomingCallOverlay } from "@/components/call/IncomingCallOverlay";
+import { CallExperience } from "@/components/call/CallExperience";
 import { getScopedBootstrap } from "@/lib/db/service";
 
 export default async function AppLayout({
@@ -63,6 +64,7 @@ export default async function AppLayout({
                 </div>
                 <div className="flex min-w-0 flex-1 flex-col">
                   <Topbar />
+                  <CallExperience />
                   {children}
                 </div>
               </div>

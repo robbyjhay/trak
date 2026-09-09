@@ -17,7 +17,7 @@ export function ConnectTabs({ className }: { className?: string }) {
   return (
     <div
       className={cn(
-        "hidden md:flex w-fit gap-1.5 rounded-[11px] bg-surface-muted p-1 relative",
+        "flex w-fit gap-1.5 rounded-[11px] bg-surface-muted p-1 relative",
         className,
       )}
     >

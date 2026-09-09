@@ -11,7 +11,7 @@ const nextConfig: NextConfig = {
           .filter(Boolean),
       }
     : process.env.NODE_ENV === "development"
-      ? { allowedDevOrigins: ["10.18.161.231", "192.168.100.13", "172.20.10.3"] }
+      ? { allowedDevOrigins: ["10.18.161.231", "192.168.100.13", "172.20.10.3", "10.18.161.98"] }
       : {}),
 };
 

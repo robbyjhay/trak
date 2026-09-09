@@ -54,7 +54,7 @@ function isPublicPage(pathname: string): boolean {
 
 function isStaticOrInternal(pathname: string): boolean {
   return (pathname.startsWith("/_next") ||
-  pathname.startsWith("/favicon") || pathname === "/sw.js" || pathname === "/manifest.webmanifest" || /\.(?:svg|png|jpg|jpeg|gif|webp|ico)$/i.test(pathname));
+  pathname.startsWith("/favicon") || pathname === "/sw.js" || pathname === "/manifest.webmanifest" || /\.(?:svg|png|jpg|jpeg|gif|webp|ico|lottie|woff2?|ttf|eot|otf)$/i.test(pathname));
 }
 
 /**
@@ -249,6 +249,6 @@ export async function proxy(req: NextRequest) {
 
 export const config = {
   matcher: [
-    "/((?!_next/static|_next/image|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+    "/((?!_next/static|_next/image|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|lottie|woff2?|ttf|eot|otf)$).*)",
   ],
 };

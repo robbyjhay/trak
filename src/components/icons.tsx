@@ -58,6 +58,40 @@ export function TypeIcon({ type, size = 17 }: { type: ActivityType; size?: numbe
   );
 }
 
+/** Library / bookshelf icon — three books of varying heights on a shelf
+ *  matching the Material Symbols `library_books`/`newsstand` concept. */
+export function LibraryIcon({
+  size = 18,
+  className,
+  strokeWidth = 1.75,
+}: {
+  size?: number;
+  className?: string;
+  strokeWidth?: number;
+}) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={strokeWidth}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      aria-hidden
+    >
+      <path d="M3 4.5h4.5v14H3z" />
+      <path d="M4.4 6.5v10.5" strokeOpacity="0.4" />
+      <path d="M9.8 6.5h4v12H9.8z" />
+      <path d="M11.1 8.5v8" strokeOpacity="0.4" />
+      <path d="M16.4 9.5h3.6v9h-3.6z" />
+      <path d="M17.6 11v5.5" strokeOpacity="0.4" />
+    </svg>
+  );
+}
+
 export const PATHS = {
   dashboard:
     "M3 3h7v9H3zM14 3h7v5h-7zM14 12h7v9h-7zM3 16h7v5H3z",
@@ -106,4 +140,7 @@ export const PATHS = {
   file:
     "M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM14 2v6h6",
   lock: "M5 11h14v9a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-9zM8 11V8a4 4 0 0 1 8 0v3",
+  bookmark: "M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z",
+  library: "M4 19.5A2.5 2.5 0 0 1 6.5 17H20M4 19.5A2.5 2.5 0 0 0 6.5 22H20V2H6.5A2.5 2.5 0 0 0 4 4.5v15z",
+  bulb: "M9 18h6M10 22h4M12 2a7 7 0 0 0-4 12.7c.5.5.8 1.3.8 2.1V18h6.4v-1.2c0-.8.3-1.6.8-2.1A7 7 0 0 0 12 2z",
 };

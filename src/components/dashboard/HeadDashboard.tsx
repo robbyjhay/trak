@@ -5,7 +5,8 @@ import { useRouter } from "next/navigation";
 import { useTrak } from "@/context/TrakStore";
 import { MemberDashboard, Card, RespBars, QuickActionTile } from "./MemberDashboard";
 import { addDays, fmtDate, iso, longDateLabel, formatRelativeDate } from "@/lib/dates";
-import { firstName, initials } from "@/lib/utils";
+import { firstName } from "@/lib/utils";
+import { UserAvatar } from "@/components/ui/UserAvatar";
 import { roleLabel } from "@/lib/permissions";
 import { TYPE_COLOR } from "@/lib/constants";
 import { TypeIcon, PATHS } from "@/components/icons";
@@ -15,6 +16,8 @@ import { ModalBackdrop, ModalPanel } from "@/components/ui/Modal";
 import { AddMember } from "@/components/messaging/AddMember";
 import { useReportPreview } from "@/components/reports/ReportPreview";
 import { RespManageList } from "@/components/activity/RespManageList";
+import { CopyButton } from "@/components/ui/CopyButton";
+import { motion, useReducedMotion } from "framer-motion";
 
 export function HeadDashboard() {
   const { userMap, users, sessionUser } = useTrak();
@@ -23,6 +26,7 @@ export function HeadDashboard() {
     users.find((u) => u.role === "head") ||
     userMap[sessionUser.id] ||
     sessionUser;
+  const reduceMotion = useReducedMotion();
 
   return (
     <div>
@@ -38,20 +42,30 @@ export function HeadDashboard() {
             ["mine", "My Activities"],
             ["ao", "Accounting Officer"],
           ] as const
-        ).map(([key, label]) => (
-          <button
-            key={key}
-            type="button"
-            onClick={() => setPanel(key)}
-            className={`cursor-pointer rounded-full border-none px-6 py-2.5 text-[14px] font-semibold transition-all duration-200 ${
-              panel === key
-                ? "bg-surface text-foreground shadow-sm ring-1 ring-border"
-                : "bg-transparent text-foreground-secondary hover:text-foreground hover:bg-surface-hover/50"
-            }`}
-          >
-            {label}
-          </button>
-        ))}
+        ).map(([key, label]) => {
+          const active = panel === key;
+          return (
+            <button
+              key={key}
+              type="button"
+              onClick={() => setPanel(key)}
+              className={`relative cursor-pointer rounded-full border-none px-6 py-2.5 text-[14px] font-semibold transition-colors duration-150 ${
+                active
+                  ? "text-foreground"
+                  : "text-foreground-secondary hover:text-foreground"
+              }`}
+            >
+              {active && (
+                <motion.div
+                  layoutId={reduceMotion ? undefined : "head-panel-active"}
+                  className="absolute inset-0 rounded-full bg-surface shadow-sm ring-1 ring-border"
+                  transition={reduceMotion ? { duration: 0 } : { type: "spring", stiffness: 380, damping: 30 }}
+                />
+              )}
+              <span className="relative z-10">{label}</span>
+            </button>
+          );
+        })}
       </div>
 
       {panel === "mine" ? (
@@ -86,7 +100,7 @@ function AccountingOfficer() {
     userMap[sessionUser.id] ||
     sessionUser;
 
-  const allActive = db.activities;
+  const allActive = db.activities.filter((a) => !a.softDeletedAt);
   const thisMonth = allActive.filter((a) => a.createdAt >= iso(addDays(now, -30)));
   const completedMonth = thisMonth.filter((a) => a.status === "completed").length;
   const missedAll = allActive.filter((a) => a.status === "missed").length;
@@ -96,6 +110,24 @@ function AccountingOfficer() {
 
   const [delegateOpen, setDelegateOpen] = useState(false);
   const [commentOpen, setCommentOpen] = useState(false);
+  const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const { deleteActivity } = useTrak();
+  
+  const handleConfirmDelete = async () => {
+    if (!deleteId || deleting) return;
+    setDeleting(true);
+    try {
+      await deleteActivity(deleteId);
+      showToast("Activity deleted", "The activity was permanently removed.");
+      setDeleteId(null);
+    } catch (e: any) {
+      showToast("Could not delete", typeof e?.message === "string" ? e.message : "Please try again.");
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   const [commentActId, setCommentActId] = useState("");
   const [commentText, setCommentText] = useState("");
   const [profileOpen, setProfileOpen] = useState(false);
@@ -139,7 +171,7 @@ function AccountingOfficer() {
 
   const unitAll = showHidden
     ? [...allActive]
-    : allActive.filter((a) => !a.hidden);
+    : allActive.filter((a) => !a.hidden && !a.softDeletedAt);
   const unitFilteredByDate = unitAll.filter((a) => {
     if (feedFilter === "all") return true;
     const d = new Date(a.createdAt);
@@ -240,15 +272,14 @@ function AccountingOfficer() {
                 <button
                   type="button"
                   className="flex h-[30px] w-[30px] shrink-0 cursor-pointer items-center justify-center rounded-full border-none font-display text-xs font-bold text-white overflow-hidden"
-                  style={{ background: u.color }}
                   onClick={() => router.push(`/member/${u.id}`)}
                   title={`View ${firstName(u.name)}'s activities`}
                 >
-                  {u.photoUrl ? (
-                    <img src={u.photoUrl} alt="" className="h-full w-full object-cover" />
-                  ) : (
-                    initials(u.name)
-                  )}
+                  <UserAvatar
+                    photoUrl={u.photoUrl}
+                    name={u.name}
+                    className="flex h-full w-full items-center justify-center font-display text-xs font-bold text-white"
+                  />
                 </button>
                 <button
                   type="button"
@@ -382,16 +413,12 @@ function AccountingOfficer() {
                     className="mb-3.5 rounded-[14px] border border-border bg-surface px-[18px] py-4 last:mb-0 cursor-pointer hover:border-primary hover:shadow-sm transition-all"
                   >
                     <div className="mb-2.5 flex items-center gap-2.5">
-                      <div
+                      <UserAvatar
+                        photoUrl={owner?.photoUrl}
+                        name={owner?.name || "?"}
+                        color={owner?.color}
                         className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full font-display text-[11px] font-bold text-white overflow-hidden"
-                        style={{ background: owner?.color }}
-                      >
-                        {owner?.photoUrl ? (
-                          <img src={owner.photoUrl} alt="" className="h-full w-full object-cover" />
-                        ) : (
-                          initials(owner?.name || "?")
-                        )}
-                      </div>
+                      />
                       <div className="min-w-0 flex-1">
                         <div className="text-[13px] font-bold text-foreground flex items-center flex-wrap gap-2">
                           {a.title}
@@ -453,6 +480,20 @@ function AccountingOfficer() {
                         </svg>
                         <span className="hidden sm:inline">Comment</span>
                       </UaBtn>
+                      {a.status === "missed" && (
+                        <UaBtn
+                          title="Delete activity"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setDeleteId(a.id);
+                          }}
+                        >
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true" className="text-critical-semantic">
+                            <path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2M10 11v6M14 11v6" />
+                          </svg>
+                          <span className="hidden sm:inline text-critical-semantic">Delete</span>
+                        </UaBtn>
+                      )}
                       <UaBtn
                         title={a.hidden ? "Unhide in feed" : "Hide from feed"}
                         onClick={(e) => {
@@ -537,17 +578,12 @@ function AccountingOfficer() {
           >
             {users.map((u) => (
               <div key={u.id} className={`mb-3 flex items-center gap-3 last:mb-0 ${!u.isActive ? "opacity-50 grayscale" : ""}`}>
-                <div
+                <UserAvatar
+                  photoUrl={u.photoUrl}
+                  name={u.name}
+                  color={u.color}
                   className="flex h-[30px] w-[30px] shrink-0 items-center justify-center overflow-hidden rounded-full font-display text-xs font-bold text-white"
-                  style={{ background: u.color }}
-                >
-                  {u.photoUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={u.photoUrl} alt="" className="h-full w-full object-cover" />
-                  ) : (
-                    initials(u.name)
-                  )}
-                </div>
+                />
                 <div className="min-w-0 flex-1">
                   <div className="text-[12.5px] font-bold text-foreground">
                     {u.name}
@@ -676,6 +712,36 @@ function AccountingOfficer() {
         </ModalPanel>
       </ModalBackdrop>
 
+      {/* Delete activity confirmation modal */}
+      <ModalBackdrop open={!!deleteId} onClose={() => !deleting && setDeleteId(null)}>
+        <ModalPanel>
+          <div className="mb-4">
+            <h3 className="m-0 text-lg font-bold text-foreground">Delete this activity?</h3>
+            <p className="mt-2 text-sm text-foreground-secondary">
+              This action will permanently remove the activity and its associated data. This cannot be undone.
+            </p>
+          </div>
+          <div className="flex justify-end gap-3">
+            <button
+              type="button"
+              onClick={() => setDeleteId(null)}
+              disabled={deleting}
+              className="cursor-pointer rounded-lg px-4 py-2 text-sm font-bold text-foreground-secondary hover:bg-surface-hover hover:text-foreground transition-colors disabled:opacity-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={handleConfirmDelete}
+              disabled={deleting}
+              className="cursor-pointer rounded-lg bg-critical px-4 py-2 text-sm font-bold text-critical-foreground hover:opacity-90 transition-opacity disabled:opacity-50"
+            >
+              {deleting ? "Deleting..." : "Confirm Delete"}
+            </button>
+          </div>
+        </ModalPanel>
+      </ModalBackdrop>
+      
       {/* Comment modal */}
       <ModalBackdrop open={commentOpen} onClose={() => setCommentOpen(false)}>
         <ModalPanel>
@@ -895,21 +961,16 @@ function AccountingOfficer() {
                 </div>
               </div>
               <div className="flex flex-col gap-3">
-                <button
-                  type="button"
-                  className="w-full cursor-pointer rounded-[10px] border-none bg-aztec py-3.5 font-bold text-white transition-colors hover:bg-aztec-3"
-                  onClick={async () => {
-                    try {
-                      const { copyToClipboard } = await import("@/lib/utils");
-                      await copyToClipboard(resetCredentials.starterPassword);
-                      showToast("Password copied", "You can now paste it securely.");
-                    } catch {
-                      showToast("Copy failed", "Please copy manually.");
-                    }
-                  }}
-                >
-                  Copy Password
-                </button>
+                <CopyButton
+                  text={resetCredentials.starterPassword}
+                  label="Copy Password"
+                  successLabel="Copied"
+                  variant="primary"
+                  size="md"
+                  className="w-full justify-center py-3.5 rounded-[10px] border-none"
+                  onCopied={() => showToast("Password copied", "You can now paste it securely.")}
+                  onError={() => showToast("Copy failed", "Please copy manually.")}
+                />
                 <button
                   type="button"
                   className="w-full cursor-pointer rounded-[10px] border-[1.5px] border-line bg-transparent py-3.5 font-bold transition-colors hover:bg-neutral-bg"
@@ -975,14 +1036,18 @@ function UaBtn({
   title?: string;
   className?: string;
 }) {
+  const reduceMotion = useReducedMotion();
+
   return (
-    <button
+    <motion.button
       type="button"
       disabled={disabled}
       onClick={onClick}
-      className={`flex items-center justify-center gap-1.5 rounded-[9px] border-[1.5px] border-border bg-surface px-2.5 py-2 text-[11.5px] font-bold text-foreground-secondary transition-all hover:border-primary hover:bg-surface-hover hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-border disabled:hover:bg-surface disabled:hover:text-foreground-secondary ${className || ""}`} title={title}
+      whileTap={reduceMotion || disabled ? undefined : { scale: 0.96 }}
+      className={`flex items-center justify-center gap-1.5 rounded-[9px] border-[1.5px] border-border bg-surface px-2.5 py-2 text-[11.5px] font-bold text-foreground-secondary transition-all hover:border-primary hover:bg-surface-hover hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-border disabled:hover:bg-surface disabled:hover:text-foreground-secondary ${className || ""}`}
+      title={title}
     >
       {children}
-    </button>
+    </motion.button>
   );
 }

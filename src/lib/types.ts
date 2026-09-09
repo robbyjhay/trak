@@ -16,7 +16,15 @@ export type NotifType =
   | "activity_reminder"
   | "broadcast"
   | "profile_updated"
-  | "mention";
+  | "mention"
+  | "library_submitted"
+  | "library_new"
+  | "library_approved"
+  | "library_declined"
+  | "innovation_submitted"
+  | "innovation_approved"
+  | "innovation_declined"
+  | "innovation_implemented";
 
 export interface User {
   id: string;
@@ -242,6 +250,98 @@ export interface Notification {
   messageId?: string | null;
   createdAt: string;
   read: boolean;
+  meta?: Record<string, unknown> | null;
+}
+
+export type LibraryCategory = "BOOK" | "VIDEO" | "AUDIO" | "MEMO" | "OTHER";
+export type LibraryStatus = "PENDING" | "APPROVED" | "DECLINED";
+
+export const LIBRARY_CATEGORIES: LibraryCategory[] = [
+  "BOOK",
+  "VIDEO",
+  "AUDIO",
+  "MEMO",
+  "OTHER",
+];
+
+export const LIBRARY_STATUSES: LibraryStatus[] = [
+  "PENDING",
+  "APPROVED",
+  "DECLINED",
+];
+
+export interface LibraryResource {
+  id: string;
+  title: string;
+  description: string;
+  category: LibraryCategory;
+  externalUrl: string;
+  thumbnailKey: string | null;
+  thumbnailUrl: string | null;
+  submittedById: string;
+  submittedByName: string;
+  status: LibraryStatus;
+  declineReason: string;
+  reviewerId: string | null;
+  reviewerName: string | null;
+  reviewedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface LibraryListParams {
+  search?: string;
+  category?: LibraryCategory | "ALL";
+  sort?: "name-asc" | "name-desc" | "newest" | "oldest";
+  status?: LibraryStatus | "ALL";
+  page?: number;
+  limit?: number;
+}
+
+export type InnovationCategory = "PROCESS" | "TECHNOLOGY" | "COMMUNITY" | "TRAINING" | "COMMUNICATION" | "OTHER";
+export type InnovationStatus = "PENDING" | "APPROVED" | "IMPLEMENTED" | "DECLINED";
+
+export const INNOVATION_CATEGORIES: InnovationCategory[] = [
+  "PROCESS",
+  "TECHNOLOGY",
+  "COMMUNITY",
+  "TRAINING",
+  "COMMUNICATION",
+  "OTHER",
+];
+
+export const INNOVATION_STATUSES: InnovationStatus[] = [
+  "PENDING",
+  "APPROVED",
+  "IMPLEMENTED",
+  "DECLINED",
+];
+
+export interface Innovation {
+  id: string;
+  title: string;
+  description: string;
+  category: InnovationCategory;
+  details: string;
+  submittedById: string;
+  submittedByName: string;
+  status: InnovationStatus;
+  declineReason: string;
+  reviewerId: string | null;
+  reviewerName: string | null;
+  reviewedAt: string | null;
+  implementedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface InnovationListParams {
+  search?: string;
+  category?: InnovationCategory | "ALL";
+  status?: InnovationStatus | "ALL";
+  sort?: "name-asc" | "name-desc" | "newest" | "oldest";
+  page?: number;
+  limit?: number;
 }
 
 export interface TrakDb {

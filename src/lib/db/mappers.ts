@@ -14,6 +14,8 @@ import type {
   CommunityMessageMention as DbMention,
   DailyLog as DbDailyLog,
   DirectMessage as DbDm,
+  Innovation as DbInnovation,
+  LibraryResource as DbLibraryResource,
   LinkPreview as DbLinkPreview,
   MessageAttachment as DbMessageAttachment,
   Notification as DbNotification,
@@ -31,6 +33,10 @@ import type {
   CommunityMessage,
   DailyLog,
   Dm,
+  Innovation,
+  InnovationCategory,
+  InnovationStatus,
+  LibraryResource,
   LinkPreview,
   MessageAttachment,
   MessageMention,
@@ -345,5 +351,59 @@ export function mapNotification(row: DbNotification): Notification {
     messageId: row.messageId ?? null,
     createdAt: row.createdAt.toISOString(),
     read: Boolean(row.readAt),
+    meta: (row.meta as Record<string, unknown> | null) ?? null,
+  };
+}
+
+export type LibraryResourceWithRelations = DbLibraryResource & {
+  submittedBy?: { profile?: { name: string } | null } | null;
+  reviewer?: { profile?: { name: string } | null } | null;
+};
+
+export function mapLibraryResource(
+  row: LibraryResourceWithRelations,
+): LibraryResource {
+  return {
+    id: row.id,
+    title: row.title,
+    description: row.description,
+    category: row.category,
+    externalUrl: row.externalUrl,
+    thumbnailKey: row.thumbnailKey,
+    thumbnailUrl: row.thumbnailUrl,
+    submittedById: row.submittedById,
+    submittedByName: (row as any).submittedBy?.profile?.name ?? "Member",
+    status: row.status,
+    declineReason: row.declineReason,
+    reviewerId: row.reviewerId,
+    reviewerName: (row as any).reviewer?.profile?.name ?? null,
+    reviewedAt: row.reviewedAt ? row.reviewedAt.toISOString() : null,
+    createdAt: row.createdAt.toISOString(),
+    updatedAt: row.updatedAt.toISOString(),
+  };
+}
+
+export type InnovationWithRelations = DbInnovation & {
+  submittedBy?: { profile?: { name: string } | null } | null;
+  reviewer?: { profile?: { name: string } | null } | null;
+};
+
+export function mapInnovation(row: InnovationWithRelations): Innovation {
+  return {
+    id: row.id,
+    title: row.title,
+    description: row.description,
+    category: row.category as InnovationCategory,
+    details: row.details,
+    submittedById: row.submittedById,
+    submittedByName: (row as any).submittedBy?.profile?.name ?? "Member",
+    status: row.status as InnovationStatus,
+    declineReason: row.declineReason,
+    reviewerId: row.reviewerId,
+    reviewerName: (row as any).reviewer?.profile?.name ?? null,
+    reviewedAt: row.reviewedAt ? row.reviewedAt.toISOString() : null,
+    implementedAt: row.implementedAt ? row.implementedAt.toISOString() : null,
+    createdAt: row.createdAt.toISOString(),
+    updatedAt: row.updatedAt.toISOString(),
   };
 }

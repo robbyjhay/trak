@@ -2,16 +2,46 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { PATHS } from "@/components/icons";
+import { LibraryIcon, PATHS } from "@/components/icons";
 import { cn } from "@/lib/utils";
 
-const NAV = [
-  { href: "/dashboard", label: "Dashboard", path: PATHS.dashboard },
-  { href: "/new-activity", label: "New Activity", path: PATHS.plus },
-  { href: "/activities", label: "Activities", path: PATHS.checkList },
-  { href: "/responsibilities", label: "Responsibilities", path: PATHS.responsibilities },
-  { href: "/messages", label: "Connect", path: PATHS.messages, also: ["/contacts"] },
-  { href: "/settings", label: "Settings", path: PATHS.settings, bottom: true },
+function RailSvg({
+  path,
+  className,
+}: {
+  path: string;
+  className?: string;
+}) {
+  return (
+    <svg
+      className={className}
+      width="19"
+      height="19"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+    >
+      <path d={path} />
+    </svg>
+  );
+}
+
+const NAV: {
+  href: string;
+  label: string;
+  icon: (cls?: string) => React.ReactNode;
+  also?: string[];
+  bottom?: boolean;
+}[] = [
+  { href: "/dashboard", label: "Dashboard", icon: (c) => <RailSvg path={PATHS.dashboard} className={c} /> },
+  { href: "/new-activity", label: "New Activity", icon: (c) => <RailSvg path={PATHS.plus} className={c} /> },
+  { href: "/activities", label: "Activities", icon: (c) => <RailSvg path={PATHS.checkList} className={c} /> },
+  { href: "/responsibilities", label: "Responsibilities", icon: (c) => <RailSvg path={PATHS.responsibilities} className={c} /> },
+  { href: "/messages", label: "Connect", icon: (c) => <RailSvg path={PATHS.messages} className={c} />, also: ["/contacts"] },
+  { href: "/library", label: "Library", icon: (c) => <LibraryIcon size={19} className={c} />, also: ["/library/manage"] },
+  { href: "/innovation-hub", label: "Innovation Hub", icon: (c) => <RailSvg path={PATHS.bulb} className={c} />, also: ["/innovation-hub/manage"] },
+  { href: "/settings", label: "Settings", icon: (c) => <RailSvg path={PATHS.settings} className={c} />, bottom: true },
 ];
 
 export function Rail() {
@@ -59,14 +89,15 @@ export function Rail() {
 function RailItem({
   href,
   label,
-  path,
+  icon,
   active,
 }: {
   href: string;
   label: string;
-  path: string;
+  icon: (cls?: string) => React.ReactNode;
   active: boolean;
 }) {
+  const activeCls = cn(active ? "text-white dark:text-aztec" : "dark:text-white");
   return (
     <Link
       href={href}
@@ -82,17 +113,7 @@ function RailItem({
       <span className="pointer-events-none absolute left-16 z-20 rounded-[7px] bg-aztec px-2.5 py-1.5 text-[11px] whitespace-nowrap text-white dark:bg-white dark:text-aztec opacity-0 shadow-[0_6px_16px_rgba(0,0,0,0.3)] transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100 group-focus-within:opacity-100">
         {label}
       </span>
-      <svg
-        className={cn(active ? "text-white dark:text-aztec" : "dark:text-white")}
-        width="19"
-        height="19"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-      >
-        <path d={path} />
-      </svg>
+      {icon(activeCls)}
     </Link>
   );
 }

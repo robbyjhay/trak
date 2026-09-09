@@ -146,7 +146,7 @@ export function ConversationList({
         // available viewport region above MobileNav (not to content height).
         // Desktop FAB anchors to this viewport-height box via md:relative;
         // mobile FAB is viewport-fixed and independent of scroll content.
-        "relative flex w-full flex-1 min-h-0 flex-col border-r border-border bg-surface md:flex md:w-[320px] lg:w-[360px] xl:w-[400px] md:relative",
+        "relative flex w-full flex-1 min-h-0 flex-col bg-surface md:flex md:w-[320px] lg:w-[360px] xl:w-[400px] md:relative",
         mobilePane === "thread" ? "hidden" : "flex",
       )}
     >

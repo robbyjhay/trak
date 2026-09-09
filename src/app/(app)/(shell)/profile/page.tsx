@@ -1,13 +1,19 @@
 "use client";
 
-import { useRef, useState, type ChangeEvent, type KeyboardEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type ChangeEvent, type KeyboardEvent } from "react";
 import { useTrak } from "@/context/TrakStore";
 import { apiSend } from "@/lib/api/client";
 import { roleLabel } from "@/lib/permissions";
 import { fmtDate } from "@/lib/dates";
-import { initials } from "@/lib/utils";
 import { PATHS } from "@/components/icons";
+import { UserAvatar } from "@/components/ui/UserAvatar";
 import { Switch } from "@/components/ui/Switch";
+import { InstallAppRow } from "@/components/pwa/InstallAppRow";
+import {
+  getPushUiState,
+  requestPushPermissionAndSubscribe,
+  unsubscribeFromPush,
+} from "@/hooks/usePushNotifications";
 
 /** Square-crop + downscale to a 480px JPEG blob (same output as before). */
 async function fileToSquareJpegBlob(file: File): Promise<Blob> {
@@ -73,19 +79,77 @@ async function uploadAvatar(blob: Blob): Promise<string> {
 export default function ProfilePage() {
   const {
     sessionUser,
-    notificationsEnabled,
     setNotificationsEnabled,
     updateUserProfile,
     showToast,
   } = useTrak();
   const u = sessionUser;
   const showNudge = !u.photoUrl;
-  const notifSupported = typeof Notification !== "undefined";
-  const showNotifNudge =
-    notifSupported && !notificationsEnabled && Notification.permission !== "denied";
+
+  // Real push state — the single source of truth for this control.
+  // "checking" is the initial state so we never flash a wrong enable prompt.
+  const [pushState, setPushState] = useState<
+    "checking" | "enabled" | "disabled" | "denied" | "ios-install-required" | "unsupported"
+  >("checking");
+  const [pushBusy, setPushBusy] = useState(false);
+
+  const refreshPushState = useCallback(async () => {
+    try {
+      const s = await getPushUiState();
+      setPushState(s);
+      // Keep the legacy store flag in sync for any other readers.
+      setNotificationsEnabled(s === "enabled");
+    } catch {
+      setPushState("unsupported");
+    }
+  }, [setNotificationsEnabled]);
+
+  useEffect(() => {
+    let alive = true;
+    void (async () => {
+      if (!alive) return;
+      await refreshPushState();
+    })();
+    // Re-check when the tab regains focus so enabling/disabling elsewhere
+    // (e.g. Settings) is reflected here without a full reload.
+    const onFocus = () => {
+      void refreshPushState();
+    };
+    window.addEventListener("focus", onFocus);
+    return () => {
+      alive = false;
+      window.removeEventListener("focus", onFocus);
+    };
+  }, [refreshPushState]);
+
+  // Show the row for every state except truly-unsupported browsers, where
+  // push can never work and the row would only be noise.
+  const showNotifRow = pushState !== "unsupported";
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [photoBusy, setPhotoBusy] = useState(false);
+  
+  const [editEmail, setEditEmail] = useState(u.email || "");
+  const [editPhone, setEditPhone] = useState(u.phone || "");
+  const [savingContact, setSavingContact] = useState(false);
+
+  useEffect(() => {
+    setEditEmail(u.email || "");
+    setEditPhone(u.phone || "");
+  }, [u.email, u.phone]);
+
+  const handleSaveContact = async () => {
+    if (savingContact) return;
+    setSavingContact(true);
+    try {
+      await updateUserProfile(u.id, { email: editEmail, phone: editPhone });
+      showToast("Contact details saved", "Your profile has been updated.");
+    } catch (e: any) {
+      showToast("Could not save contact details", typeof e?.message === "string" ? e.message : "Please try again.");
+    } finally {
+      setSavingContact(false);
+    }
+  };
 
   const openPicker = () => {
     if (!photoBusy) fileInputRef.current?.click();
@@ -116,23 +180,37 @@ export default function ProfilePage() {
   };
 
   const handleNotifToggle = (checked: boolean) => {
-    if (!notifSupported) return;
-    if (!checked) {
-      setNotificationsEnabled(false);
-      return;
-    }
+    if (pushBusy || pushState === "checking") return;
+    // Blocked / iOS-install states never offer the normal enable path.
+    if (checked && (pushState === "denied" || pushState === "ios-install-required")) return;
+    if (!checked && pushState !== "enabled") return;
+    if (checked && pushState === "enabled") return;
+    setPushBusy(true);
     void (async () => {
       try {
-        const perm = await Notification.requestPermission();
-        if (perm === "granted") {
-          setNotificationsEnabled(true);
+        if (checked) {
+          await requestPushPermissionAndSubscribe();
           showToast(
             "Mobile notifications activated",
             "You'll get a device popup when something needs your attention.",
           );
+        } else {
+          await unsubscribeFromPush();
+          showToast(
+            "Mobile notifications off",
+            "You can re-enable them here any time. Past notifications are kept.",
+          );
         }
-      } catch {
-        /* ignore */
+      } catch (e: any) {
+        showToast(
+          checked ? "Could not enable notifications" : "Could not disable notifications",
+          typeof e?.message === "string" && e.message
+            ? e.message
+            : "Please try again.",
+        );
+      } finally {
+        await refreshPushState();
+        setPushBusy(false);
       }
     })();
   };
@@ -184,7 +262,7 @@ export default function ProfilePage() {
         </div>
       )}
 
-      {showNotifNudge && (
+      {showNotifRow && (
         <div className="mb-[22px] flex items-center justify-between gap-3 rounded-[12px] border border-border bg-surface px-4 py-2 shadow-card">
           <div className="flex min-w-0 items-center gap-2.5">
             <svg
@@ -205,15 +283,48 @@ export default function ProfilePage() {
               Get device popups when something needs your attention.
             </span>
           </div>
-          <Switch
-            id="profile-notifications-toggle"
-            checked={notificationsEnabled}
-            onChange={handleNotifToggle}
-            aria-label="Mobile notifications"
-            className="shrink-0"
-          />
+          {pushState === "checking" ? (
+            <span
+              className="shrink-0 animate-pulse text-[12px] font-semibold text-foreground-secondary"
+              role="status"
+              aria-live="polite"
+            >
+              Checking…
+            </span>
+          ) : pushState === "denied" ? (
+            <div className="flex shrink-0 flex-col items-end text-right">
+              <span className="mb-1 inline-block rounded-md bg-red-500/10 px-3 py-1.5 text-[13px] font-bold text-red-600">
+                Blocked
+              </span>
+              <p className="w-44 text-[10px] leading-tight text-muted-foreground">
+                Notifications are blocked. Allow them in your browser or device
+                settings to turn them on.
+              </p>
+            </div>
+          ) : pushState === "ios-install-required" ? (
+            <div className="flex shrink-0 flex-col items-end text-right">
+              <span className="mb-1 inline-block rounded-md bg-surface-muted px-3 py-1.5 text-[13px] font-bold text-muted-foreground">
+                Install App First
+              </span>
+              <p className="w-44 text-[10px] leading-tight text-muted-foreground">
+                On iPhone/iPad, add TRAK to your Home Screen first, then enable
+                notifications from the installed app.
+              </p>
+            </div>
+          ) : (
+            <Switch
+              id="profile-notifications-toggle"
+              checked={pushState === "enabled"}
+              onChange={handleNotifToggle}
+              disabled={pushBusy}
+              aria-label="Mobile notifications"
+              className="shrink-0"
+            />
+          )}
         </div>
       )}
+
+      <InstallAppRow />
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1.5fr_1fr]">
         <div
@@ -224,17 +335,12 @@ export default function ProfilePage() {
           onKeyDown={handleCardKeyDown}
           className="group cursor-pointer rounded-[18px] border border-border bg-surface px-[26px] py-6 text-center shadow-card transition-colors hover:border-primary/60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
         >
-          <div
+          <UserAvatar
+            photoUrl={u.photoUrl}
+            name={u.name}
+            color={u.color}
             className="mx-auto mb-5 flex h-[132px] w-[132px] items-center justify-center overflow-hidden rounded-full font-display text-[40px] font-bold text-white shadow-[0_14px_28px_-12px_rgba(13,29,26,0.45)]"
-            style={{ background: u.color }}
-          >
-            {u.photoUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={u.photoUrl} alt="" className="h-full w-full object-cover" />
-            ) : (
-              initials(u.name)
-            )}
-          </div>
+          />
           <div className="font-display text-xl leading-tight font-semibold">{u.name}</div>
           <div className="mt-1 text-[13px] text-foreground-secondary">
             {u.designation || roleLabel(u)}
@@ -259,6 +365,46 @@ export default function ProfilePage() {
             </p>
           </div>
           <dl>
+            {/* Contact details are editable */}
+            <div className="grid grid-cols-1 items-center gap-x-6 border-b border-border/60 py-3 sm:grid-cols-[160px_1fr]">
+              <dt className="text-[12.5px] text-foreground-secondary">Email</dt>
+              <dd className="flex items-center gap-2">
+                <input 
+                  type="email" 
+                  value={editEmail} 
+                  onChange={(e) => setEditEmail(e.target.value)} 
+                  className="flex h-8 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50" 
+                  placeholder="name@example.com"
+                />
+              </dd>
+            </div>
+            <div className="grid grid-cols-1 items-center gap-x-6 border-b border-border/60 py-3 sm:grid-cols-[160px_1fr]">
+              <dt className="text-[12.5px] text-foreground-secondary">Phone</dt>
+              <dd className="flex items-center gap-2">
+                <input 
+                  type="tel" 
+                  value={editPhone} 
+                  onChange={(e) => setEditPhone(e.target.value)} 
+                  className="flex h-8 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50" 
+                  placeholder="+234..."
+                />
+              </dd>
+            </div>
+            {(u.email !== editEmail || u.phone !== editPhone) && (
+              <div className="grid grid-cols-1 items-center gap-x-6 border-b border-border/60 py-2 sm:grid-cols-[160px_1fr]">
+                <dt></dt>
+                <dd>
+                  <button 
+                    onClick={handleSaveContact} 
+                    disabled={savingContact}
+                    className="inline-flex h-8 items-center justify-center rounded-md bg-primary px-4 text-[13px] font-medium text-primary-foreground shadow transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50"
+                  >
+                    {savingContact ? "Saving..." : "Save changes"}
+                  </button>
+                </dd>
+              </div>
+            )}
+            
             {(
               [
                 ["Full name", u.name],
@@ -266,7 +412,6 @@ export default function ProfilePage() {
                 ["Role", roleLabel(u)],
                 ["Grade level", u.gradeLevel || "—"],
                 ["Sex", u.sex || "—"],
-                ["Phone", u.phone || "—"],
                 ["State of origin", u.stateOfOrigin || "—"],
                 ["Date joined PSSDC", u.dateJoined ? fmtDate(u.dateJoined) : "—"],
                 ["Username", u.username],

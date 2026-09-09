@@ -3,8 +3,6 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTrak } from "@/context/TrakStore";
-import { TYPE_COLOR } from "@/lib/constants";
-import { TypeIcon } from "@/components/icons";
 import { PrimaryBtn } from "@/components/ui/Buttons";
 import { Switch } from "@/components/ui/Switch";
 import { fmtDate, fmtTime } from "@/lib/dates";
@@ -113,30 +111,37 @@ export default function NewActivityPage() {
         {/* Form */}
         <div className="rounded-[18px] border border-border bg-surface px-[26px] py-6">
           <Section label="Activity type" required>
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-              {TYPES.map((t) => {
-                const sel = activityType === t;
-                return (
-                  <button
-                    key={t}
-                    type="button"
-                    onClick={() => setActivityType(t)}
-                    className={`flex cursor-pointer flex-col items-center gap-2.5 rounded-[14px] border-[1.5px] px-3 py-4 text-center transition-colors ${
-                      sel
-                        ? "border-primary bg-primary/10 shadow-[0_0_0_3px_rgba(246,198,66,0.22)] text-foreground"
-                        : "border-border bg-surface hover:bg-surface-hover text-foreground-secondary hover:text-foreground"
-                    }`}
-                  >
-                    <div
-                      className="flex h-10 w-10 items-center justify-center rounded-[11px]"
-                      style={{ background: TYPE_COLOR[t] }}
-                    >
-                      <TypeIcon type={t} />
-                    </div>
-                    <div className="text-[12.5px] font-bold">{t}</div>
-                  </button>
-                );
-              })}
+            <div className="relative max-w-[320px]">
+              <select
+                value={activityType ?? ""}
+                onChange={(e) =>
+                  setActivityType((e.target.value as ActivityType) || null)
+                }
+                aria-label="Activity type"
+                className="w-full cursor-pointer appearance-none rounded-[11px] border-[1.5px] border-input-border bg-input px-[15px] py-3.5 text-sm text-foreground outline-none focus:border-border-strong"
+              >
+                <option value="" disabled>
+                  Select a type
+                </option>
+                {TYPES.map((t) => (
+                  <option key={t} value={t}>
+                    {t}
+                  </option>
+                ))}
+              </select>
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="pointer-events-none absolute top-1/2 right-[15px] -translate-y-1/2 text-foreground-secondary"
+              >
+                <path d="M6 9l6 6 6-6" />
+              </svg>
             </div>
           </Section>
 
@@ -272,7 +277,7 @@ export default function NewActivityPage() {
             </div>
           </Section>
 
-          <div className="sticky bottom-0 z-10 mt-9 flex items-center justify-end border-t border-border bg-surface pt-6 pb-6">
+          <div className="mt-9 flex items-center justify-end border-t border-border bg-surface pt-6 pb-6">
             <PrimaryBtn
               disabled={!ok}
               onClick={async () => {

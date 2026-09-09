@@ -12,6 +12,7 @@ import { useReportPreview } from "@/components/reports/ReportPreview";
 import { useSpeechRecognition } from "@/hooks/useSpeechRecognition";
 import type { Attendee, Attachment } from "@/lib/types";
 import { ActivityEditModal } from "./ActivityEditModal";
+import { GuestAttendanceManager } from "./GuestAttendanceManager";
 import { GraceCountdown } from "./GraceCountdown";
 
 export function ActivityDetail({
@@ -799,7 +800,8 @@ function PendingForm({
                           name: manName.trim(),
                           phone: manPhone.trim(),
                           email: manEmail.trim(),
-                          source: "manual", status: "pending",
+                          source: "manual",
+                          status: "verified",
                         },
                       ]);
                       setManName("");
@@ -834,89 +836,9 @@ function PendingForm({
                   </div>
                 )}
 
-                <div className="mt-2 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4">
-                  <div className="max-w-[280px] text-xs leading-snug text-foreground-faint">
-                    Or let attendees self-register from their own device
-                  </div>
-                  <GhostBtn
-                    onClick={() => {
-                      void (async () => {
-                        // Always mint/refresh a cryptographic server token
-                        const token = await setLogRsvpToken(activeLog.id);
-                        if (!token || token === "set") {
-                          showToast(
-                            "Could not generate link",
-                            "Server did not return an RSVP token.",
-                          );
-                          return;
-                        }
-                        const payload = {
-                            logId: activeLog.id,
-                          tok: token,
-                          title: act.title,
-                          date: activeLog.date,
-                          owner: ownerName,
-                        };
-                        const link =
-                          window.location.origin +
-                          "/rsvp/" +
-                          toBase64Url(JSON.stringify(payload));
-                        setRsvpLink(link);
-                        setShowRsvp(true);
-                      })().catch(() =>
-                        showToast(
-                          "Could not generate link",
-                          "Please try again.",
-                        ),
-                      );
-                    }}
-                  >
-                    Generate attendance link
-                  </GhostBtn>
+                <div className="mt-2 border-t border-border pt-4">
+                  <GuestAttendanceManager activityId={act.id} logId={activeLog.id} />
                 </div>
-                {showRsvp && (
-                  <div className="mt-3.5 rounded-[11px] border-[1.5px] border-border bg-surface px-4 py-3.5">
-                    <div className="mb-2 text-[11px] font-bold text-foreground-faint uppercase">
-                      Shareable link
-                    </div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <input
-                        readOnly
-                        value={rsvpLink}
-                        className="min-w-0 flex-1 rounded-[9px] border-[1.5px] border-input-border bg-input text-foreground px-3 py-2.5 font-mono text-[11.5px]"
-                      />
-                      <GhostBtn
-                        onClick={() => {
-                          navigator.clipboard
-                            ?.writeText(rsvpLink)
-                            .then(() =>
-                              showToast(
-                                "Link copied",
-                                "Share it with attendees to self-register.",
-                              ),
-                            )
-                            .catch(() => {});
-                        }}
-                      >
-                        Copy
-                      </GhostBtn>
-                      <GhostBtn
-                        onClick={() => {
-                          if (rsvpLink) window.location.href = rsvpLink;
-                        }}
-                      >
-                        Open form
-                      </GhostBtn>
-                    </div>
-                    <div className="mt-2.5 text-[11.5px] leading-snug text-foreground-faint">
-                      The form opens correctly for anyone.{" "}
-                      {(activeLog.attendees || []).filter(
-                        (a) => a.source === "link",
-                      ).length}{" "}
-                      submitted so far via link.
-                    </div>
-                  </div>
-                )}
               </div>
             </Section>
 
@@ -1018,25 +940,23 @@ function PendingForm({
                     const unitAttendees = users
                       .filter((u) => selectedUnitIds.has(u.id))
                       .map((u) => ({
+                        userId: u.id,
                         name: u.name,
                         phone: u.phone || "",
                         email: "",
                         source: "unit" as const,
+                        status: "verified" as const,
                       }));
-                    const linkAttendees = (activeLog.attendees || []).filter(
-                      (a) => a.source === "link",
-                    );
                     const attendees = [
                       ...unitAttendees,
                       ...manualAttendees,
-                      ...linkAttendees,
                     ];
                     await submitDailyLog(act.id, activeLog.date, {
                       objectives: objectives.trim(),
                       activityDescription: activityDescription.trim(),
                       transcript: speech.transcript.trim(),
                       attendanceCount: String(attendees.length),
-                      attendees: attendees as any,
+                      attendees,
                       attachments: attachedFiles,
                       amountReleasedNgn: amountReleased
                         ? Number(amountReleased)

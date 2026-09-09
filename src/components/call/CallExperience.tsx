@@ -6,7 +6,6 @@ import { useCall } from "@/context/CallContext";
 import { useTrak } from "@/context/TrakStore";
 import { useCallUi } from "./CallUiContext";
 import { ActiveCallView } from "./ActiveCallView";
-import { IncomingCallView } from "./IncomingCallView";
 import { CompactCallBar } from "./CompactCallBar";
 import { formatDuration } from "@/lib/utils";
 
@@ -14,9 +13,6 @@ export function CallExperience() {
   const {
     activeCall,
     elapsedSec,
-    incomingCallFrom,
-    acceptCall,
-    rejectCall,
     endCall,
     toggleMute,
     isMuted,
@@ -29,7 +25,6 @@ export function CallExperience() {
   const { isExpanded, setIsExpanded, speakerOn, setSpeakerOn } = useCallUi();
 
   const partner = activeCall ? userMap[activeCall.partnerId] : null;
-  const caller = incomingCallFrom ? userMap[incomingCallFrom] : null;
 
   const handleMute = useCallback(() => {
     toggleMute();
@@ -59,23 +54,8 @@ export function CallExperience() {
     setSpeakerOn(false);
   }, [elapsedSec, endCall, partner, recordCall, showToast, setIsExpanded, setSpeakerOn]);
 
-  const handleAccept = useCallback(() => {
-    void acceptCall();
-  }, [acceptCall]);
-
-  const handleReject = useCallback(() => {
-    rejectCall();
-  }, [rejectCall]);
-
   return (
-    <>
-      <AnimatePresence>
-        {caller && !activeCall && (
-          <IncomingCallView key="incoming" caller={caller} onAccept={handleAccept} onDecline={handleReject} />
-        )}
-      </AnimatePresence>
-
-      <AnimatePresence mode="wait">
+    <AnimatePresence mode="wait">
         {activeCall && partner && activeCall.status !== "ended" ? (
           isExpanded ? (
             <ActiveCallView
@@ -112,7 +92,6 @@ export function CallExperience() {
             />
           )
         ) : null}
-      </AnimatePresence>
-    </>
+    </AnimatePresence>
   );
 }

@@ -52,8 +52,23 @@ export const NOTIF_PATHS: Record<NotifType, string> = {
     "M12 2v10l4.5 4.5 M22 12A10 10 0 1 1 12 2a10 10 0 0 1 10 10z",
   broadcast:
     "M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9 M13.73 21a2 2 0 0 1-3.46 0",
-  profile_updated: "", mention:
+  profile_updated: "",
+  library_submitted:
+    "M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM14 2v6h6",
+  library_new:
+    "M4 19.5A2.5 2.5 0 0 1 6.5 17H20M4 19.5A2.5 2.5 0 0 0 6.5 22H20V2H6.5A2.5 2.5 0 0 0 4 4.5v15zM12 8v6M9 11h6",
+  library_approved: "M20 6L9 17l-5-5",
+  library_declined:
+    "M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20z M12 8v5 M12 16h.01",
+  mention:
     "M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20z M12 6v.01 M8 10h4a2 2 0 0 1 0 4H9v3",
+  innovation_submitted:
+    "M9 18h6M10 22h4M12 2a7 7 0 0 0-4 12.7c.5.5.8 1.3.8 2.1V18h6.4v-1.2c0-.8.3-1.6.8-2.1A7 7 0 0 0 12 2z",
+  innovation_approved: "M20 6L9 17l-5-5",
+  innovation_declined:
+    "M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20z M12 8v5 M12 16h.01",
+  innovation_implemented:
+    "M9 11l3 3L22 4M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11",
 };
 
 export const SAMPLE_TRANSCRIPT =

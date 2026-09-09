@@ -175,7 +175,7 @@ export function ModalPanel({
         "overflow-y-auto bg-modal text-foreground p-7 shadow-modal border border-border",
         wide ? "w-[900px] max-w-[95vw] p-0" : "w-[460px] max-w-[92vw]",
         bottomSheetOnMobile
-          ? "max-h-[92vh] rounded-t-[24px] rounded-b-none sm:rounded-[20px] pb-[max(env(safe-area-inset-bottom),28px)] sm:pb-7 max-w-full w-full"
+          ? "max-h-[92dvh] rounded-t-[24px] rounded-b-none sm:rounded-[20px] pb-[max(env(safe-area-inset-bottom),28px)] sm:pb-7 max-w-full w-full"
           : "max-h-[88vh] rounded-[20px]",
         className,
       )}

@@ -13,6 +13,7 @@ import {
 export function NotificationForm({ initialPrefs }: { initialPrefs: any }) {
   const [state, formAction, pending] = useActionState(updatePreferencesAction, null);
   const [success, setSuccess] = useState(false);
+  const [dirty, setDirty] = useState(false);
   const [masterEnabled, setMasterEnabled] = useState(initialPrefs.notificationsEnabled ?? true);
   const [pushState, setPushState] = useState<PushUiState>("disabled");
   const [pushBusy, setPushBusy] = useState(false);
@@ -21,6 +22,7 @@ export function NotificationForm({ initialPrefs }: { initialPrefs: any }) {
   useEffect(() => {
     if (state?.ok) {
       setSuccess(true);
+      setDirty(false);
       const timer = setTimeout(() => setSuccess(false), 3000);
       return () => clearTimeout(timer);
     }
@@ -101,7 +103,7 @@ export function NotificationForm({ initialPrefs }: { initialPrefs: any }) {
           id="notificationsEnabled"
           name="notificationsEnabled"
           defaultChecked={initialPrefs.notificationsEnabled ?? true}
-          onChange={(checked) => setMasterEnabled(checked)}
+          onChange={(checked) => { setMasterEnabled(checked); setDirty(true); }}
         />
       </div>
 
@@ -181,6 +183,7 @@ export function NotificationForm({ initialPrefs }: { initialPrefs: any }) {
             id="activityNotifications"
             name="activityNotifications"
             defaultChecked={initialPrefs.activityNotifications ?? true}
+            onChange={() => setDirty(true)}
           />
         </div>
 
@@ -197,6 +200,7 @@ export function NotificationForm({ initialPrefs }: { initialPrefs: any }) {
             id="dmNotifications"
             name="dmNotifications"
             defaultChecked={initialPrefs.dmNotifications ?? true}
+            onChange={() => setDirty(true)}
           />
         </div>
 
@@ -213,6 +217,7 @@ export function NotificationForm({ initialPrefs }: { initialPrefs: any }) {
             id="emailNotifications"
             name="emailNotifications"
             defaultChecked={initialPrefs.emailNotifications ?? true}
+            onChange={() => setDirty(true)}
           />
         </div>
 
@@ -228,7 +233,7 @@ export function NotificationForm({ initialPrefs }: { initialPrefs: any }) {
       </div>
 
       <div className="mt-2">
-        <button type="submit" disabled={pending} className="mt-2 flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl border-none bg-primary py-3 text-[14.5px] font-bold text-primary-foreground transition-colors hover:bg-primary-hover disabled:opacity-60">{pending ? "Saving…" : "Save Preferences"}</button>
+        <button type="submit" disabled={pending || !dirty} className="mt-2 flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl border-none bg-primary py-3 text-[14.5px] font-bold text-primary-foreground transition-colors hover:bg-primary-hover disabled:opacity-60">{pending ? "Saving…" : "Save Preferences"}</button>
       </div>
     </form>
   );

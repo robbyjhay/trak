@@ -586,6 +586,7 @@ export function Bubble({
 
           {!isDeleted && linkPreview && (
             <div className="mt-0.5">
+              <LinkPreviewCard preview={linkPreview} me={isMe} />
             </div>
           )}
           
