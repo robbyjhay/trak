@@ -6,7 +6,10 @@ import {
 import { putLocalObject } from "@/lib/services/storage.service";
 import { ServiceError } from "@/lib/db/service";
 
-/** Local-dev upload endpoint used when S3 is not configured. */
+/** App-server upload proxy used in all environments (forwards to S3 in
+ * production; local disk for development/test). Browser uploads always land
+ * here so they never depend on the client's network reaching the object store
+ * or on the bucket's CORS configuration. */
 export async function PUT(req: Request) {
   try {
     const { session, error } = await requireSession();
@@ -20,11 +23,17 @@ export async function PUT(req: Request) {
     }
 
     const contentLength = Number(req.headers.get("content-length")) || 0;
-    if (contentLength > 10 * 1024 * 1024) {
-      throw new ServiceError(400, "File too large");
+    if (contentLength > 30 * 1024 * 1024) {
+      throw new ServiceError(413, "File too large");
     }
 
-    await putLocalObject(key, req.body, token, session.id);
+    await putLocalObject(
+      key,
+      req.body,
+      token,
+      session.id,
+      req.headers.get("content-type") || undefined,
+    );
     return jsonOk({ ok: true, key });
   } catch (err) {
     return handleServiceError(err);

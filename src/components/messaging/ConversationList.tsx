@@ -91,7 +91,7 @@ export function ConversationList({
         }
       }
 
-      if (!n.read && n.type === "community") {
+      if (!n.read && (n.type === "community" || n.type === "mention")) {
         map["community"] = (map["community"] || 0) + 1;
       }
       if (!n.read && n.type === "announcement") {

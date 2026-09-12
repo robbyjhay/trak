@@ -56,7 +56,6 @@ export const viewport: Viewport = {
   interactiveWidget: "overlays-content",
 };
 
-  // apple-touch-icon
 export default async function RootLayout({
   children,
 }: Readonly<{
@@ -77,6 +76,7 @@ export default async function RootLayout({
       className={`${fraunces.variable} ${archivo.variable} ${jetbrainsMono.variable} h-full`}
     >
       <head>
+        <link rel="apple-touch-icon" href="/icon-192.png" />
         <script
           nonce={nonce}
           dangerouslySetInnerHTML={{

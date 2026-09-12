@@ -9,7 +9,7 @@ import { scrollToMessage } from "@/lib/message-scroll";
 import { PATHS } from "@/components/icons";
 
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import type { MessageAttachment, MessageMention, ReplyPreview, LinkPreview } from "@/lib/types";
+import type { MessageAttachment, MessageMention, ReplyPreview, LinkPreview, AnnouncementReaction } from "@/lib/types";
 import { LinkPreviewCard } from "./LinkPreviewCard";
 
 function formatMessageTime(isoString: string): string {
@@ -59,6 +59,9 @@ export function Bubble({
   canDeleteAny = false,
   isHighlighted = false,
   linkPreview,
+  reactions,
+  onReact,
+  reactionSet = ["👍", "❤️", "😂", "👏", "🔥"],
 }: {
   id: string;
   fromId: string;
@@ -82,6 +85,12 @@ export function Bubble({
   canDeleteAny?: boolean;
   isHighlighted?: boolean;
   linkPreview?: LinkPreview | null;
+  /** Announcement reactions — rendered as an inline emoji bar beneath the bubble. */
+  reactions?: AnnouncementReaction[];
+  /** Toggle a default reaction on this message. */
+  onReact?: (emoji: string) => void;
+  /** The 5 default reaction emojis, in display order. */
+  reactionSet?: readonly string[];
 }) {
   const isMe = fromId === me;
   const p = userMap[fromId];
@@ -398,7 +407,7 @@ export function Bubble({
 
       {/* Message content */}
       <div
-        className="flex flex-col min-w-0 max-w-full relative"
+        className="flex flex-col min-w-0 max-w-full relative max-w-[280px]"
         style={{
           transform: `translateX(${offsetX}px)`,
           transition: isDragging ? "none" : "transform 200ms cubic-bezier(0.2, 0.8, 0.2, 1)",
@@ -491,10 +500,7 @@ export function Bubble({
             </div>
           ) : null}
 
-          {linkPreview && (
-              <LinkPreviewCard preview={linkPreview} me={isMe} />
-            )}
-            {attachments && attachments.length > 0 && (
+          {attachments && attachments.length > 0 && (
             <div className="flex flex-col gap-2 mb-1.5">
               {attachments.map((att) => {
                 const isImg = att.contentType.startsWith("image/");
@@ -541,7 +547,7 @@ export function Bubble({
                       target="_blank"
                       rel="noopener noreferrer"
                       className={cn(
-                        "inline no-underline underline-offset-2 hover:underline font-medium break-all",
+                        "inline no-underline underline-offset-2 hover:underline font-medium break-words overflow-wrap-anywhere",
                         isMe
                           ? "text-primary-foreground underline decoration-primary-foreground/40"
                           : "text-primary decoration-primary/40"
@@ -584,11 +590,44 @@ export function Bubble({
             </div>
           )}
 
-          {!isDeleted && linkPreview && (
-            <div className="mt-0.5">
-              <LinkPreviewCard preview={linkPreview} me={isMe} />
+          {reactions && reactions.length > 0 && (
+            <div className="flex flex-wrap gap-1 mt-2" data-testid={`reactions-${id}`}>
+              {reactionSet.map((emoji) => {
+                const summary = reactions.find((r) => r.emoji === emoji);
+                const count = summary?.count ?? 0;
+                const reactedByMe = summary?.reactedByMe ?? false;
+                return (
+                  <button
+                    key={emoji}
+                    type="button"
+                    data-testid={`react-${emoji}`}
+                    aria-label={`React ${emoji}`}
+                    aria-pressed={reactedByMe}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onReact?.(emoji);
+                    }}
+                    className={[
+                      "flex items-center gap-1 rounded-full px-2.5 py-1 text-[13px] font-semibold leading-none",
+                      "border transition-all duration-150 select-none cursor-pointer active:scale-90",
+                      reactedByMe
+                        ? "bg-primary/15 border-primary/40 text-primary"
+                        : "bg-surface-muted border-border text-foreground-secondary hover:bg-surface-hover",
+                    ].join(" ")}
+                  >
+                    <span>{emoji}</span>
+                    {count > 0 && <span className="text-[11px] font-bold">{count}</span>}
+                  </button>
+                );
+              })}
             </div>
           )}
+
+          {!isDeleted && linkPreview && (
+              <div className="mt-0.5">
+                <LinkPreviewCard preview={linkPreview} me={isMe} />
+              </div>
+            )}
           
           <div
             className={cn(

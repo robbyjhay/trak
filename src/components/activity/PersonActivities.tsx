@@ -168,6 +168,19 @@ export function PersonActivities({ userId }: { userId: string }) {
               {(() => {
                 const selfCreated = items.filter((a) => !a.delegatedBy);
                 const delegated = items.filter((a) => a.delegatedBy);
+                const delegatedGroups = (
+                  [
+                    ["SELF_DEVELOPMENT", "Self-Development Delegations"],
+                    ["INNOVATION", "Innovation Collaborations"],
+                    ["UNIT_WORK", "Unit Work Delegations"],
+                  ] as const
+                )
+                  .map(([type, label]) => ({
+                    type,
+                    label,
+                    activities: delegated.filter((a) => a.delegationType === type),
+                  }))
+                  .filter((g) => g.activities.length > 0);
                 return (
                   <>
                     {selfCreated.length > 0 && (
@@ -180,16 +193,16 @@ export function PersonActivities({ userId }: { userId: string }) {
                         ))}
                       </>
                     )}
-                    {delegated.length > 0 && (
-                      <>
+                    {delegatedGroups.map((g) => (
+                      <div key={g.type}>
                         <div className="mt-[18px] mb-2.5 text-[11px] font-bold tracking-wider text-ink-faint uppercase">
-                          Delegated Activities ({delegated.length})
+                          {g.label} ({g.activities.length})
                         </div>
-                        {delegated.map((a, idx) => (
+                        {g.activities.map((a, idx) => (
                           <ActRow key={a.id} activity={a} onReport={openReport} index={idx} />
                         ))}
-                      </>
-                    )}
+                      </div>
+                    ))}
                   </>
                 );
               })()}

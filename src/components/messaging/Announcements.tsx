@@ -3,12 +3,13 @@
 import { useMemo, useState, useCallback } from "react";
 import { useTrak } from "@/context/TrakStore";
 import { canSendAnnouncement } from "@/lib/announcements";
+import { isNetworkError } from "@/lib/api/client";
 import type { Dm } from "@/lib/types";
 import { ChatThread } from "./ChatThread";
 import { Composer, type ReplyingTo } from "./Composer";
 
 export function AnnouncementsPanel() {
-  const { sessionUser, users, userMap, db, sendAnnouncement, deleteAnnouncement, showToast } = useTrak();
+  const { sessionUser, users, userMap, db, sendAnnouncement, deleteAnnouncement, showToast, reactToAnnouncement } = useTrak();
   const [input, setInput] = useState("");
   const [replyingTo, setReplyingTo] = useState<ReplyingTo>(null);
   const me = sessionUser.id;
@@ -58,6 +59,10 @@ export function AnnouncementsPanel() {
           );
         }}
         canDeleteAny={canDeleteAny}
+        reactions={Object.fromEntries(db.announcements.map((a) => [a.id, a.reactions || []]))}
+        onReact={(messageId, emoji) => {
+          void reactToAnnouncement(messageId, emoji);
+        }}
       />
 
       {canBc ? (
@@ -83,10 +88,14 @@ export function AnnouncementsPanel() {
                   `Delivered to all ${users.length} unit members.`,
                 );
               })
-              .catch(() => {
+              .catch((err) => {
                 showToast(
-                  "Could not post announcement",
-                  "Please try again.",
+                  isNetworkError(err)
+                    ? "Could not post announcement — no connection"
+                    : "Could not post announcement",
+                  isNetworkError(err)
+                    ? "Check your connection and try again. It wasn't delivered."
+                    : "Please try again.",
                 );
               });
           }}

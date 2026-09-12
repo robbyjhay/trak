@@ -118,6 +118,30 @@ export function ActRow({
                 : firstName((userMap[a.delegatedBy] as User)?.name || "Unit Head")}
             </span>
           )}
+          {a.delegationType && (
+            <span
+              className={`rounded-full px-2 py-0.5 text-[9.5px] font-bold tracking-wide uppercase ${
+                a.delegationType === "SELF_DEVELOPMENT"
+                  ? "bg-success-surface text-success"
+                  : a.delegationType === "INNOVATION"
+                    ? "bg-aztec-2 text-saffron"
+                    : "bg-surface-muted text-foreground-secondary border border-border"
+              }`}
+              title={
+                a.delegationType === "SELF_DEVELOPMENT"
+                  ? "Self-Development task"
+                  : a.delegationType === "INNOVATION"
+                    ? "Innovation collaboration task"
+                    : "Delegated unit work"
+              }
+            >
+              {a.delegationType === "SELF_DEVELOPMENT"
+                ? "Self-Development"
+                : a.delegationType === "INNOVATION"
+                  ? "Innovation"
+                  : "Unit Work"}
+            </span>
+          )}
           {a.hasBudget && (
             <span className="rounded-full bg-warning-surface px-2 py-0.5 text-[9.5px] font-bold tracking-wide text-warning-foreground uppercase">
               Budget

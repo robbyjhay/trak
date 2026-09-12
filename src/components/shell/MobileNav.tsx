@@ -5,8 +5,9 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { LibraryIcon, PATHS } from "@/components/icons";
 import { cn } from "@/lib/utils";
-
 import { useConnectNav } from "@/context/ConnectNav";
+import { useTrak } from "@/context/TrakStore";
+import { countUnreadMessages } from "@/lib/unreadMessages";
 
 const NAV_LEFT = [
   { href: "/dashboard", defaultLabel: "Dashboard", path: PATHS.dashboard },
@@ -25,8 +26,8 @@ const MORE_NAV = [
     icon: <LibraryIcon size={22} />,
   },
   {
-    href: "/innovation-hub",
-    label: "Innovation Hub",
+    href: "/innovation-cloud",
+    label: "Innovation Cloud",
     icon: (
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
         <path d={PATHS.bulb} />
@@ -107,7 +108,9 @@ export function MobileNav() {
   const [open, setOpen] = useState(false);
   const [kbOpen, setKbOpen] = useState(false);
   const { isMobileThreadOpen } = useConnectNav();
+  const { myNotifications } = useTrak();
   const panelRef = useRef<HTMLDivElement>(null);
+  const unread = countUnreadMessages(myNotifications());
 
   const isActive = (item: { href: string; also?: string[] }) => {
     if (pathname === item.href) return true;
@@ -224,9 +227,16 @@ export function MobileNav() {
                       active ? "text-saffron" : "text-aztec dark:text-white hover:text-aztec dark:hover:text-white",
                     )}
                   >
-                    <svg className={cn(active && "text-saffron")} width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.25">
-                      <path d={item.path} />
-                    </svg>
+                    <span className="relative">
+                      <svg className={cn(active && "text-saffron")} width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.25">
+                        <path d={item.path} />
+                      </svg>
+                      {item.href === "/messages" && unread > 0 && (
+                        <span className="absolute -top-1.5 -right-2 flex h-4 min-w-4 items-center justify-center rounded-full bg-success px-1 font-sans text-[9.5px] font-extrabold text-success-foreground ring-2 ring-[#F8F9FA] dark:ring-[#0d1d1a]">
+                          {unread > 99 ? "99+" : unread}
+                        </span>
+                      )}
+                    </span>
                     <span className={cn("w-full truncate text-center text-[10px] font-bold", active ? "text-saffron" : "text-aztec dark:text-white")}>{label}</span>
                   </Link>
                 );

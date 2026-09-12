@@ -25,7 +25,16 @@ export type NotifType =
   | "innovation_submitted"
   | "innovation_approved"
   | "innovation_declined"
-  | "innovation_implemented";
+  | "innovation_implemented"
+  | "work_delegated";
+
+export type DelegationType = "UNIT_WORK" | "SELF_DEVELOPMENT" | "INNOVATION";
+
+export const DELEGATION_TYPES: DelegationType[] = [
+  "UNIT_WORK",
+  "SELF_DEVELOPMENT",
+  "INNOVATION",
+];
 
 export interface User {
   id: string;
@@ -96,6 +105,10 @@ export interface Activity {
   description: string;
   createdBy: string;
   delegatedBy: string | null;
+  assigneeId?: string | null;
+  delegationType?: DelegationType | null;
+  libraryResourceId?: string | null;
+  innovationId?: string | null;
   startDate: string;
   endDate: string;
   startTime: string;
@@ -393,6 +406,10 @@ export interface CreateActivityInput {
   description: string;
   createdBy: string;
   delegatedBy?: string | null;
+  assigneeId?: string | null;
+  delegationType?: DelegationType | null;
+  libraryResourceId?: string | null;
+  innovationId?: string | null;
   startDate: string;
   endDate: string;
   startTime: string;
@@ -403,6 +420,7 @@ export interface CreateActivityInput {
   seedDate?: string;
   hasBudget?: boolean;
   estimatedAmountNgn?: number | null;
+  defaultDueAt?: string | null;
 }
 
 export interface SubmitDailyLogData {

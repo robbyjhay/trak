@@ -2,6 +2,8 @@
 
 import { cn } from "@/lib/utils";
 import { useConnectNav } from "@/context/ConnectNav";
+import { useTrak } from "@/context/TrakStore";
+import { countUnreadMessages } from "@/lib/unreadMessages";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 
 const TABS: Array<["messages" | "contacts", string]> = [
@@ -11,8 +13,10 @@ const TABS: Array<["messages" | "contacts", string]> = [
 
 export function ConnectTabs({ className }: { className?: string }) {
   const { view, setView } = useConnectNav();
+  const { myNotifications } = useTrak();
   const reduceMotion = useReducedMotion();
   const activeIndex = view === "messages" ? 0 : 1;
+  const unread = countUnreadMessages(myNotifications());
 
   return (
     <div
@@ -44,6 +48,11 @@ export function ConnectTabs({ className }: { className?: string }) {
           )}
         >
           {label}
+          {key === "messages" && unread > 0 && (
+            <span className="ml-1.5 inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-success px-1 text-[10px] font-extrabold text-success-foreground">
+              {unread > 99 ? "99+" : unread}
+            </span>
+          )}
         </motion.button>
       ))}
     </div>

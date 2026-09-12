@@ -72,6 +72,10 @@ export function createActivity(
     description: input.description,
     createdBy: input.createdBy,
     delegatedBy: input.delegatedBy ?? null,
+    assigneeId: input.assigneeId ?? null,
+    delegationType: input.delegationType ?? null,
+    libraryResourceId: input.libraryResourceId ?? null,
+    innovationId: input.innovationId ?? null,
     startDate: input.startDate,
     endDate: input.endDate,
     startTime: input.startTime,
@@ -157,6 +161,25 @@ export function submitDailyLog(
     act.exceptionStatus = act.exceptionStatus === "approved" ? "approved" : act.exceptionStatus;
   }
   recomputeStatus(db, activityId, now);
+}
+
+export function recoverMissedActivities(db: TrakDb): { recovered: number } {
+  if (!isActivityRecoveryEnabled()) return { recovered: 0 };
+  let recovered = 0;
+  for (const act of db.activities) {
+    if (act.status !== "missed" || act.softDeletedAt) continue;
+    const logs = db.dailyLogs.filter((l) => l.activityId === act.id);
+    const hasPending = logs.some((l) => l.status === "pending");
+    if (!hasPending) continue;
+    act.status = "pending";
+    act.exceptionStatus = "none";
+    act.exceptionReason = "";
+    act.submissionType = "normal";
+    act.gracePeriodStartedAt = null;
+    act.gracePeriodExpiresAt = null;
+    recovered++;
+  }
+  return { recovered };
 }
 
 export function requestException(
@@ -246,7 +269,8 @@ export function pushNotification(
 
 export function activitiesFor(db: TrakDb, userId: string): Activity[] {
   return db.activities.filter(
-    (a) => a.createdBy === userId && !a.softDeletedAt,
+    (a) =>
+      (a.createdBy === userId || a.assigneeId === userId) && !a.softDeletedAt,
   );
 }
 

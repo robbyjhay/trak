@@ -42,6 +42,10 @@ const MAX_SIZE: Record<UploadPurpose, number> = {
   message_attachment: 25 * 1024 * 1024, // 25 MB
 };
 
+// App-server upload proxy cap (>= largest MAX_SIZE so per-purpose limits at
+// sign time remain authoritative).
+const MAX_PROXY_BYTES = 30 * 1024 * 1024;
+
 /**
  * Required S3 env vars. S3_REGION/S3_ENDPOINT/S3_PUBLIC_BASE_URL are optional
  * depending on provider (see resolveS3PublicBaseUrl); the three below are not.
@@ -55,10 +59,6 @@ export function isS3Configured(): boolean {
 /** Which backend createSignedUpload() will route to. */
 export function getStorageMode(): "s3" | "local" {
   return isS3Configured() ? "s3" : "local";
-}
-
-function isProdEnv(): boolean {
-  return process.env.NODE_ENV === "production";
 }
 
 function localUploadDir(): string {
@@ -192,48 +192,11 @@ export async function createSignedUpload(input: {
   const key = `${input.purpose}/${input.userId}/${id}.${ext}`;
   const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString();
 
-  if (isS3Configured()) {
-    const { S3Client, PutObjectCommand } = await import("@aws-sdk/client-s3");
-    const { getSignedUrl } = await import("@aws-sdk/s3-request-presigner");
-
-    const client = new S3Client({
-      region: process.env.S3_REGION || "auto",
-      endpoint: process.env.S3_ENDPOINT || undefined,
-      forcePathStyle: Boolean(process.env.S3_ENDPOINT),
-      credentials: {
-        accessKeyId: process.env.S3_ACCESS_KEY_ID!,
-        secretAccessKey: process.env.S3_SECRET_ACCESS_KEY!,
-      },
-    });
-
-    const command = new PutObjectCommand({
-      Bucket: process.env.S3_BUCKET!,
-      Key: key,
-      ContentType: contentType,
-      ContentLength: input.size,
-    });
-
-    const uploadUrl = await getSignedUrl(client, command, { expiresIn: 900 });
-    // Stable (non-signed) object URL is what callers persist in the DB —
-    // the signed uploadUrl above expires in 15 minutes and must NOT be stored.
-    const publicUrl = `/api/uploads/file?key=${encodeURIComponent(key)}`;
-
-    return { key, uploadUrl, publicUrl, expiresAt, method: "PUT" };
-  }
-
-  // Production must never silently store uploads on ephemeral local disk
-  // (.data/uploads does not survive container restarts/redeploys). Fail
-  // loudly so the missing S3 configuration is fixed instead of producing
-  // data that is known to be non-persistent. Local disk stays available
-  // for development/test only.
-  if (isProdEnv()) {
-    throw new StorageError(
-      503,
-      "Object storage is not configured: set S3_BUCKET, S3_ACCESS_KEY_ID and S3_SECRET_ACCESS_KEY in production",
-    );
-  }
-
-  // Local dev: signed path token for our own upload route
+  // Uploads always go through the app server (same-origin `/api/uploads/put`),
+  // which forwards to S3/R2 with server credentials. Routing the browser
+  // directly at the object store is avoided because it depends on the client's
+  // own network reaching the store AND on the bucket's CORS rules — both of
+  // which have caused production upload failures.
   const secret = process.env.TRAK_SESSION_SECRET;
   if (!secret) {
     throw new StorageError(500, "Upload signing secret not configured");
@@ -242,7 +205,6 @@ export async function createSignedUpload(input: {
     .update(`${key}:${input.userId}:${secret}`)
     .digest("hex")
     .slice(0, 32);
-  const appUrl = process.env.APP_URL || "http://localhost:3000";
   const uploadUrl = `/api/uploads/put?key=${encodeURIComponent(key)}&token=${token}`;
   const publicUrl = `/api/uploads/file?key=${encodeURIComponent(key)}`;
 
@@ -254,6 +216,7 @@ export async function putLocalObject(
   stream: ReadableStream<Uint8Array> | null,
   expectedToken: string,
   userId: string,
+  contentType?: string,
 ): Promise<void> {
   const secret = process.env.TRAK_SESSION_SECRET;
   if (!secret) {
@@ -268,6 +231,48 @@ export async function putLocalObject(
   }
   if (key.includes("..") || key.startsWith("/")) {
     throw new StorageError(400, "Invalid key");
+  }
+
+  // Production: forward to S3-compatible storage using server credentials.
+  // The request body is buffered (capped) so the SDK can send it as a byte
+  // payload without needing a signed transfer from the browser.
+  if (isS3Configured()) {
+    const chunks: Buffer[] = [];
+    let bytes = 0;
+    if (stream) {
+      const reader = stream.getReader();
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        if (value) {
+          bytes += value.length;
+          if (bytes > MAX_PROXY_BYTES) {
+            throw new StorageError(413, "File too large");
+          }
+          chunks.push(Buffer.from(value));
+        }
+      }
+    }
+
+    const { S3Client, PutObjectCommand } = await import("@aws-sdk/client-s3");
+    const client = new S3Client({
+      region: process.env.S3_REGION || "auto",
+      endpoint: process.env.S3_ENDPOINT || undefined,
+      forcePathStyle: Boolean(process.env.S3_ENDPOINT),
+      credentials: {
+        accessKeyId: process.env.S3_ACCESS_KEY_ID!,
+        secretAccessKey: process.env.S3_SECRET_ACCESS_KEY!,
+      },
+    });
+    await client.send(
+      new PutObjectCommand({
+        Bucket: process.env.S3_BUCKET!,
+        Key: key,
+        Body: Buffer.concat(chunks),
+        ContentType: contentType,
+      }),
+    );
+    return;
   }
 
   const full = path.join(localUploadDir(), key);
@@ -288,10 +293,10 @@ export async function putLocalObject(
       if (done) break;
       if (value) {
         bytesWritten += value.length;
-        if (bytesWritten > 10 * 1024 * 1024) {
+        if (bytesWritten > MAX_PROXY_BYTES) {
           writeStream.destroy();
           await fs.unlink(full).catch(() => {});
-          throw new StorageError(400, "File too large");
+          throw new StorageError(413, "File too large");
         }
         writeStream.write(value);
       }

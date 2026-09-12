@@ -709,6 +709,11 @@ export function TrakStoreProvider({
         }>("/api/messages/dms", "POST", { toId, text, attachments, replyToId: replyToId || null });
         stateRef.current.db.dms = res.dms;
         mergeNotifications(res.notifications);
+      } catch (err) {
+        // The message never reached anyone — remove the optimistic copy so the
+        // thread doesn't show a message that failed to send.
+        stateRef.current.db.dms = stateRef.current.db.dms.filter((m) => m.id !== tempId);
+        throw err;
       } finally {
         bump();
       }
@@ -749,6 +754,11 @@ export function TrakStoreProvider({
           { text, attachments, mentions, replyToId: replyToId || null },
         );
         stateRef.current.db.community = res.community;
+      } catch (err) {
+        // The message never reached anyone — remove the optimistic copy so the
+        // thread doesn't show a message that failed to send.
+        stateRef.current.db.community = stateRef.current.db.community.filter((m) => m.id !== tempId);
+        throw err;
       } finally {
         bump();
       }

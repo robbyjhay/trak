@@ -150,7 +150,7 @@ export function GuestAttendanceManager({
             ) : qrToken ? (
               <div className="flex flex-col items-center">
                 <div className="rounded-xl bg-white p-4">
-                  <QRCodeSVG value={typeof window !== "undefined" ? `${window.location.origin}/guest?token=${qrToken}` : qrToken} size={160} />
+                  <QRCodeSVG value={typeof window !== "undefined" ? `${window.location.origin}/guest?token=${qrToken}` : qrToken} size={160} imageSettings={{ src: "/logo-black.png", height: 36, width: 36, excavate: true }} />
                 </div>
                 <div className="mt-3 text-[12px] font-semibold text-foreground-secondary">
                   Expires in {qrExpiryCountdown === 60 ? "01:00" : `00:${qrExpiryCountdown.toString().padStart(2, "0")}`}

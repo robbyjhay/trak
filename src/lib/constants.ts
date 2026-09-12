@@ -71,6 +71,8 @@ export const NOTIF_PATHS: Record<NotifType, string> = {
     "M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20z M12 8v5 M12 16h.01",
   innovation_implemented:
     "M9 11l3 3L22 4M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11",
+  work_delegated:
+    "M16 11V7a4 4 0 0 0-8 0v4 M5 9h14l1 12H4L5 9z M9 13v4 M15 13v4",
 };
 
 export const SAMPLE_TRANSCRIPT =

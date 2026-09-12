@@ -128,7 +128,7 @@ async function notifyHeadsOfSubmission(
       userId: h.id,
       type: "innovation_submitted" as const,
       text: `A new Innovation idea "${innovation.title}" has been submitted for review.`,
-      meta: { innovationId: innovation.id, url: "/innovation-hub/manage" },
+      meta: { innovationId: innovation.id, url: "/innovation-cloud/manage" },
       dedupeKey: `innovation:submit:${innovation.id}`,
     })),
   );
@@ -278,7 +278,7 @@ export async function approveInnovation(
       userId: updated.submittedById,
       type: "innovation_approved",
       text: `Your innovation idea "${updated.title}" was approved!`,
-      meta: { innovationId: updated.id, url: "/innovation-hub" },
+      meta: { innovationId: updated.id, url: "/innovation-cloud" },
       dedupeKey: `innovation:review:${updated.id}:approved`,
     });
   }
@@ -325,7 +325,7 @@ export async function declineInnovation(
       userId: updated.submittedById,
       type: "innovation_declined",
       text: `Your innovation idea "${updated.title}" was not accepted: ${cleanReason}`,
-      meta: { innovationId: updated.id, url: "/innovation-hub" },
+      meta: { innovationId: updated.id, url: "/innovation-cloud" },
       dedupeKey: `innovation:review:${updated.id}:declined`,
     });
   }
@@ -366,7 +366,7 @@ export async function implementInnovation(
       userId: updated.submittedById,
       type: "innovation_implemented",
       text: `Your innovation idea "${updated.title}" has been implemented! 🎉`,
-      meta: { innovationId: updated.id, url: "/innovation-hub" },
+      meta: { innovationId: updated.id, url: "/innovation-cloud" },
       dedupeKey: `innovation:implement:${updated.id}`,
     });
   }

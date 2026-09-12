@@ -16,7 +16,7 @@ import type { Innovation, InnovationCategory } from "@/lib/types";
 type Tab = "hub" | "mine";
 type SortOpt = "newest" | "oldest" | "name-asc" | "name-desc";
 
-export default function InnovationHubPage() {
+export default function InnovationCloudPage() {
   const { sessionUser } = useTrak();
 
   const [activeTab, setActiveTab] = useState<Tab>("hub");
@@ -54,8 +54,8 @@ export default function InnovationHubPage() {
       });
       const endpoint =
         activeTab === "mine"
-          ? `/api/innovation-hub/mine?${q}`
-          : `/api/innovation-hub?${q}`;
+          ? `/api/innovation-cloud/mine?${q}`
+          : `/api/innovation-cloud?${q}`;
       const data = await apiGet<{
         innovations: Innovation[];
         meta: { total: number };
@@ -91,11 +91,11 @@ export default function InnovationHubPage() {
 
   return (
     <div className="pb-24">
-      {/* Tabs — directly under the Innovation Hub topbar */}
+      {/* Tabs — directly under the Innovation Cloud topbar */}
       <div className="mb-5 flex w-fit rounded-full bg-surface-muted p-1 border border-border">
         {(
           [
-            { key: "hub" as const, label: "Innovation Hub" },
+            { key: "hub" as const, label: "Innovation Cloud" },
             { key: "mine" as const, label: "My Submissions" },
           ] as const
         ).map(({ key, label }) => {
@@ -125,7 +125,7 @@ export default function InnovationHubPage() {
         <div className="flex items-center gap-2">
           {sessionUser?.role === "head" && (
             <Link
-              href="/innovation-hub/manage"
+              href="/innovation-cloud/manage"
               className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-full border border-border bg-surface px-5 py-2.5 text-[13px] font-bold text-foreground shadow-sm transition-transform hover:bg-surface-hover active:scale-95 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
             >
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>

@@ -14,6 +14,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Invalid subscription" }, { status: 400 });
     }
 
+    // Upsert the subscription — keyed by endpoint (unique constraint).
     await prisma.pushSubscription.upsert({
       where: { endpoint: subscription.endpoint },
       create: {
@@ -27,6 +28,17 @@ export async function POST(req: Request) {
         p256dh: subscription.keys.p256dh,
         auth: subscription.keys.auth,
         lastUsedAt: new Date(),
+      },
+    });
+
+    // Clean up any OTHER stale subscriptions for this user that share the
+    // same endpoint (shouldn't happen with unique constraint, but defensive)
+    // or subscriptions that belong to other users with this endpoint
+    // (edge case from account reassignment).
+    await prisma.pushSubscription.deleteMany({
+      where: {
+        endpoint: subscription.endpoint,
+        userId: { not: session.id },
       },
     });
 

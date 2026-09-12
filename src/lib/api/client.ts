@@ -12,6 +12,13 @@ export class ApiError extends Error {
   }
 }
 
+/** True when a request failed because of the connection (offline, DNS, etc.)
+ * or a timeout, rather than an application/server error. */
+export function isNetworkError(err: unknown): boolean {
+  if (err instanceof TypeError) return true;
+  return err instanceof ApiError && err.status === 408;
+}
+
 const DEFAULT_TIMEOUT_MS = 25_000;
 
 function extractErrorMessage(body: unknown, fallback: string): string {

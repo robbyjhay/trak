@@ -14,6 +14,7 @@ import type { Attendee, Attachment } from "@/lib/types";
 import { ActivityEditModal } from "./ActivityEditModal";
 import { GuestAttendanceManager } from "./GuestAttendanceManager";
 import { GraceCountdown } from "./GraceCountdown";
+import { DelegateModal } from "@/components/delegation/DelegateModal";
 
 export function ActivityDetail({
   activityId,
@@ -47,6 +48,7 @@ export function ActivityDetail({
   );
   const { openReport } = useReportPreview();
   const [editOpen, setEditOpen] = useState(false);
+  const [delegateOpen, setDelegateOpen] = useState(false);
 
 
   // Refresh so public RSVP submissions appear while this page is open.
@@ -76,9 +78,14 @@ export function ActivityDetail({
   const logs = getLogs(act.id);
   const owner = userMap[act.createdBy];
   const comments = getComments(act.id);
-  const isMine = sessionUser.id === act.createdBy;
+  const isAssignee = sessionUser.id === act.assigneeId;
+  const isMine = sessionUser.id === act.createdBy || isAssignee;
   const canEditDates = isMine || sessionUser.role === "head";
   const headCanComment = canComment(sessionUser);
+  const showDelegateButton =
+    sessionUser.role === "head" &&
+    act.status === "pending" &&
+    !act.assigneeId;
 
   return (
     <div>
@@ -147,6 +154,42 @@ export function ActivityDetail({
                 : firstName(userMap[act.delegatedBy]?.name || "")}
             </span>
           )}
+          {act.delegationType && (
+            <span
+              className={`rounded-full px-2.5 py-1 text-[9.5px] font-bold tracking-wide uppercase ${
+                act.delegationType === "SELF_DEVELOPMENT"
+                  ? "bg-success-surface text-success"
+                  : act.delegationType === "INNOVATION"
+                    ? "bg-aztec-2 text-saffron"
+                    : "bg-surface-muted text-foreground-secondary border border-border"
+              }`}
+            >
+              {act.delegationType === "SELF_DEVELOPMENT"
+                ? "Self-Development"
+                : act.delegationType === "INNOVATION"
+                  ? "Innovation"
+                  : "Unit Work"}
+            </span>
+          )}
+          {(act.delegationType === "SELF_DEVELOPMENT" && act.libraryResourceId) ||
+          (act.delegationType === "INNOVATION" && act.innovationId) ? (
+            <button
+              type="button"
+              onClick={() =>
+                router.push(
+                  act.delegationType === "SELF_DEVELOPMENT"
+                    ? "/library"
+                    : "/innovation-cloud",
+                )
+              }
+              className="inline-flex cursor-pointer items-center gap-1 rounded-full border border-border bg-surface-muted px-2.5 py-1 text-[11px] font-bold text-foreground-secondary transition-colors hover:border-primary hover:text-primary"
+            >
+              View{" "}
+              {act.delegationType === "SELF_DEVELOPMENT"
+                ? "Library resource"
+                : "Innovation idea"}
+            </button>
+          ) : null}
           {act.location && (
             <span className="inline-flex items-center gap-1 rounded-full bg-surface-muted px-2.5 py-1 text-[11px] font-bold text-foreground-secondary">
               <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
@@ -175,6 +218,14 @@ export function ActivityDetail({
               </svg>
               Edit Activity
             </GhostBtn>
+            {showDelegateButton && (
+              <GhostBtn onClick={() => setDelegateOpen(true)} className="px-3 py-1.5 text-xs">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="mr-1.5">
+                  <path d="M16 11V7a4 4 0 0 0-8 0v4 M5 9h14l1 12H4L5 9z" />
+                </svg>
+                Delegate to Member
+              </GhostBtn>
+            )}
             <GraceCountdown activity={act} variant="banner" />
           </div>
         )}
@@ -190,6 +241,19 @@ export function ActivityDetail({
           activity={act}
           open={editOpen}
           onClose={() => setEditOpen(false)}
+        />
+      )}
+
+      {delegateOpen && (
+        <DelegateModal
+          kind="unit"
+          targetId={act.id}
+          title={act.title}
+          open={delegateOpen}
+          onClose={() => setDelegateOpen(false)}
+          onSuccess={() => {
+            refresh().catch(() => {});
+          }}
         />
       )}
 
@@ -1087,7 +1151,16 @@ function PendingForm({
               />
             )}
             <DetailRow label="Time" value={fmtTime(act.startTime)} />
-            {act.location && (
+          {act.assigneeId && (
+            <span className="inline-flex items-center gap-1 rounded-full bg-surface-muted px-2.5 py-1 text-[11px] font-bold text-foreground-secondary">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                <circle cx="12" cy="7" r="4" />
+              </svg>
+              Assigned to {users.find((u) => u.id === act.assigneeId)?.name || "Member"}
+            </span>
+          )}
+          {act.location && (
               <DetailRow label="Location" value={act.location} />
             )}
           </div>

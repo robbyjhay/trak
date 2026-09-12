@@ -9,6 +9,7 @@ import { PATHS } from "@/components/icons";
 import { fmtDate } from "@/lib/dates";
 import { ResourceDetailModal, PrimaryBtn } from "@/components/library/ResourceDetailModal";
 import { CategoryChip, StatusBadge } from "@/components/library/bits";
+import { DelegateModal } from "@/components/delegation/DelegateModal";
 import { ModalBackdrop, ModalPanel } from "@/components/ui/Modal";
 import { GhostBtn } from "@/components/ui/Buttons";
 import { TrakLoader } from "@/components/ui/TrakLoader";
@@ -38,6 +39,7 @@ export default function ManageLibraryPage() {
   const [declineOpen, setDeclineOpen] = useState(false);
   const [declineReason, setDeclineReason] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [delegateResource, setDelegateResource] = useState<LibraryResource | null>(null);
 
   const fetchResources = useCallback(async () => {
     setLoading(true);
@@ -293,9 +295,31 @@ export default function ManageLibraryPage() {
                 {submitting ? "Approving..." : "Approve"}
               </button>
             </>
+          ) : reviewResource?.status === "APPROVED" ? (
+            <button
+              type="button"
+              onClick={() => setDelegateResource(reviewResource)}
+              className="rounded-[11px] bg-primary px-[26px] py-3.5 text-[13.5px] font-bold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90"
+            >
+              Delegate for Self-Development
+            </button>
           ) : null
         }
       />
+
+      {delegateResource && (
+        <DelegateModal
+          kind="library"
+          targetId={delegateResource.id}
+          title={delegateResource.title}
+          open={Boolean(delegateResource)}
+          onClose={() => setDelegateResource(null)}
+          onSuccess={() => {
+            setDelegateResource(null);
+            fetchResources();
+          }}
+        />
+      )}
 
       {/* Decline Reason Modal */}
       <ModalBackdrop open={declineOpen} onClose={() => !submitting && setDeclineOpen(false)} labelledBy="decline-title">

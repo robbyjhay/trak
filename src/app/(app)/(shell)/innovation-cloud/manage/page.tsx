@@ -8,6 +8,7 @@ import { apiGet, apiSend } from "@/lib/api/client";
 import { PATHS } from "@/components/icons";
 import { fmtDate } from "@/lib/dates";
 import { InnovationDetailModal } from "@/components/innovation/InnovationDetailModal";
+import { DelegateModal } from "@/components/delegation/DelegateModal";
 import {
   CategoryChip,
   StatusBadge,
@@ -43,6 +44,7 @@ export default function ManageInnovationPage() {
   const [declineOpen, setDeclineOpen] = useState(false);
   const [declineReason, setDeclineReason] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [delegateInnovation, setDelegateInnovation] = useState<Innovation | null>(null);
 
   // Debounce search
   useEffect(() => {
@@ -65,14 +67,14 @@ export default function ManageInnovationPage() {
       const data = await apiGet<{
         innovations: Innovation[];
         meta: { total: number };
-      }>(`/api/innovation-hub/manage?${q}`);
+      }>(`/api/innovation-cloud/manage?${q}`);
       setInnovations(data.innovations);
       setTotal(data.meta.total);
     } catch (err) {
       const msg =
         err instanceof Error ? err.message : "Failed to load innovations.";
       setError(msg);
-      if (msg.includes("Head")) router.push("/innovation-hub");
+      if (msg.includes("Head")) router.push("/innovation-cloud");
     } finally {
       setLoading(false);
     }
@@ -89,7 +91,7 @@ export default function ManageInnovationPage() {
   async function handleApprove(id: string) {
     setSubmitting(true);
     try {
-      await apiSend(`/api/innovation-hub/${id}/approve`, "POST");
+      await apiSend(`/api/innovation-cloud/${id}/approve`, "POST");
       showToast("Innovation approved", "The member has been notified.");
       setReviewInnovation(null);
       fetchInnovations();
@@ -108,7 +110,7 @@ export default function ManageInnovationPage() {
     setSubmitting(true);
     try {
       await apiSend(
-        `/api/innovation-hub/${reviewInnovation.id}/decline`,
+        `/api/innovation-cloud/${reviewInnovation.id}/decline`,
         "POST",
         { reason: declineReason },
       );
@@ -129,7 +131,7 @@ export default function ManageInnovationPage() {
   async function handleImplement(id: string) {
     setSubmitting(true);
     try {
-      await apiSend(`/api/innovation-hub/${id}/implement`, "POST");
+      await apiSend(`/api/innovation-cloud/${id}/implement`, "POST");
       showToast("Marked as Implemented", "The member has been notified.");
       setReviewInnovation(null);
       fetchInnovations();
@@ -179,6 +181,13 @@ export default function ManageInnovationPage() {
         <>
           <button
             type="button"
+            onClick={() => setDelegateInnovation(reviewInnovation)}
+            className="rounded-[11px] bg-primary px-[26px] py-3.5 text-[13.5px] font-bold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90"
+          >
+            Assign Collaborator
+          </button>
+          <button
+            type="button"
             disabled={submitting}
             onClick={() => {
               setDeclineReason("");
@@ -192,7 +201,7 @@ export default function ManageInnovationPage() {
             type="button"
             disabled={submitting}
             onClick={() => handleImplement(id)}
-            className="rounded-[11px] bg-primary px-[26px] py-3.5 text-[13.5px] font-bold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90 disabled:opacity-50"
+            className="rounded-[11px] bg-aztec-3 px-[26px] py-3.5 text-[13.5px] font-bold text-white shadow-sm transition-colors hover:bg-aztec-3/90 disabled:opacity-50"
           >
             {submitting ? "Updating..." : "✓ Mark as Implemented"}
           </button>
@@ -216,13 +225,13 @@ export default function ManageInnovationPage() {
     <div className="pb-24">
       {/* Page head */}
       <Link
-        href="/innovation-hub"
+        href="/innovation-cloud"
         className="mb-4 inline-flex items-center gap-2 text-[14px] font-semibold text-primary transition-colors hover:text-primary-hover"
       >
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden>
           <path d={PATHS.chevronLeft} />
         </svg>
-        Innovation Hub
+        Innovation Cloud
       </Link>
       <div className="mb-6 flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
         <div>
@@ -470,6 +479,20 @@ export default function ManageInnovationPage() {
           </div>
         </ModalPanel>
       </ModalBackdrop>
+
+      {delegateInnovation && (
+        <DelegateModal
+          kind="innovation"
+          targetId={delegateInnovation.id}
+          title={delegateInnovation.title}
+          open={Boolean(delegateInnovation)}
+          onClose={() => setDelegateInnovation(null)}
+          onSuccess={() => {
+            setDelegateInnovation(null);
+            fetchInnovations();
+          }}
+        />
+      )}
     </div>
   );
 }

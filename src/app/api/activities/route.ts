@@ -53,6 +53,11 @@ export async function POST(req: Request) {
       description?: string;
       createdBy?: string;
       delegatedBy?: string | null;
+      assigneeId?: string | null;
+      delegationType?: "UNIT_WORK" | "SELF_DEVELOPMENT" | "INNOVATION" | null;
+      libraryResourceId?: string | null;
+      innovationId?: string | null;
+      defaultDueAt?: string | null;
       startDate?: string;
       endDate?: string;
       startTime?: string;
@@ -79,6 +84,11 @@ export async function POST(req: Request) {
       description: body.description || "",
       createdBy: body.createdBy,
       delegatedBy: body.delegatedBy,
+      assigneeId: body.assigneeId ?? null,
+      delegationType: body.delegationType ?? null,
+      libraryResourceId: body.libraryResourceId ?? null,
+      innovationId: body.innovationId ?? null,
+      defaultDueAt: body.defaultDueAt ?? null,
       startDate: body.startDate,
       endDate: body.endDate,
       startTime: body.startTime,

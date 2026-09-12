@@ -11,6 +11,7 @@ import {
   roleLabel,
 } from "@/lib/permissions";
 import { cn, firstName } from "@/lib/utils";
+import { isNetworkError } from "@/lib/api/client";
 import { UserAvatar } from "@/components/ui/UserAvatar";
 import { PATHS } from "@/components/icons";
 import { ANNOUNCEMENT_CHANNEL } from "@/lib/announcements";
@@ -113,7 +114,7 @@ export function Messaging({
       }
       let partnerNotifs;
       if (activeConv === "community") {
-        partnerNotifs = db.notifications.filter(n => n.userId === me && !n.read && n.type === "community" && n.messageId);
+        partnerNotifs = db.notifications.filter(n => n.userId === me && !n.read && (n.type === "community" || n.type === "mention") && n.messageId);
       } else {
         const notifs = db.notifications.filter(n => n.userId === me && !n.read && n.type === "dm" && n.messageId);
         partnerNotifs = notifs.filter(n => {
@@ -387,8 +388,15 @@ export function Messaging({
                     const rId = replyingTo?.id ?? null;
                     setInput("");
                     setReplyingTo(null);
-                    void sendCommunity(text, attachments, mentions, rId).catch(() =>
-                      showToast("Could not send message", "Please try again."),
+                    void sendCommunity(text, attachments, mentions, rId).catch((err) =>
+                      showToast(
+                        isNetworkError(err)
+                          ? "Could not send message — no connection"
+                          : "Could not send message",
+                        isNetworkError(err)
+                          ? "Check your connection and try again. It wasn't delivered."
+                          : "Please try again.",
+                      ),
                     );
                   }}
                 />
@@ -557,8 +565,12 @@ export function Messaging({
                             setReplyingTo(null);
                             void sendDm(activeConv, text, attachments, rId).catch((err) =>
                               showToast(
-                                "Could not send message",
-                                err?.message || "Please try again.",
+                                isNetworkError(err)
+                                  ? "Could not send message — no connection"
+                                  : "Could not send message",
+                                isNetworkError(err)
+                                  ? "Check your connection and try again. It wasn't delivered."
+                                  : err?.message || "Please try again.",
                               ),
                             );
                           }}

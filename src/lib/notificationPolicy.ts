@@ -68,16 +68,23 @@ export function resolvePushContent(
     return { title: "Library update", body: text, url: "/library" };
   }
   if (type === "innovation_submitted") {
-    return { title: "New Innovation submitted", body: text, url: "/innovation-hub/manage" };
+    return { title: "New Innovation submitted", body: text, url: "/innovation-cloud/manage" };
   }
   if (type === "innovation_approved") {
-    return { title: "Innovation approved!", body: text, url: "/innovation-hub" };
+    return { title: "Innovation approved!", body: text, url: "/innovation-cloud" };
   }
   if (type === "innovation_declined") {
-    return { title: "Innovation update", body: text, url: "/innovation-hub" };
+    return { title: "Innovation update", body: text, url: "/innovation-cloud" };
   }
   if (type === "innovation_implemented") {
-    return { title: "Innovation implemented!", body: text, url: "/innovation-hub" };
+    return { title: "Innovation implemented!", body: text, url: "/innovation-cloud" };
+  }
+  if (type === "work_delegated") {
+    return {
+      title: "Work delegated to you",
+      body: text,
+      url: activityId ? `/activity/${activityId}` : "/activities",
+    };
   }
   // activity_created | activity_completed | activity_missed
   return {
@@ -209,29 +216,36 @@ export const NOTIFICATION_TAXONOMY: Record<
   innovation_submitted: {
     recipient: "Unit Head(s) on member submission",
     title: "New Innovation submitted",
-    deepLink: "/innovation-hub/manage",
+    deepLink: "/innovation-cloud/manage",
     prefCategory: "activities",
     dedupe: "60s identical-event window + submission key",
   },
   innovation_approved: {
     recipient: "Submitting member on approval",
     title: "Innovation approved!",
-    deepLink: "/innovation-hub",
+    deepLink: "/innovation-cloud",
     prefCategory: "activities",
     dedupe: "60s identical-event window + review key",
   },
   innovation_declined: {
     recipient: "Submitting member on decline (with reason)",
     title: "Innovation update",
-    deepLink: "/innovation-hub",
+    deepLink: "/innovation-cloud",
     prefCategory: "activities",
     dedupe: "60s identical-event window + review key",
   },
   innovation_implemented: {
     recipient: "Submitting member when marked implemented",
     title: "Innovation implemented!",
-    deepLink: "/innovation-hub",
+    deepLink: "/innovation-cloud",
     prefCategory: "activities",
     dedupe: "60s identical-event window + implement key",
+  },
+  work_delegated: {
+    recipient: "Assigned member when work is delegated to them",
+    title: "Work delegated to you",
+    deepLink: "/activity/:id",
+    prefCategory: "activities",
+    dedupe: "60s identical-event window + delegation key",
   },
 };

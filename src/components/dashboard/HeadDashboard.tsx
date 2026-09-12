@@ -686,8 +686,10 @@ function AccountingOfficer() {
                   title,
                   type: "Task",
                   description: "",
-                  createdBy: assignTo,
+                  createdBy: head.id,
                   delegatedBy: head.id,
+                  assigneeId: assignTo,
+                  delegationType: "UNIT_WORK",
                   startDate: taskDue,
                   endDate: taskDue,
                   startTime: "09:00",
@@ -698,7 +700,7 @@ function AccountingOfficer() {
                     setTaskTitle("");
                     showToast(
                       `Delegated to ${firstName(userMap[assignTo].name)}`,
-                      `"${title}" now appears in their activities, tagged Delegated by Unit Head.`,
+                      `"${title}" now appears in their pending tasks.`,
                     );
                   })
                   .catch(() =>

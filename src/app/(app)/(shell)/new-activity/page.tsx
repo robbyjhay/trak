@@ -13,10 +13,13 @@ const TYPES: ActivityType[] = ["Meeting", "Project", "Program", "Task"];
 
 export default function NewActivityPage() {
   const router = useRouter();
-  const { createActivity, responsibilities, showToast } = useTrak();
+  const { createActivity, responsibilities, showToast, sessionUser, users } = useTrak();
   const respMap = Object.fromEntries(
     responsibilities.map((r) => [r.id, r]),
   );
+  const isHead = sessionUser.role === "head";
+  const members = users.filter((u) => u.role !== "head" && u.isActive);
+  const [assigneeId, setAssigneeId] = useState("");
   const [activityType, setActivityType] = useState<ActivityType | null>(null);
   const [selectedResp, setSelectedResp] = useState<Set<string>>(new Set());
   const [title, setTitle] = useState("");
@@ -277,6 +280,28 @@ export default function NewActivityPage() {
             </div>
           </Section>
 
+          {isHead && (
+            <Section
+              label="Assign to member"
+              optional
+            >
+              <select
+                value={assigneeId}
+                onChange={(e) => setAssigneeId(e.target.value)}
+                className="w-full max-w-[320px] rounded-[11px] border-[1.5px] border-input-border bg-input text-foreground px-[15px] py-3.5 text-sm outline-none focus:border-border-strong"
+              >
+                <option value="">
+                  Delegate work to a member…
+                </option>
+                {members.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.name}
+                  </option>
+                ))}
+              </select>
+            </Section>
+          )}
+
           <div className="mt-9 flex items-center justify-end border-t border-border bg-surface pt-6 pb-6">
             <PrimaryBtn
               disabled={!ok}
@@ -297,6 +322,9 @@ export default function NewActivityPage() {
                     estimatedAmountNgn: hasBudget && estimatedAmount
                       ? Number(estimatedAmount)
                       : null,
+                    assigneeId: assigneeId || null,
+                    delegatedBy: assigneeId ? sessionUser.id : null,
+                    delegationType: assigneeId ? "UNIT_WORK" : null,
                   });
                   showToast(
                     "Saved to Pending Activities",

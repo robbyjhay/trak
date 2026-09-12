@@ -55,10 +55,17 @@ export function needsIosPwaInstall(): boolean {
 async function getRegistration(): Promise<ServiceWorkerRegistration | null> {
   try {
     if (!("serviceWorker" in navigator)) return null;
-    // Reuse the existing registration — never force a re-register storm.
-    const existing =
-      await navigator.serviceWorker.getRegistration("/");
-    if (existing) return existing;
+    const existing = await navigator.serviceWorker.getRegistration("/");
+    if (existing) {
+      // If the registration has a waiting or installing worker, the SW script
+      // has been updated and the old one is stale. Trigger an update so the
+      // new SW activates — on iOS this prevents the PWA from losing push
+      // capability after a deploy while the old SW is still running.
+      if (existing.waiting || existing.installing) {
+        existing.update().catch(() => {});
+      }
+      return existing;
+    }
     return await navigator.serviceWorker.register("/sw.js");
   } catch {
     return null;
@@ -74,11 +81,43 @@ async function syncSubscriptionToServer(
 }
 
 /**
+ * When permission is granted but no valid subscription exists (e.g. iOS silently
+ * expired it), create a fresh one and sync to the server. Returns the
+ * subscription or null if resubscription is not possible.
+ */
+async function ensureSubscription(
+  registration: ServiceWorkerRegistration,
+): Promise<PushSubscription | null> {
+  try {
+    const existing = await registration.pushManager.getSubscription();
+    if (existing) return existing;
+
+    // Permission is granted but subscription is gone — resubscribe silently.
+    if (Notification.permission !== "granted") return null;
+
+    const res = await apiGet<{ publicKey: string }>("/api/push/vapid-public-key");
+    if (!res.publicKey) return null;
+    const applicationServerKey = urlBase64ToUint8Array(res.publicKey);
+
+    const subscription = await registration.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey,
+    });
+
+    await syncSubscriptionToServer(subscription).catch(() => {});
+    return subscription;
+  } catch (err) {
+    console.error("ensureSubscription: failed to resubscribe", err);
+    return null;
+  }
+}
+
+/**
  * App-load lifecycle (Phase 2):
  * 1. register / reuse the SW,
  * 2. read the EXISTING push subscription,
  * 3. sync it to the server if present,
- * 4. NEVER create a subscription or prompt for permission unprompted.
+ * 4. if permission is granted but subscription is gone, silently resubscribe.
  */
 export function usePushNotifications() {
   const isRegisteredRef = useRef(false);
@@ -95,13 +134,10 @@ export function usePushNotifications() {
       try {
         const registration = await getRegistration();
         if (!registration) return;
-        // Only sync — do not subscribe. Subscription happens exclusively
-        // via explicit user action (requestPushPermissionAndSubscribe).
         if (Notification.permission === "granted") {
-          const existing = await registration.pushManager.getSubscription();
-          if (existing) {
-            await syncSubscriptionToServer(existing).catch(() => {});
-          }
+          // Ensure a valid subscription exists — silently resubscribe if iOS
+          // or the push service invalidated the old one.
+          await ensureSubscription(registration);
         }
       } catch (err) {
         console.error("Service Worker registration failed:", err);
@@ -128,7 +164,10 @@ export async function getPushUiState(): Promise<Exclude<PushUiState, "enabling">
   if (Notification.permission === "denied") return "denied";
   try {
     const reg = await navigator.serviceWorker.getRegistration("/");
-    const sub = await reg?.pushManager.getSubscription();
+    if (!reg) return "disabled";
+    // Wait for the SW to be ready so we get an accurate subscription state.
+    const registration = await navigator.serviceWorker.ready;
+    const sub = await registration.pushManager.getSubscription();
     if (Notification.permission === "granted" && sub) return "enabled";
   } catch {
     /* fall through to disabled */

@@ -53,8 +53,8 @@ export function Toast() {
               </svg>
             </div>
             <div className="flex-1 min-w-0 pr-2">
-              <div className="text-[13.5px] font-bold">{internalToast.title}</div>
-              <div className="text-xs leading-snug text-white/70 mt-0.5">{internalToast.desc}</div>
+              <div className="text-[13.5px] font-bold truncate">{internalToast.title}</div>
+              <div className="text-xs leading-snug text-white/70 mt-0.5 break-words overflow-wrap-anywhere">{internalToast.desc}</div>
             </div>
             <button
               onClick={handleDismiss}

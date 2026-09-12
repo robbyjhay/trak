@@ -4,6 +4,8 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { LibraryIcon, PATHS } from "@/components/icons";
 import { cn } from "@/lib/utils";
+import { useTrak } from "@/context/TrakStore";
+import { countUnreadMessages } from "@/lib/unreadMessages";
 
 function RailSvg({
   path,
@@ -40,12 +42,14 @@ const NAV: {
   { href: "/responsibilities", label: "Responsibilities", icon: (c) => <RailSvg path={PATHS.responsibilities} className={c} /> },
   { href: "/messages", label: "Connect", icon: (c) => <RailSvg path={PATHS.messages} className={c} />, also: ["/contacts"] },
   { href: "/library", label: "Library", icon: (c) => <LibraryIcon size={19} className={c} />, also: ["/library/manage"] },
-  { href: "/innovation-hub", label: "Innovation Hub", icon: (c) => <RailSvg path={PATHS.bulb} className={c} />, also: ["/innovation-hub/manage"] },
+  { href: "/innovation-cloud", label: "Innovation Cloud", icon: (c) => <RailSvg path={PATHS.bulb} className={c} />, also: ["/innovation-cloud/manage"] },
   { href: "/settings", label: "Settings", icon: (c) => <RailSvg path={PATHS.settings} className={c} />, bottom: true },
 ];
 
 export function Rail() {
   const pathname = usePathname();
+  const { myNotifications } = useTrak();
+  const unread = countUnreadMessages(myNotifications());
 
   return (
     <nav
@@ -70,6 +74,7 @@ export function Rail() {
             (item.also?.some((a) => pathname.startsWith(a)) ?? false) ||
             (item.href === "/messages" && pathname.startsWith("/contacts"))
           }
+          badge={item.href === "/messages" ? unread : 0}
         />
       ))}
 
@@ -91,11 +96,13 @@ function RailItem({
   label,
   icon,
   active,
+  badge = 0,
 }: {
   href: string;
   label: string;
   icon: (cls?: string) => React.ReactNode;
   active: boolean;
+  badge?: number;
 }) {
   const activeCls = cn(active ? "text-white dark:text-aztec" : "dark:text-white");
   return (
@@ -114,6 +121,11 @@ function RailItem({
         {label}
       </span>
       {icon(activeCls)}
+      {badge > 0 && (
+        <span className="absolute -top-0.5 -right-0.5 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-success px-1 text-[10px] font-extrabold text-success-foreground ring-2 ring-[#F8F9FA] dark:ring-[#0d1d1a]">
+          {badge > 99 ? "99+" : badge}
+        </span>
+      )}
     </Link>
   );
 }

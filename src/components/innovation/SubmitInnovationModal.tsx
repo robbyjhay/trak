@@ -81,7 +81,7 @@ export function SubmitInnovationModal({
     setSubmitting(true);
     try {
       const data = await apiSend<{ innovation: Innovation }>(
-        "/api/innovation-hub",
+        "/api/innovation-cloud",
         "POST",
         {
           title: form.title.trim(),

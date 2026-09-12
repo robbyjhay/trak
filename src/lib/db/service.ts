@@ -201,6 +201,53 @@ export async function markActivitiesMissed(reference: Date = now()): Promise<voi
   await expireExpiredExceptions(n);
 }
 
+/**
+ * Batch-recover missed activities when ACTIVITY_RECOVERY_ENABLED is true.
+ * Transitions eligible missed activities back to "pending" so members can
+ * submit logs without needing an exception. Idempotent: safe to call
+ * multiple times — only touches missed activities that are soft-deleted.
+ */
+export async function recoverMissedActivities(): Promise<{ recovered: number }> {
+  if (!isActivityRecoveryEnabled()) return { recovered: 0 };
+
+  const missed = await prisma.activity.findMany({
+    where: {
+      status: "missed",
+      softDeletedAt: null,
+    },
+    select: { id: true },
+  });
+
+  if (missed.length === 0) return { recovered: 0 };
+
+  let recovered = 0;
+  for (const act of missed) {
+    const logs = await prisma.dailyLog.findMany({
+      where: { activityId: act.id },
+      select: { status: true },
+    });
+
+    // Only recover if there are still pending logs to submit.
+    // Activities where all logs are already submitted are completed (not missed).
+    const hasPending = logs.some((l) => l.status === "pending");
+    if (!hasPending) continue;
+
+    await prisma.activity.update({
+      where: { id: act.id },
+      data: {
+        status: "pending",
+        exceptionStatus: "none",
+        submissionType: "normal",
+        gracePeriodStartedAt: null,
+        gracePeriodExpiresAt: null,
+      },
+    });
+    recovered++;
+  }
+
+  return { recovered };
+}
+
 export async function expireExpiredExceptions(reference: Date = now()): Promise<void> {
   const expired = await prisma.activity.findMany({
     where: {
@@ -321,7 +368,7 @@ export async function requestException(
   if (!act || act.softDeletedAt) {
     throw new ServiceError(404, "Activity not found.");
   }
-  if (act.createdById !== session.id) {
+  if (act.createdById !== session.id && act.assigneeId !== session.id) {
     throw new ServiceError(
       403,
       "You can only request an exception for your own activity.",
@@ -944,7 +991,7 @@ export async function listActivitiesForSession(
   };
 
   if (actor.role !== "head") {
-    where.createdById = session.id;
+    where.OR = [{ createdById: session.id }, { assigneeId: session.id }];
     where.hidden = false;
   } else if (!opts?.includeHidden) {
     // Head sees all non-deleted; hidden still visible to head
@@ -969,6 +1016,11 @@ export async function createActivity(
   input: Omit<CreateActivityInput, "createdBy"> & {
     createdBy?: string;
     delegatedBy?: string | null;
+    assigneeId?: string | null;
+    delegationType?: "UNIT_WORK" | "SELF_DEVELOPMENT" | "INNOVATION" | null;
+    libraryResourceId?: string | null;
+    innovationId?: string | null;
+    defaultDueAt?: string | null;
   },
 ): Promise<Activity> {
   const actor = await requireActor(session);
@@ -979,6 +1031,9 @@ export async function createActivity(
   }
   if (input.delegatedBy && !canDelegate(mapUser(actor))) {
     throw new ServiceError(403, "Only the Unit Head can set delegatedBy.");
+  }
+  if (input.assigneeId && !canDelegate(mapUser(actor))) {
+    throw new ServiceError(403, "Only the Unit Head can assign activities.");
   }
 
   if (!input.title?.trim()) {
@@ -996,7 +1051,9 @@ export async function createActivity(
     select: { timezone: true },
   });
   const creatorTimeZone = creatorPrefs?.timezone || "Africa/Lagos";
-  const dueAt = computeDueAt(input.startDate, input.startTime, creatorTimeZone);
+  const dueAt = input.defaultDueAt
+    ? new Date(input.defaultDueAt)
+    : computeDueAt(input.startDate, input.startTime, creatorTimeZone);
 
   const nDays = daysBetween(input.startDate, input.endDate) + 1;
   if (nDays > 90) {
@@ -1012,6 +1069,10 @@ export async function createActivity(
         description: input.description || "",
         createdById: createdBy,
         delegatedById: input.delegatedBy ?? null,
+        assigneeId: input.assigneeId ?? null,
+        delegationType: input.delegationType ?? null,
+        libraryResourceId: input.libraryResourceId ?? null,
+        innovationId: input.innovationId ?? null,
         startDate: dateFromIso(input.startDate),
         endDate: dateFromIso(input.endDate),
         startTime: input.startTime,
@@ -1057,6 +1118,23 @@ export async function createActivity(
     );
   }
 
+  if (act.assigneeId && act.assigneeId !== session.id && act.delegatedById) {
+    await pushNotification(
+      act.assigneeId,
+      "work_delegated",
+      `${firstName(session.name)} delegated a ${
+        act.delegationType === "SELF_DEVELOPMENT"
+          ? "self-development task"
+          : act.delegationType === "INNOVATION"
+            ? "collaboration task"
+            : "task"
+      } to you: "${act.title}".`,
+      act.id,
+      null,
+      { dedupeKey: `work-delegated:${act.id}:${act.assigneeId}` },
+    );
+  }
+
   await recordAuditEvent({
     userId: session.authUserId,
     action: "activity_create",
@@ -1081,7 +1159,7 @@ export async function getActivity(
     include: activityInclude,
   });
   if (!act || act.softDeletedAt) return null;
-  if (actor.role !== "head" && act.createdById !== session.id) {
+  if (actor.role !== "head" && act.createdById !== session.id && act.assigneeId !== session.id) {
     throw new ServiceError(403, "Not allowed to view this activity.");
   }
   return mapActivity(act);
@@ -1121,7 +1199,7 @@ export async function submitDailyLog(
   const actor = await requireActor(session);
   const act = await prisma.activity.findUnique({ where: { id: activityId } });
   if (!act || act.softDeletedAt) throw new ServiceError(404, "Activity not found.");
-  if (act.createdById !== session.id && actor.role !== "head") {
+  if (act.createdById !== session.id && act.assigneeId !== session.id && actor.role !== "head") {
     throw new ServiceError(403, "Not allowed to submit this log.");
   }
 
@@ -1133,7 +1211,7 @@ export async function submitDailyLog(
 
   const n = now();
 
-  if (act.status === "missed") {
+  if (act.status === "missed" && !isActivityRecoveryEnabled()) {
     const canSubmitLate =
       act.exceptionStatus === "approved" &&
       act.gracePeriodExpiresAt != null &&
@@ -1270,7 +1348,7 @@ export async function updateActivityEndDate(
     include: { dailyLogs: true },
   });
   if (!act || act.softDeletedAt) throw new ServiceError(404, "Activity not found.");
-  if (act.createdById !== session.id && actor.role !== "head") {
+  if (act.createdById !== session.id && act.assigneeId !== session.id && actor.role !== "head") {
     throw new ServiceError(403, "Not allowed to update this activity.");
   }
   if (act.status === "completed") {
@@ -1437,8 +1515,8 @@ export async function updateActivityWrapup(
 ): Promise<Activity> {
   const actor = await requireActor(session);
   const act = await prisma.activity.findUnique({ where: { id: activityId } });
-  if (!act || act.softDeletedAt) throw new ServiceError(404, "Activity not found.");
-  if (act.createdById !== session.id && actor.role !== "head") {
+if (!act || act.softDeletedAt) throw new ServiceError(404, "Activity not found.");
+  if (act.createdById !== session.id && act.assigneeId !== session.id && actor.role !== "head") {
     throw new ServiceError(403, "Not allowed to update this activity.");
   }
 
@@ -1524,6 +1602,7 @@ export async function ensureRsvpToken(
   }
   if (
     log.activity.createdById !== session.id &&
+    log.activity.assigneeId !== session.id &&
     actor.role !== "head"
   ) {
     throw new ServiceError(403, "Not allowed.");
@@ -2438,7 +2517,12 @@ export async function getScopedBootstrap(session: SessionUser): Promise<{
 
   const activityWhere: Prisma.ActivityWhereInput = {
     softDeletedAt: null,
-    ...(isHead ? {} : { createdById: session.id, hidden: false }),
+    ...(isHead
+      ? {}
+      : {
+          OR: [{ createdById: session.id }, { assigneeId: session.id }],
+          hidden: false,
+        }),
   };
 
   // Parallel reads only — actor already validated; avoid nested requireActor

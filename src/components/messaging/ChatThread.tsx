@@ -1,6 +1,6 @@
 import React, { useRef, useEffect, useState } from "react";
 import { Bubble } from "./Bubble";
-import { CallRecord, Dm, MessageMention } from "@/lib/types";
+import { CallRecord, Dm, MessageMention, AnnouncementReaction } from "@/lib/types";
 import { PATHS } from "@/components/icons";
 import { cn, formatDuration } from "@/lib/utils";
 import { formatRelativeDate } from "@/lib/dates";
@@ -40,6 +40,8 @@ export function ChatThread({
   onMentionClick,
   highlightedId: externalHighlightedId,
   unreadDivider,
+  reactions,
+  onReact,
 }: {
   items: ThreadItem[];
   me: string;
@@ -51,6 +53,10 @@ export function ChatThread({
   onMentionClick?: (userId: string) => void;
   highlightedId?: string | null;
   unreadDivider?: { firstUnreadId: string; count: number };
+  /** Announcement reactions keyed by message id, for the reaction bar under each bubble. */
+  reactions?: Record<string, AnnouncementReaction[]>;
+  /** Handler to toggle a default reaction on an announcement. */
+  onReact?: (messageId: string, emoji: string) => void;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [highlightedId, setHighlightedId] = useState<string | null>(null);
@@ -212,6 +218,8 @@ export function ChatThread({
             onDelete={onDeleteMessage ? (forEveryone) => handleBubbleDelete(item.id, forEveryone) : undefined}
             canDeleteAny={canDeleteAny}
             isHighlighted={isHighlighted}
+            reactions={reactions?.[item.id]}
+            onReact={onReact ? (emoji: string) => onReact(item.id, emoji) : undefined}
           />
         </motion.div>
       );

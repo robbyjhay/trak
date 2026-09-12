@@ -36,7 +36,7 @@ export function Topbar() {
   const isSettings = pathname.startsWith("/settings");
   const isActivities = pathname === "/activities" || pathname.startsWith("/member/");
   const isLibrary = pathname === "/library" || pathname.startsWith("/library/");
-  const isInnovation = pathname === "/innovation-hub" || pathname.startsWith("/innovation-hub/");
+  const isInnovation = pathname === "/innovation-cloud" || pathname.startsWith("/innovation-cloud/");
 
   useEffect(() => {
     function onDoc(e: MouseEvent) {
@@ -63,7 +63,7 @@ export function Topbar() {
     <header className="sticky top-0 z-40 flex h-[var(--topbar-height)] shrink-0 items-center justify-between gap-4 bg-[#F8F9FA] dark:bg-[color:var(--aztec)] border-b border-border/50 dark:border-transparent px-6 sm:px-10 pt-[env(safe-area-inset-top)] relative">
       <div className="flex flex-col justify-center">
         <h1 className={cn("text-[22px] font-extrabold tracking-tight text-foreground", isConnect && "hidden md:block")}>
-          {isSettings ? "Settings" : isConnect ? "Connect" : isActivities ? "Activities" : isLibrary ? "Library" : isInnovation ? "Innovation Hub" : greeting}
+          {isSettings ? "Settings" : isConnect ? "Connect" : isActivities ? "Activities" : isLibrary ? "Library" : isInnovation ? "Innovation Cloud" : greeting}
         </h1>
         {isConnect && (
           <div className="md:hidden">
@@ -124,7 +124,7 @@ export function Topbar() {
                     </svg>
                   </div>
                   <div className="min-w-0 flex-1">
-                    <div className="text-[12.5px] leading-snug">
+                    <div className="break-words text-[12.5px] leading-snug">
                       {APP_RECOVERY_NOTIFICATION.text}
                     </div>
                     <div className="mt-0.5 flex items-center gap-1.5 text-[10.5px] font-semibold uppercase tracking-wide text-primary">
@@ -149,8 +149,8 @@ export function Topbar() {
                         setNotifOpen(false);
                         if (n.activityId) router.push(`/activity/${n.activityId}`);
                         else if (n.type === "dm" || n.type === "mention" || n.type === "broadcast") router.push("/messages");
-                        else if (n.type === "innovation_submitted") router.push("/innovation-hub/manage");
-                        else if (n.type === "innovation_approved" || n.type === "innovation_declined" || n.type === "innovation_implemented") router.push("/innovation-hub");
+                        else if (n.type === "innovation_submitted") router.push("/innovation-cloud/manage");
+                        else if (n.type === "innovation_approved" || n.type === "innovation_declined" || n.type === "innovation_implemented") router.push("/innovation-cloud");
                         else if (n.type === "library_submitted") router.push("/library/manage");
                         else if (n.type === "library_new" || n.type === "library_approved" || n.type === "library_declined") router.push("/library");
                       }}
@@ -161,7 +161,7 @@ export function Topbar() {
                         </svg>
                       </div>
                       <div className="min-w-0 flex-1">
-                        <div className="text-[12.5px] leading-snug">{n.text}</div>
+                        <div className="break-words text-[12.5px] leading-snug">{n.text}</div>
                         <div className="mt-0.5 text-[10.5px] text-foreground-faint">
                           {n.createdAt ? formatRelativeDate(n.createdAt) : ""}
                         </div>
