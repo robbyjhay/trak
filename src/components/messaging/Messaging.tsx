@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
+import { useNow } from "@/hooks/useNow";
 import { useTrak } from "@/context/TrakStore";
 import { useConnectNav } from "@/context/ConnectNav";
 import {
@@ -18,7 +19,7 @@ import { ANNOUNCEMENT_CHANNEL } from "@/lib/announcements";
 import { NewConversation } from "@/components/messaging/NewConversation";
 import { AddMember } from "@/components/messaging/AddMember";
 import { useCall } from "@/context/CallContext";
-import { getPresenceStatus } from "@/lib/presence";
+import { getPresenceStatus, formatLastOnline } from "@/lib/presence";
 import { useCallUi } from "@/components/call/CallUiContext";
 import { formatDuration } from "@/lib/utils";
 import type { CallRecord, Dm, TrakDb, MessageAttachment } from "@/lib/types";
@@ -74,6 +75,7 @@ export function Messaging({
     deleteCommunityMessage,
     showToast,
     markNotifsRead,
+    markDmsRead,
       } = useTrak();
   const { view, setView, setMobileThreadOpen } = useConnectNav();
   const { activeCall, startCall, elapsedSec, onlineUsers, signalingConnected, presenceSynced } = useCall();
@@ -81,6 +83,7 @@ export function Messaging({
   
   const me = sessionUser.id;
   const isDesktop = useMediaQuery("(min-width: 768px)");
+  const now = useNow();
   
   const [activeConv, setActiveConv] = useState<string | null>(null);
   const [mobilePane, setMobilePane] = useState<"list" | "thread">("list");
@@ -153,6 +156,20 @@ export function Messaging({
       }
     }
   }, [activeConv, db.notifications, db.dms, me, unreadDividers, markNotifsRead]);
+
+  // Read receipts: when a DM thread is open, mark any incoming unread
+  // messages from the partner as read (fires on open and as new messages
+  // arrive while the thread is active).
+  useEffect(() => {
+    if (!activeConv || activeConv === "community" || activeConv === ANNOUNCEMENT_CHANNEL) return;
+    const hasUnreadIncoming = db.dms.some(
+      (d) =>
+        d.from !== me &&
+        !d.readAt &&
+        ((d.a === me && d.b === activeConv) || (d.a === activeConv && d.b === me)),
+    );
+    if (hasUnreadIncoming) void markDmsRead(activeConv);
+  }, [activeConv, db.dms, me, markDmsRead]);
 
   useEffect(() => {
     setView(initialView);
@@ -476,7 +493,9 @@ export function Messaging({
                                     "text-[11px] font-medium",
                                     status === "online" ? "text-emerald-600" : "text-foreground-faint",
                                   )}>
-                                    {status === "online" ? "Online" : "Offline"}
+                                    {status === "online"
+                                      ? "Online"
+                                      : formatLastOnline(p.lastSeenAt, new Date(now))}
                                   </span>
                                 </div>
                               );
@@ -669,10 +688,13 @@ export function Messaging({
                             const status = getPresenceStatus(p.id, onlineUsers, signalingConnected, presenceSynced);
                             if (status === "unknown") return null;
                             return (
-                              <span className={cn(
-                                "inline-block h-[7px] w-[7px] shrink-0 rounded-full",
-                                status === "online" ? "bg-emerald-500" : "bg-gray-400",
-                              )} />
+                              <span
+                                title={status === "online" ? "Online" : formatLastOnline(p.lastSeenAt)}
+                                className={cn(
+                                  "inline-block h-[7px] w-[7px] shrink-0 rounded-full",
+                                  status === "online" ? "bg-emerald-500" : "bg-gray-400",
+                                )}
+                              />
                             );
                           })()}
                         </div>

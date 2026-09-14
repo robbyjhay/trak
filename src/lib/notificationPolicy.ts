@@ -86,6 +86,20 @@ export function resolvePushContent(
       url: activityId ? `/activity/${activityId}` : "/activities",
     };
   }
+  if (type === "collaboration_invite") {
+    return {
+      title: "Collaboration invite",
+      body: text,
+      url: activityId ? `/activity/${activityId}` : "/activities",
+    };
+  }
+  if (type === "collaboration_accepted" || type === "collaboration_declined") {
+    return {
+      title: "Collaboration update",
+      body: text,
+      url: activityId ? `/activity/${activityId}` : "/activities",
+    };
+  }
   // activity_created | activity_completed | activity_missed
   return {
     title: "Activity update",
@@ -247,5 +261,26 @@ export const NOTIFICATION_TAXONOMY: Record<
     deepLink: "/activity/:id",
     prefCategory: "activities",
     dedupe: "60s identical-event window + delegation key",
+  },
+  collaboration_invite: {
+    recipient: "Each invited member (never the creator/head)",
+    title: "Collaboration invite",
+    deepLink: "/activity/:id",
+    prefCategory: "activities",
+    dedupe: "collab-invite:{activityId}:{inviteeId}",
+  },
+  collaboration_accepted: {
+    recipient: "Activity creator + fellow accepted collaborators",
+    title: "Collaboration update",
+    deepLink: "/activity/:id",
+    prefCategory: "activities",
+    dedupe: "collab-accepted:{activityId}:{collaboratorId}",
+  },
+  collaboration_declined: {
+    recipient: "Activity creator",
+    title: "Collaboration update",
+    deepLink: "/activity/:id",
+    prefCategory: "activities",
+    dedupe: "collab-declined:{activityId}:{collaboratorId}",
   },
 };

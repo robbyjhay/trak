@@ -22,14 +22,19 @@ export function ActRow({
   index?: number;
 }) {
   const router = useRouter();
-  const { db, userMap } = useTrak();
+  const { db, userMap, sessionUser } = useTrak();
   const a = activity;
   const days = daysBetween(a.startDate, a.endDate) + 1;
 
   let dayTag: React.ReactNode = null;
   if (days > 1 && a.status !== "completed") {
-    const logs = db.dailyLogs
-      .filter((l) => l.activityId === a.id)
+    const ownLogs = a.collaborative
+      ? db.dailyLogs.filter(
+          (l) => l.activityId === a.id && l.userId === sessionUser.id,
+        )
+      : db.dailyLogs.filter((l) => l.activityId === a.id);
+    const logs = ownLogs
+      .slice()
       .sort((x, y) => x.date.localeCompare(y.date));
     const doneN = logs.filter((l) => l.status === "submitted").length;
     dayTag = (
@@ -145,6 +150,20 @@ export function ActRow({
           {a.hasBudget && (
             <span className="rounded-full bg-warning-surface px-2 py-0.5 text-[9.5px] font-bold tracking-wide text-warning-foreground uppercase">
               Budget
+            </span>
+          )}
+          {a.collaborative && (
+            <span
+              className="rounded-full bg-aztec-2 px-2 py-0.5 text-[9.5px] font-bold tracking-wide text-saffron uppercase"
+              title={`Collaborative activity${(a.collaborators ?? [])
+                .filter((c) => c.status === "accepted")
+                .map((c) => " · " + (userMap[c.userId] as User)?.name)
+                .join("")}`}
+            >
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="mr-1 inline-block align-[-1px]">
+                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2 M23 21v-2a4 4 0 0 0-3-3.87 M16 3.13a4 4 0 0 1 0 7.75 M16 11a4 4 0 0 0-2 7.46" />
+              </svg>
+              Collaborate
             </span>
           )}
         </div>

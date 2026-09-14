@@ -1,4 +1,4 @@
-import { broadcast } from "@/lib/realtime";
+import { broadcast, sendToUser } from "@/lib/realtime";
 import { notifyMany, notifyUser } from "@/lib/notifications";
 import { isActivityRecoveryEnabled } from "@/lib/activityRecovery";
 /**
@@ -126,8 +126,26 @@ async function findHeadUserId(): Promise<string | null> {
   return head?.id ?? null;
 }
 
+/** A participant may access a collaborative activity if invited AND accepted. */
+function canAccessActivity(
+  actorRole: "head" | "member",
+  sessionId: string,
+  createdById: string,
+  assigneeId: string | null,
+  collaborators?: { userId: string; status: string }[] | null,
+): boolean {
+  if (actorRole === "head") return true;
+  if (createdById === sessionId || assigneeId === sessionId) return true;
+  return Boolean(
+    collaborators?.some(
+      (c) => c.userId === sessionId && c.status === "accepted",
+    ),
+  );
+}
+
 const activityInclude = {
   responsibilities: true,
+  collaborators: true,
 } as const;
 
 const logInclude = {
@@ -139,19 +157,27 @@ async function recomputeActivityStatus(
   activityId: string,
   reference: Date = now(),
 ): Promise<void> {
-  const logs = await prisma.dailyLog.findMany({
-    where: { activityId },
-    select: { status: true, date: true },
-  });
-  if (logs.length === 0) return;
+  const [act, logs] = await Promise.all([
+    prisma.activity.findUnique({
+      where: { id: activityId },
+      select: { id: true, collaborative: true },
+    }),
+    prisma.dailyLog.findMany({
+      where: { activityId },
+      select: { status: true, date: true, userId: true },
+    }),
+  ]);
+  if (!act || logs.length === 0) return;
 
   let status: "pending" | "completed" | "missed" = "pending";
-  if (logs.every((l) => l.status === "submitted")) {
+  const today = iso(reference);
+
+  const groups = collaborativeLogGroups(act.collaborative, logs);
+  if (groups.length > 0 && groups.every((g) => g.every((l) => l.status === "submitted"))) {
     status = "completed";
   } else if (!isActivityRecoveryEnabled()) {
-    const today = iso(reference);
-    const anyMissed = logs.some(
-      (l) => l.status === "pending" && iso(l.date) < today,
+    const anyMissed = groups.some((g) =>
+      g.some((l) => l.status === "pending" && iso(l.date) < today),
     );
     status = anyMissed ? "missed" : "pending";
   }
@@ -160,6 +186,27 @@ async function recomputeActivityStatus(
     where: { id: activityId },
     data: { status },
   });
+}
+
+/**
+ * Group an activity's daily logs into per-participant sets.
+ * - Non-collaborative activities are a single group (all logs, userId null).
+ * - Collaborative activities assert per-participant completeness: every
+ *   participant's log set must be fully submitted for the activity to complete.
+ */
+function collaborativeLogGroups(
+  collaborative: boolean,
+  logs: { status: string; date: Date; userId: string | null }[],
+): { status: string; date: Date; userId: string | null }[][] {
+  if (!collaborative) return [logs];
+  const byUser = new Map<string, { status: string; date: Date; userId: string | null }[]>();
+  for (const l of logs) {
+    if (!l.userId) continue;
+    const arr = byUser.get(l.userId) ?? [];
+    arr.push(l);
+    byUser.set(l.userId, arr);
+  }
+  return [...byUser.values()];
 }
 
 export async function markActivitiesMissed(reference: Date = now()): Promise<void> {
@@ -991,7 +1038,15 @@ export async function listActivitiesForSession(
   };
 
   if (actor.role !== "head") {
-    where.OR = [{ createdById: session.id }, { assigneeId: session.id }];
+    where.OR = [
+      { createdById: session.id },
+      { assigneeId: session.id },
+      {
+        collaborators: {
+          some: { userId: session.id, status: "accepted" },
+        },
+      },
+    ];
     where.hidden = false;
   } else if (!opts?.includeHidden) {
     // Head sees all non-deleted; hidden still visible to head
@@ -1060,6 +1115,54 @@ export async function createActivity(
     throw new ServiceError(400, "Activity span cannot exceed 90 days");
   }
 
+  const isCollaborative = input.collaborative === true;
+  let collaboratorIds: string[] = [];
+  if (isCollaborative) {
+    if (input.assigneeId || input.delegatedBy || input.delegationType) {
+      throw new ServiceError(
+        400,
+        "Collaborative activities cannot be assigned or delegated.",
+      );
+    }
+    const raw = input.collaboratorIds ?? [];
+    const seen = new Set<string>();
+    for (const id of raw) {
+      if (!id) continue;
+      if (id === createdBy) {
+        throw new ServiceError(
+          400,
+          "You cannot invite yourself to a collaborative activity.",
+        );
+      }
+      if (seen.has(id)) {
+        throw new ServiceError(400, "Collaborators must be unique.");
+      }
+      seen.add(id);
+    }
+    collaboratorIds = [...seen];
+    if (collaboratorIds.length === 0) {
+      throw new ServiceError(
+        400,
+        "At least one member must be invited to a collaborative activity.",
+      );
+    }
+    const invited = await prisma.user.findMany({
+      where: { id: { in: collaboratorIds }, isActive: true },
+      select: { id: true, role: true },
+    });
+    const validIds = new Set(
+      invited.filter((u) => u.role !== "head").map((u) => u.id),
+    );
+    for (const id of collaboratorIds) {
+      if (!validIds.has(id)) {
+        throw new ServiceError(
+          400,
+          "A collaborator must be an active member of the unit.",
+        );
+      }
+    }
+  }
+
   const respIds = input.responsibilityIds || [];
   const act = await prisma.$transaction(async (tx) => {
     const created = await tx.activity.create({
@@ -1073,6 +1176,7 @@ export async function createActivity(
         delegationType: input.delegationType ?? null,
         libraryResourceId: input.libraryResourceId ?? null,
         innovationId: input.innovationId ?? null,
+        collaborative: isCollaborative,
         startDate: dateFromIso(input.startDate),
         endDate: dateFromIso(input.endDate),
         startTime: input.startTime,
@@ -1097,8 +1201,19 @@ export async function createActivity(
             date: dateFromIso(
               iso(addDays(dateFromIso(input.startDate), i)),
             ),
+            ...(isCollaborative ? { userId: createdBy } : {}),
           })),
         },
+        ...(isCollaborative
+          ? {
+              collaborators: {
+                create: collaboratorIds.map((userId) => ({
+                  userId,
+                  invitedById: createdBy,
+                })),
+              },
+            }
+          : {}),
       },
       include: activityInclude,
     });
@@ -1115,6 +1230,20 @@ export async function createActivity(
       "activity_created",
       `${firstName(creator?.name || session.name)} created a new activity: "${act.title}".`,
       act.id,
+    );
+  }
+
+  if (isCollaborative && collaboratorIds.length > 0) {
+    const creator = await getUser(createdBy);
+    const creatorName = firstName(creator?.name || session.name);
+    await notifyMany(
+      collaboratorIds.map((cid) => ({
+        userId: cid,
+        type: "collaboration_invite",
+        text: `${creatorName} invited you to collaborate on "${act.title}".`,
+        activityId: act.id,
+        dedupeKey: `collab-invite:${act.id}:${cid}`,
+      })),
     );
   }
 
@@ -1149,6 +1278,123 @@ export async function createActivity(
   return mapActivity(refreshed);
 }
 
+/**
+ * Accept or decline a collaboration invite. Accepting creates the member's own
+ * per-participant daily log set so their portion of the work can be tracked
+ * independently of the other participants.
+ */
+export async function respondToCollaborationInvite(
+  session: SessionUser,
+  activityId: string,
+  action: "accept" | "decline",
+): Promise<{ activity: Activity; notification: Notification | null }> {
+  const actor = await requireActor(session);
+
+  const act = await prisma.activity.findUnique({
+    where: { id: activityId },
+    include: { collaborators: true },
+  });
+  if (!act || act.softDeletedAt) {
+    throw new ServiceError(404, "Activity not found.");
+  }
+
+  const collab = act.collaborators.find((c) => c.userId === session.id);
+  if (!collab || collab.invitedById === session.id) {
+    throw new ServiceError(
+      403,
+      "You are not invited to collaborate on this activity.",
+    );
+  }
+  if (collab.status !== "pending") {
+    throw new ServiceError(
+      400,
+      "You have already responded to this collaboration invite.",
+    );
+  }
+
+  const n = now();
+  await prisma.$transaction(async (tx) => {
+    await tx.activityCollaborator.update({
+      where: { id: collab.id },
+      data: {
+        status: action === "accept" ? "accepted" : "declined",
+        respondedAt: n,
+      },
+    });
+
+    if (action === "accept") {
+      const logs = await tx.dailyLog.findMany({
+        where: { activityId, userId: session.id },
+        select: { date: true },
+      });
+      const existing = new Set(logs.map((l) => iso(l.date)));
+      const nDays = daysBetween(iso(act.startDate), iso(act.endDate)) + 1;
+      const missing = Array.from({ length: nDays }, (_, i) =>
+        iso(addDays(act.startDate, i)),
+      ).filter((d) => !existing.has(d));
+
+      if (missing.length > 0) {
+        await tx.dailyLog.createMany({
+          data: missing.map((date) => ({
+            activityId,
+            userId: session.id,
+            date: dateFromIso(date),
+          })),
+        });
+      }
+    }
+  });
+
+  const updated = await prisma.activity.findUniqueOrThrow({
+    where: { id: activityId },
+    include: activityInclude,
+  });
+
+  const collaborator = await getUser(session.id);
+  const collaboratorName = firstName(collaborator?.name || session.name);
+
+  let notification: Notification | null = null;
+  if (action === "accept") {
+    const recipients = [
+      act.createdById,
+      ...updated.collaborators
+        .filter((c) => c.userId !== session.id && c.status === "accepted")
+        .map((c) => c.userId),
+    ];
+    const unique = [...new Set(recipients.filter((id) => id !== session.id))];
+    const results = await notifyMany(
+      unique.map((uid) => ({
+        userId: uid,
+        type: "collaboration_accepted" as const,
+        text: `${collaboratorName} accepted your collaboration invite for "${updated.title}".`,
+        activityId,
+        dedupeKey: `collab-accepted:${activityId}:${session.id}`,
+      })),
+    );
+    notification = results[0] ? mapNotification(results[0]) : null;
+  } else {
+    notification =
+      (await pushNotification(
+        act.createdById,
+        "collaboration_declined",
+        `${collaboratorName} declined the collaboration invite for "${updated.title}".`,
+        activityId,
+        null,
+        { dedupeKey: `collab-declined:${activityId}:${session.id}` },
+      )) ?? null;
+  }
+
+  await recordAuditEvent({
+    userId: session.authUserId,
+    action: "activity_update",
+    targetId: activityId,
+    targetType: "activity",
+    meta: { collaboration: action },
+  });
+
+  return { activity: mapActivity(updated), notification };
+}
+
 export async function getActivity(
   session: SessionUser,
   id: string,
@@ -1159,7 +1405,15 @@ export async function getActivity(
     include: activityInclude,
   });
   if (!act || act.softDeletedAt) return null;
-  if (actor.role !== "head" && act.createdById !== session.id && act.assigneeId !== session.id) {
+  if (
+    !canAccessActivity(
+      actor.role,
+      session.id,
+      act.createdById,
+      act.assigneeId,
+      act.collaborators,
+    )
+  ) {
     throw new ServiceError(403, "Not allowed to view this activity.");
   }
   return mapActivity(act);
@@ -1197,14 +1451,39 @@ export async function submitDailyLog(
   data: SubmitDailyLogData,
 ): Promise<{ log: DailyLog; activity: Activity }> {
   const actor = await requireActor(session);
-  const act = await prisma.activity.findUnique({ where: { id: activityId } });
+  const act = await prisma.activity.findUnique({
+    where: { id: activityId },
+    include: { collaborators: { where: { userId: session.id } } },
+  });
   if (!act || act.softDeletedAt) throw new ServiceError(404, "Activity not found.");
-  if (act.createdById !== session.id && act.assigneeId !== session.id && actor.role !== "head") {
+
+  if (act.collaborative) {
+    if (actor.role === "head") {
+      throw new ServiceError(
+        403,
+        "Heads do not submit logs for collaborative activities.",
+      );
+    }
+    const myCollab = act.collaborators[0];
+    const isCreator = act.createdById === session.id;
+    const isAccepted = myCollab?.status === "accepted";
+    if (!isCreator && !isAccepted) {
+      throw new ServiceError(403, "Not allowed to submit this log.");
+    }
+  } else if (
+    act.createdById !== session.id &&
+    act.assigneeId !== session.id &&
+    actor.role !== "head"
+  ) {
     throw new ServiceError(403, "Not allowed to submit this log.");
   }
 
   const log = await prisma.dailyLog.findFirst({
-    where: { activityId, date: dateFromIso(date) },
+    where: {
+      activityId,
+      date: dateFromIso(date),
+      ...(act.collaborative ? { userId: session.id } : { userId: null }),
+    },
     include: logInclude,
   });
   if (!log) throw new ServiceError(404, "Daily log not found.");
@@ -1751,6 +2030,7 @@ export async function sendDm(
       fromUserId: session.id,
       text: trimmed,
       replyToId: replyToId || null,
+      readAt: isSelfDm ? new Date() : null,
       ...(attachments && attachments.length > 0 && {
         attachments: {
           create: attachments.map((att: any) => ({
@@ -1777,6 +2057,62 @@ export async function sendDm(
   }
 
   return { id: msg.id };
+}
+
+/**
+ * Mark all unread incoming DMs in a conversation as read and notify the
+ * sender via realtime so their UI flips from ✓ to ✓✓ in near-realtime.
+ */
+export async function markDmsRead(
+  session: SessionUser,
+  withUserId: string,
+): Promise<{ dms: ReturnType<typeof mapDm>[] }> {
+  await requireActor(session);
+  if (!withUserId) {
+    throw new ServiceError(400, "withUserId is required");
+  }
+  const [a, b] = canonicalPair(session.id, withUserId);
+
+  // Find unread messages from the other party before updating, so we can
+  // notify with the exact message IDs that transitioned to "read".
+  const pending = await prisma.directMessage.findMany({
+    where: {
+      participantA: a,
+      participantB: b,
+      fromUserId: withUserId,
+      readAt: null,
+    },
+    select: { id: true },
+  });
+  const readDmIds = pending.map((r) => r.id);
+
+  if (readDmIds.length > 0) {
+    const readAt = new Date();
+    await prisma.directMessage.updateMany({
+      where: { id: { in: readDmIds } },
+      data: { readAt },
+    });
+
+    // Notify the sender (skip for self-DMs).
+    if (withUserId !== session.id) {
+      try {
+        sendToUser(withUserId, {
+          type: "dm_read",
+          from: session.id,
+          readDmIds,
+          at: readAt.toISOString(),
+        });
+      } catch (err) {
+        // Realtime failure is non-fatal; the read state is persisted and will
+        // reconcile on the sender's next full refresh.
+        console.error("[markDmsRead] realtime notify failed:", err);
+      }
+    }
+  }
+
+  // Return authoritative list so the caller can reconcile local state.
+  const { dms } = await listDmsForUser(session, { limit: 200 });
+  return { dms };
 }
 
 export async function listCommunity(
@@ -2520,7 +2856,18 @@ export async function getScopedBootstrap(session: SessionUser): Promise<{
     ...(isHead
       ? {}
       : {
-          OR: [{ createdById: session.id }, { assigneeId: session.id }],
+          OR: [
+            { createdById: session.id },
+            { assigneeId: session.id },
+            {
+              collaborators: {
+                some: {
+                  userId: session.id,
+                  status: { in: ["accepted", "pending"] },
+                },
+              },
+            },
+          ],
           hidden: false,
         }),
   };
@@ -2611,11 +2958,39 @@ export async function getScopedBootstrap(session: SessionUser): Promise<{
       : Promise.resolve([]),
   ]);
 
+  // Members with a PENDING collaboration invite may preview the activity (to
+  // accept or decline it) but must not see the other participants' logs or
+  // remarks until they have accepted.
+  const pendingCollabIds = new Set<string>();
+  if (!isHead) {
+    for (const a of activities) {
+      if (!a.collaborative) continue;
+      if (
+        a.collaborators?.some(
+          (c) => c.userId === session.id && c.status === "pending",
+        )
+      ) {
+        pendingCollabIds.add(a.id);
+      }
+    }
+  }
+  let scopedLogs = dailyLogs;
+  let scopedComments = comments;
+  if (pendingCollabIds.size > 0) {
+    scopedLogs = dailyLogs.filter(
+      (l) =>
+        !pendingCollabIds.has(l.activityId) || l.userId === session.id,
+    );
+    scopedComments = comments.filter(
+      (c) => !pendingCollabIds.has(c.activityId),
+    );
+  }
+
   return {
     users,
     activities: activities.map(mapActivity),
-    dailyLogs: dailyLogs.map(mapDailyLog),
-    comments: comments.map(mapComment),
+    dailyLogs: scopedLogs.map(mapDailyLog),
+    comments: scopedComments.map(mapComment),
     dms: dmRows.map(r => mapDm(r, (r as any).deletedBy?.length ? new Set([r.id]) : undefined)),
     calls: callRows.map(mapCall),
     community: communityRows.map(r => mapCommunity(r, (r as any).deletedBy?.length ? new Set([r.id]) : undefined)),

@@ -19,6 +19,24 @@ function formatMessageTime(isoString: string): string {
   return d.toLocaleTimeString("en-US", { hour: 'numeric', minute: '2-digit', hour12: true });
 }
 
+/** Sent/read receipt label shown under outgoing DM messages. */
+function ReadReceiptLabel({ read }: { read: boolean }) {
+  return (
+    <span
+      className={cn(
+        "shrink-0 select-none text-[10px] font-medium tracking-tight",
+        read
+          ? "text-primary-foreground"
+          : "text-primary-foreground/60"
+      )}
+      aria-label={read ? "Read" : "Sent"}
+      data-testid={read ? "read-receipt-read" : "read-receipt-sent"}
+    >
+      {read ? "read" : "sent"}
+    </span>
+  );
+}
+
 function getReplyPreviewText(reply: ReplyPreview): string {
   if (reply.isDeleted) return "Original message unavailable";
   if (reply.text && reply.text.trim()) {
@@ -62,6 +80,7 @@ export function Bubble({
   reactions,
   onReact,
   reactionSet = ["👍", "❤️", "😂", "👏", "🔥"],
+  readAt,
 }: {
   id: string;
   fromId: string;
@@ -91,6 +110,8 @@ export function Bubble({
   onReact?: (emoji: string) => void;
   /** The 5 default reaction emojis, in display order. */
   reactionSet?: readonly string[];
+  /** Read receipt: null/undefined = sent, ISO timestamp = read (DMs only). */
+  readAt?: string | null;
 }) {
   const isMe = fromId === me;
   const p = userMap[fromId];
@@ -638,6 +659,7 @@ export function Bubble({
             <span suppressHydrationWarning className="text-[10px] font-medium tracking-tight">
               {formatMessageTime(time)}
             </span>
+            {isMe && !isGroup && !isDeleted && <ReadReceiptLabel read={Boolean(readAt)} />}
           </div>
         </div>
 

@@ -39,6 +39,36 @@ const handle = app.getRequestHandler();
 interface WsClient {
   ws: WebSocket;
   userId: string;
+  /** Last time this connection wrote lastSeenAt to the DB (throttling). */
+  lastPersistedAt?: number;
+}
+
+// How often a single connection may write lastSeenAt to the DB.
+// Client pings every 30s, so this caps DB writes at ~1/min per online user.
+const LAST_SEEN_PERSIST_INTERVAL_MS = 60_000;
+
+async function persistLastSeen(
+  userId: string,
+  at = new Date(),
+  force = false,
+): Promise<void> {
+  const client = clients.get(userId);
+  if (
+    !force &&
+    client?.lastPersistedAt &&
+    at.getTime() - client.lastPersistedAt < LAST_SEEN_PERSIST_INTERVAL_MS
+  ) {
+    return;
+  }
+  try {
+    await prisma.user.updateMany({
+      where: { id: userId },
+      data: { lastSeenAt: at },
+    });
+  } catch (err) {
+    console.error("[server] persistLastSeen failed:", err);
+  }
+  if (client) client.lastPersistedAt = at.getTime();
 }
 
 const clients = new Map<string, WsClient>();
@@ -151,6 +181,7 @@ async function attachAuthenticatedClient(ws: WebSocket, userId: string) {
 
   clients.set(userId, { ws, userId });
   console.log(`[WS] ${userId} connected (${clients.size} online locally)`);
+  void persistLastSeen(userId, new Date(), true);
 
   if (isMulti && redisClient) {
     await redisClient.zadd("trak:ws:online", Date.now(), userId).catch(() => {});
@@ -340,6 +371,7 @@ app.prepare().then(async () => {
           if (isMulti && redisClient) {
             redisClient.zadd("trak:ws:online", Date.now(), userId).catch(() => {});
           }
+          void persistLastSeen(userId);
           break;
       }
     });
@@ -355,7 +387,15 @@ app.prepare().then(async () => {
           // Other instances may still have active connections for this user.
           // The TTL-based pruning (every 30s, entries >60s old) handles stale cleanup.
           // Active connections refresh their Redis timestamp via ping.
-          broadcast({ type: "user_offline", userId });
+          // Record the final last-seen snapshot and share it so other clients
+          // can show an accurate "Last online X ago" immediately.
+          const closedAt = new Date();
+          void persistLastSeen(userId, closedAt, true);
+          broadcast({
+            type: "user_offline",
+            userId,
+            lastSeenAt: closedAt.toISOString(),
+          });
         }
       }
     });

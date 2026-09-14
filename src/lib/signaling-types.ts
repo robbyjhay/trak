@@ -15,7 +15,7 @@ export type OutgoingMessage =
 export type IncomingMessage =
   | { type: "online_users"; users: string[] }
   | { type: "user_online"; userId: string }
-  | { type: "user_offline"; userId: string }
+  | { type: "user_offline"; userId: string; lastSeenAt?: string }
   | { type: "call_offer"; from: string; sdp: RTCSessionDescriptionInit }
   | { type: "call_answer"; from: string; sdp: RTCSessionDescriptionInit }
   | { type: "ice_candidate"; from: string; candidate: RTCIceCandidateInit }
@@ -25,4 +25,5 @@ export type IncomingMessage =
   | { type: "call_end"; from: string }
   | { type: "peer_busy"; from: string }
   | { type: "peer_unavailable"; from: string }
+  | { type: "dm_read"; from: string; readDmIds: string[]; at?: string }
   | { type: "error"; code: string; message?: string };

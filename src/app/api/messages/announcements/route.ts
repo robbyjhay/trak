@@ -4,6 +4,7 @@ import {
   parseJsonBody,
   requireSession,
 } from "@/lib/api/http";
+import { tryIdempotent } from "@/lib/idempotency";
 import {
   listAnnouncements,
   myNotifications,
@@ -32,6 +33,11 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
+  // --- idempotency check (Phase 3B) ---
+  const { cached, storeResult } = await tryIdempotent(req);
+  if (cached) return cached;
+  // -----------------------------------
+
   try {
     const { session, error } = await requireSession();
     if (error) return error;
@@ -46,12 +52,15 @@ export async function POST(req: Request) {
     const { announcements } = await listAnnouncements(session, { limit: 50 });
     const notifications = await myNotifications(session);
 
-    return jsonOk({
+    const responseBody = {
       id: result.id,
       announcements,
       notifications,
-    });
+    };
+    storeResult(responseBody);
+    return jsonOk(responseBody);
   } catch (err) {
+    // Failure: do NOT persist the key, so the client can retry safely.
     return handleServiceError(err);
   }
 }

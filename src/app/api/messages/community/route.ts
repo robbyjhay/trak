@@ -4,6 +4,7 @@ import {
   parseJsonBody,
   requireSession,
 } from "@/lib/api/http";
+import { tryIdempotent } from "@/lib/idempotency";
 import {
   listCommunity,
   sendCommunity,
@@ -30,6 +31,11 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
+  // --- idempotency check (Phase 3B) ---
+  const { cached, storeResult } = await tryIdempotent(req);
+  if (cached) return cached;
+  // -----------------------------------
+
   try {
     const { session, error } = await requireSession();
     if (error) return error;
@@ -49,8 +55,11 @@ export async function POST(req: Request) {
       void processLinkPreviewAsync(result.id, "community", body.text, session.id);
     }
 
-    return jsonOk({ community });
+    const responseBody = { community };
+    storeResult(responseBody);
+    return jsonOk(responseBody);
   } catch (err) {
+    // Failure: do NOT persist the key, so the client can retry safely.
     return handleServiceError(err);
   }
 }

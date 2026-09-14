@@ -9,6 +9,7 @@ import {
 } from "@/lib/auth/actions";
 import { firstName } from "@/lib/utils";
 import { PATHS } from "@/components/icons";
+import { purgeRscCacheSession } from "@/lib/sw/rsc-cache-session";
 
 export function SetPasswordForm({
   name,
@@ -125,6 +126,9 @@ export function SetPasswordForm({
 
           <form action={logoutAction} className="mt-3" onSubmit={async () => {
             if (typeof window !== "undefined" && "serviceWorker" in navigator) {
+              try {
+                void purgeRscCacheSession();
+              } catch (e) {}
               try {
                 const reg = await navigator.serviceWorker.ready;
                 const sub = await reg.pushManager.getSubscription();

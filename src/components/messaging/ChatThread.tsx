@@ -214,6 +214,7 @@ export function ChatThread({
             replyTo={item.dm.replyTo ?? null}
             replyToId={(item.dm as any).replyToId ?? null}
             linkPreview={(item.dm as any).linkPreview ?? null}
+            readAt={(item.dm as any).readAt ?? null}
             onReply={handleBubbleReply}
             onDelete={onDeleteMessage ? (forEveryone) => handleBubbleDelete(item.id, forEveryone) : undefined}
             canDeleteAny={canDeleteAny}

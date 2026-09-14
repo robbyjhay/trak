@@ -55,18 +55,21 @@ export function needsIosPwaInstall(): boolean {
 async function getRegistration(): Promise<ServiceWorkerRegistration | null> {
   try {
     if (!("serviceWorker" in navigator)) return null;
+    // `updateViaCache: "none"` stops the browser from serving a stale
+    // sw.js from the HTTP cache between deploys, so fixes like the RSC
+    // cache-key change actually reach the installed PWA instead of leaving
+    // the old worker in control. Always re-check the script byte-for-byte;
+    // the browser still rate-limits network checks.
     const existing = await navigator.serviceWorker.getRegistration("/");
     if (existing) {
-      // If the registration has a waiting or installing worker, the SW script
-      // has been updated and the old one is stale. Trigger an update so the
-      // new SW activates — on iOS this prevents the PWA from losing push
-      // capability after a deploy while the old SW is still running.
-      if (existing.waiting || existing.installing) {
-        existing.update().catch(() => {});
-      }
+      existing.update().catch(() => {});
       return existing;
     }
-    return await navigator.serviceWorker.register("/sw.js");
+    const fresh = await navigator.serviceWorker.register("/sw.js", {
+      updateViaCache: "none",
+    });
+    fresh.update().catch(() => {});
+    return fresh;
   } catch {
     return null;
   }
@@ -123,7 +126,7 @@ export function usePushNotifications() {
   const isRegisteredRef = useRef(false);
 
   useEffect(() => {
-    if (typeof window === "undefined" || !isPushApiSupported()) {
+    if (typeof window === "undefined" || !("serviceWorker" in navigator)) {
       return;
     }
 
@@ -134,6 +137,10 @@ export function usePushNotifications() {
       try {
         const registration = await getRegistration();
         if (!registration) return;
+        // iOS Safari only exposes Web Push to installed PWAs, so it may be
+        // unavailable in a normal tab. The service worker is still needed
+        // for offline caching, so only gate the push subscription on it.
+        if (!("PushManager" in window) || !("Notification" in window)) return;
         if (Notification.permission === "granted") {
           // Ensure a valid subscription exists — silently resubscribe if iOS
           // or the push service invalidated the old one.

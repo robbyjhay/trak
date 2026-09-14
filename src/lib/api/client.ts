@@ -59,10 +59,12 @@ async function parseResponse<T>(res: Response): Promise<T> {
   return body as T;
 }
 
-type FetchOpts = {
+export type FetchOpts = {
   signal?: AbortSignal;
   /** Override default request timeout (ms). 0 disables. */
   timeoutMs?: number;
+  /** Extra headers merged into the request (e.g. idempotency keys). */
+  headers?: Record<string, string>;
 };
 
 async function fetchWithTimeout(
@@ -120,8 +122,10 @@ export async function apiSend<T>(
     path,
     {
       method,
-      headers:
-        body !== undefined ? { "Content-Type": "application/json" } : undefined,
+      headers: {
+        ...(body !== undefined ? { "Content-Type": "application/json" } : {}),
+        ...(opts?.headers ?? {}),
+      },
       body: body !== undefined ? JSON.stringify(body) : undefined,
     },
     opts,

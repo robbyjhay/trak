@@ -16,6 +16,10 @@ export function buildActivityReportHTML(
   userMap: Record<string, User>,
   responsibilities: Responsibility[],
   now: Date,
+  lookups?: {
+    libraryTitles?: Record<string, string>;
+    innovationTitles?: Record<string, string>;
+  },
 ): string {
   const RESP = Object.fromEntries(
     responsibilities.map((r) => [r.id, r]),
@@ -24,6 +28,7 @@ export function buildActivityReportHTML(
     .filter((l) => l.activityId === act.id)
     .sort((a, b) => a.date.localeCompare(b.date));
   const owner = userMap[act.createdBy];
+  const preparer = act.assigneeId ? userMap[act.assigneeId] || owner : owner;
   const comments = db.comments.filter((c) => c.activityId === act.id);
   const days = daysBetween(act.startDate, act.endDate) + 1;
   const respObjs = act.responsibilityIds.map((id) => RESP[id]).filter(Boolean);
@@ -55,9 +60,46 @@ export function buildActivityReportHTML(
     )
     .join("");
 
-  const background = act.delegatedBy
-    ? `Directive from ${act.delegatedBy === "babajide" ? "the Unit Head" : escapeHtml(userMap[act.delegatedBy]?.name || "")}, assigned via Trak on ${fmtDate(act.createdAt)}.`
+  const acceptedCollabs = (act.collaborators ?? [])
+    .filter((c) => c.status === "accepted")
+    .map((c) => userMap[c.userId])
+    .filter((u): u is User => Boolean(u));
+  const collabNames = acceptedCollabs.map((u) => u.name);
+  const isJoint = act.collaborative && acceptedCollabs.length > 0;
+  const participantCount = 1 + acceptedCollabs.length;
+  const refCode = (id?: string | null) =>
+    id ? String(id).replace(/^(id|lib|inn)_/i, "").toUpperCase() : "";
+
+  const delegationKind =
+    act.delegationType === "SELF_DEVELOPMENT"
+      ? "a self-development assignment"
+      : act.delegationType === "INNOVATION"
+        ? "an innovation assignment"
+        : "a delegated task";
+  const projectId =
+    act.delegationType === "SELF_DEVELOPMENT"
+      ? (act.libraryResourceId ?? null)
+      : act.delegationType === "INNOVATION"
+        ? (act.innovationId ?? null)
+        : null;
+  const projectTitle =
+    projectId &&
+    (act.delegationType === "SELF_DEVELOPMENT"
+      ? lookups?.libraryTitles?.[projectId]
+      : lookups?.innovationTitles?.[projectId]);
+  const projectRef = projectId ? refCode(projectId) : "";
+  const delegationRef = projectTitle
+    ? ` — based on ${escapeHtml(projectTitle)}${projectRef ? ` (ref ${escapeHtml(projectRef)})` : ""}`
+    : projectRef
+      ? ` (${escapeHtml(projectRef)})`
+      : "";
+
+  let background = act.delegatedBy
+    ? `Entrusted as ${delegationKind} by ${act.delegatedBy === "babajide" ? "the Unit Head" : escapeHtml(userMap[act.delegatedBy]?.name || "")}, assigned via Trak on ${fmtDate(act.createdAt)}${delegationRef}.`
     : `Logged under the Digital Learning Unit's regular activity tracking (Trak), within the unit's ${escapeHtml(respNames)} responsibility area${respObjs.length > 1 ? "s" : ""}.`;
+  if (isJoint) {
+    background += ` ${escapeHtml(owner?.name || "")} carried this out jointly with ${collabNames.map(escapeHtml).join(", ")} — a collaborative activity in which every participant logged and submitted their own share.`;
+  }
 
   const purpose =
     act.description?.trim()
@@ -67,8 +109,13 @@ export function buildActivityReportHTML(
         : "Not specified.";
 
   const personsRows = [
-    `<tr><td>${escapeHtml(owner?.name || "")}</td><td>${escapeHtml(owner ? roleLabel(owner) : "")}</td><td>Logged and delivered this activity.</td></tr>`,
+    `<tr><td>${escapeHtml(owner?.name || "")}</td><td>${escapeHtml(owner ? roleLabel(owner) : "")}</td><td>${isJoint ? "Logged and delivered this activity's lead share." : "Logged and delivered this activity."}</td></tr>`,
   ];
+  for (const c of acceptedCollabs) {
+    personsRows.push(
+      `<tr><td>${escapeHtml(c.name)}</td><td>${escapeHtml(roleLabel(c))}</td><td>Collaborator — logged and submitted their own share; required for completion.</td></tr>`,
+    );
+  }
   if (act.delegatedBy && userMap[act.delegatedBy]) {
     const d = userMap[act.delegatedBy];
     personsRows.push(
@@ -86,7 +133,10 @@ export function buildActivityReportHTML(
           : l.status === "submitted"
             ? "—"
             : "Not yet logged.";
-      return `<li><b>${label}:</b> ${text}</li>`;
+      const by = act.collaborative && l.userId
+        ? ` <i>— ${escapeHtml(userMap[l.userId]?.name || "Member")}</i>`
+        : "";
+      return `<li><b>${label}:</b> ${text}${by}</li>`;
     })
     .join("");
 
@@ -106,7 +156,9 @@ export function buildActivityReportHTML(
   const outputsLines: string[] = [];
   if (submittedLogs.length)
     outputsLines.push(
-      `${submittedLogs.length} of ${days} day(s) logged, with a transcript summary on file in Trak for each.`,
+      isJoint
+        ? `${submittedLogs.length} participant-day share${submittedLogs.length > 1 ? "s" : ""} logged by the ${participantCount} participant${participantCount > 1 ? "s" : ""} (${days} day(s) × creator + ${acceptedCollabs.length} collaborator${acceptedCollabs.length > 1 ? "s" : ""}), each with a transcript summary on file in Trak — the activity completed only once every participant submitted theirs.`
+        : `${submittedLogs.length} of ${days} day(s) logged, with a transcript summary on file in Trak for each.`,
     );
   if (totalAttendance > 0)
     outputsLines.push(
@@ -131,10 +183,31 @@ export function buildActivityReportHTML(
         .join("")
     : `<li>No Unit Head's remarks yet.</li>`;
 
-  const conclusion = `${escapeHtml(owner?.name || "")} ${act.status === "completed" ? "completed" : "carried out"} "${escapeHtml(act.title)}" over ${days} day${days > 1 ? "s" : ""}, covering ${escapeHtml(respNames)}. ${comments.length ? "Reviewed by the Unit Head — see remarks below." : "Awaiting Unit Head review."}`;
+  const conclusion = `${escapeHtml(owner?.name || "")}${acceptedCollabs.length ? ", with " + collabNames.map(escapeHtml).join(", ") : ""} ${act.status === "completed" ? "completed" : "carried out"} "${escapeHtml(act.title)}" over ${days} day${days > 1 ? "s" : ""}, covering ${escapeHtml(respNames)}.${isJoint ? " All participants submitted their individual shares, completing the joint activity." : ""} ${comments.length ? "Reviewed by the Unit Head — see remarks below." : "Awaiting Unit Head review."}`;
 
   const refNo = `PSSDC/DLU/TRAK/${act.id.replace("act_", "").toUpperCase()}`;
   const lastReview = comments.length ? comments[comments.length - 1] : null;
+
+  const signParts = [
+    {
+      name: preparer?.name || "",
+      role: preparer ? roleLabel(preparer) : "",
+      sub: `${isJoint ? "Lead — " : ""}Report prepared, ${fmtDateFull(iso(now))}`,
+    },
+    ...(isJoint
+      ? acceptedCollabs.map((c) => ({
+          name: c.name,
+          role: roleLabel(c),
+          sub: "Collaborator — own share logged",
+        }))
+      : []),
+  ];
+  const signCells = signParts
+    .map(
+      (s) =>
+        `<td><div class="sign-line"><b>${escapeHtml(s.name)}</b><br>${escapeHtml(s.role)}<br>${escapeHtml(s.sub)}</div></td>`,
+    )
+    .join("");
 
   return `<!DOCTYPE html>
 <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
@@ -142,19 +215,32 @@ export function buildActivityReportHTML(
 <style>
   @page{ margin:2cm 2.2cm; }
   *{ font-family:Calibri, "Segoe UI", Arial, sans-serif; box-sizing:border-box; }
-  body{ color:#1a1a1a; font-size:11.5pt; line-height:1.6; margin:0; padding:32px 16px; background:#f2f1ec; }
-  @media (max-width: 600px) { body { padding: 16px 0; } }
-  .letterhead{ background:#0d1d1a; color:#fbfaf6; padding:22px 44px; width: 100%; border-collapse: collapse; }
+  :root{ --doc-w:820px; }
+body{ color:#1a1a1a; font-size:11.5pt; line-height:1.6; margin:0; padding:32px 16px; background:#f2f1ec; }
+  @media (max-width: 600px) { body { padding: 8px 0; } }
+  .letterhead{ background:#0d1d1a; color:#fbfaf6; padding:22px 44px; width:100%; max-width:var(--doc-w); margin:0 auto; border-collapse:collapse; }
   .letterhead td { border: none; padding: 0; }
   .letterhead .org{ font-size:9pt; letter-spacing:.14em; text-transform:uppercase; color:#f6c642; margin-bottom:3px; }
   .letterhead .unit{ font-size:15pt; font-weight:700; color:#fbfaf6; }
   .letterhead .meta{ text-align:right; font-size:8.5pt; color:rgba(251,250,246,.7); line-height:1.5; }
-  .doc-wrap{ width:100%; max-width:820px; min-height:1160px; margin:0 auto; background:#fff; padding:0 44px 46px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); }
+  .doc-wrap{ width:100%; max-width:var(--doc-w); min-height:1160px; margin:0 auto; background:#fff; padding:0 44px 46px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); }
   .titleblock{ text-align:center; padding:30px 0 18px; }
   .titleblock h1{ font-size:19pt; letter-spacing:.06em; margin:0 0 8px 0; color:#0d1d1a; }
-  .titleblock .ref{ font-size:9.5pt; color:#666; font-family:"Courier New",monospace; }
+  .titleblock .ref{ font-size:9.5pt; color:#666; font-family:"Courier New",monospace; word-break:break-all; }
   .titleblock .name{ font-size:14pt; font-weight:700; margin-top:8px; }
   .titleblock .by{ font-size:11pt; font-weight:500; font-style:italic; color:#555; margin-top:3px; }
+  @media (max-width:600px){
+    .letterhead{ padding:16px 20px; }
+    .letterhead .unit{ font-size:12.5pt; }
+    .letterhead .org{ font-size:8pt; }
+    .doc-wrap{ box-shadow:none; padding:0 20px 40px; min-height:0; overflow-x:auto; -webkit-overflow-scrolling:touch; }
+    .titleblock{ padding:22px 0 14px; }
+    .titleblock h1{ font-size:15pt; }
+    .titleblock .name{ font-size:12pt; }
+    .titleblock .by{ font-size:10pt; }
+    h2{ font-size:10.5pt; }
+    .field b{ min-width:110px; }
+  }
   hr.rule{ border:none; border-top:2.5px solid #0d1d1a; margin:0 0 28px; }
   h2{ font-size:12pt; text-transform:uppercase; letter-spacing:.04em; border-bottom:1.5px solid #0d1d1a; padding-bottom:5px; margin:24px 0 10px 0; color:#0d1d1a; }
   p{ margin:0 0 8px 0; }
@@ -166,9 +252,16 @@ export function buildActivityReportHTML(
   .field{ margin-bottom:10px; }
   .field b{ display:inline-block; min-width:150px; }
   .note{ color:#8a6a1f; font-style:italic; font-size:10pt; }
-  .sign-table{ border-collapse:collapse; width:100%; margin-top:46px; }
-  .sign-table td{ border:none; width:50%; vertical-align:top; padding:0 14px 0 0; }
-  .sign-line{ border-top:1px solid #333; width:230px; margin-top:38px; padding-top:6px; font-size:10pt; line-height:1.5; }
+  .sign-table{ display:block; width:100%; margin-top:46px; }
+  .sign-table tr{ display:flex; flex-wrap:wrap; gap:38px 40px; width:100%; }
+  .sign-table td{ border:none; flex:1 1 250px; vertical-align:top; padding:0; }
+  .sign-line{ border-top:2px solid #333; width:230px; max-width:100%; margin-top:38px; padding-top:6px; font-size:10pt; line-height:1.5; }
+  @media (max-width:600px){
+    .sign-table{ margin-top:34px; }
+    .sign-table tr{ flex-direction:column; gap:22px; }
+    .sign-table td{ width:100%; }
+    .sign-line{ width:100%; }
+  }
   .remarks-block{ margin-top:64px; padding-top:22px; border-top:1px dashed #ccc; }
   .attendance-page{ page-break-before:always; break-before:page; padding-top:6px; }
   .attendance-page .pagelabel{ font-size:8.5pt; letter-spacing:.1em; text-transform:uppercase; color:#999; margin-bottom:2px; }
@@ -191,7 +284,7 @@ export function buildActivityReportHTML(
       <h1>ACTIVITY REPORT</h1>
       <div class="ref">Ref: ${refNo}</div>
       <div class="name">${escapeHtml(act.title)}</div>
-      <div class="by">by ${escapeHtml(owner?.name || "")}</div>
+      <div class="by">by ${escapeHtml(owner?.name || "")}${acceptedCollabs.length ? " with " + collabNames.map(escapeHtml).join(", ") : ""}</div>
     </div>
     <hr class="rule">
 
@@ -261,9 +354,7 @@ export function buildActivityReportHTML(
     </div>
 
     <table class="sign-table"><tr>
-      <td>
-        <div class="sign-line"><b>${escapeHtml(owner?.name || "")}</b><br>${escapeHtml(owner ? roleLabel(owner) : "")}<br>Report prepared, ${fmtDateFull(iso(now))}</div>
-      </td>
+      ${signCells}
       <td>
         ${
           lastReview
@@ -282,6 +373,30 @@ export function buildActivityReportHTML(
   </div>
 </body>
 </html>`;
+}
+
+export function printReport(html: string) {
+  const frame = document.createElement("iframe");
+  frame.style.position = "fixed";
+  frame.style.right = "0";
+  frame.style.bottom = "0";
+  frame.style.width = "0";
+  frame.style.height = "0";
+  frame.style.border = "0";
+  frame.style.visibility = "hidden";
+  document.body.appendChild(frame);
+  frame.srcdoc = html;
+  const cleanup = () => setTimeout(() => {
+    document.body.removeChild(frame);
+  }, 1000);
+  frame.onload = () => {
+    const win = frame.contentWindow;
+    if (!win) return cleanup();
+    win.addEventListener("afterprint", cleanup, { once: true });
+    win.focus();
+    win.print();
+    setTimeout(cleanup, 60_000);
+  };
 }
 
 export function downloadReportDoc(html: string, filename: string) {
@@ -318,9 +433,16 @@ export function buildUnitReportHTML(
 
   const actRows = activities.map(a => {
     const ownerName = escapeHtml(userMap[a.createdBy]?.name || "Unknown");
+    const collaborators = (a.collaborators ?? [])
+      .filter((c) => c.status === "accepted")
+      .map((c) => userMap[c.userId]?.name ?? "Member")
+      .filter(Boolean);
+    const people = collaborators.length
+      ? `${ownerName} + ${collaborators.map(escapeHtml).join(", ")}`
+      : ownerName;
     return `<tr>
       <td>${escapeHtml(a.title)}</td>
-      <td>${ownerName}</td>
+      <td>${people}${a.collaborative ? "" : ""}</td>
       <td>${escapeHtml(a.status)}</td>
       <td>${fmtDate(a.startDate)}</td>
     </tr>`;

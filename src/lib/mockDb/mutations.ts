@@ -41,13 +41,20 @@ export function recomputeStatus(db: TrakDb, activityId: string, now: Date): void
   const logs = db.dailyLogs
     .filter((l) => l.activityId === activityId)
     .sort((a, b) => a.date.localeCompare(b.date));
-  if (logs.every((l) => l.status === "submitted")) {
+
+  const groups = act.collaborative
+    ? collaborativeLogGroups(logs)
+    : [logs];
+
+  if (groups.length > 0 && groups.every((g) => g.every((l) => l.status === "submitted"))) {
     act.status = "completed";
     return;
   }
   if (!isActivityRecoveryEnabled()) {
     const today = iso(now);
-    const anyMissed = logs.some((l) => l.status === "pending" && l.date < today);
+    const anyMissed = groups.some((g) =>
+      g.some((l) => l.status === "pending" && l.date < today),
+    );
     act.status = anyMissed ? "missed" : "pending";
     if (act.status === "missed") {
       act.exceptionStatus = "none";
@@ -59,12 +66,24 @@ export function recomputeStatus(db: TrakDb, activityId: string, now: Date): void
   }
 }
 
+function collaborativeLogGroups(logs: DailyLog[]): DailyLog[][] {
+  const byUser = new Map<string, DailyLog[]>();
+  for (const l of logs) {
+    if (!l.userId) continue;
+    const arr = byUser.get(l.userId) ?? [];
+    arr.push(l);
+    byUser.set(l.userId, arr);
+  }
+  return [...byUser.values()];
+}
+
 export function createActivity(
   db: TrakDb,
   input: CreateActivityInput,
   now: Date,
 ): Activity {
   const id = uid("act");
+  const collaborative = input.collaborative === true;
   const act: Activity = {
     id,
     title: input.title,
@@ -76,6 +95,18 @@ export function createActivity(
     delegationType: input.delegationType ?? null,
     libraryResourceId: input.libraryResourceId ?? null,
     innovationId: input.innovationId ?? null,
+    collaborative,
+    collaborators: collaborative
+      ? (input.collaboratorIds ?? []).map((userId) => ({
+          id: uid("col"),
+          activityId: id,
+          userId,
+          invitedById: input.createdBy,
+          status: "pending" as const,
+          respondedAt: null,
+          createdAt: iso(now),
+        }))
+      : [],
     startDate: input.startDate,
     endDate: input.endDate,
     startTime: input.startTime,
@@ -107,6 +138,7 @@ export function createActivity(
     const log: DailyLog = {
       id: uid("log"),
       activityId: id,
+      userId: collaborative ? input.createdBy : null,
       date: iso(addDays(new Date(input.startDate + "T00:00:00Z"), i)),
       objectives: "",
       activityDescription: "",
@@ -124,7 +156,83 @@ export function createActivity(
     };
     db.dailyLogs.push(log);
   }
+  for (const cid of input.collaboratorIds ?? []) {
+    pushNotification(
+      db,
+      cid,
+      "collaboration_invite",
+      `You were invited to collaborate on "${act.title}".`,
+      now,
+      act.id,
+    );
+  }
   recomputeStatus(db, act.id, now);
+  return act;
+}
+
+/** Accept/decline a collaboration invite in the mock store (mirrors server). */
+export function respondToCollab(
+  db: TrakDb,
+  activityId: string,
+  userId: string,
+  action: "accept" | "decline",
+  now: Date,
+): Activity | null {
+  const act = db.activities.find((a) => a.id === activityId);
+  if (!act || !act.collaborative || act.softDeletedAt) return null;
+  const col = act.collaborators?.find((c) => c.userId === userId);
+  if (!col || col.status !== "pending") return null;
+
+  col.status = action === "accept" ? "accepted" : "declined";
+  col.respondedAt = iso(now);
+
+  if (action === "accept") {
+    const nDays = daysBetween(act.startDate, act.endDate) + 1;
+    for (let i = 0; i < nDays; i++) {
+      const date = iso(addDays(new Date(act.startDate + "T00:00:00Z"), i));
+      const exists = db.dailyLogs.some(
+        (l) => l.activityId === activityId && l.userId === userId && l.date === date,
+      );
+      if (!exists) {
+        db.dailyLogs.push({
+          id: uid("log"),
+          activityId,
+          userId,
+          date,
+          objectives: "",
+          activityDescription: "",
+          transcript: "",
+          attendanceCount: "",
+          attendanceNotes: "",
+          attendees: [],
+          rsvpToken: null,
+          attachments: [],
+          status: "pending",
+          submittedAt: null,
+          amountReleasedNgn: null,
+          amountSpentNgn: null,
+          spendingItems: [],
+        });
+      }
+    }
+    pushNotification(
+      db,
+      act.createdBy,
+      "collaboration_accepted",
+      `A member accepted your invite to collaborate on "${act.title}".`,
+      now,
+      activityId,
+    );
+  } else {
+    pushNotification(
+      db,
+      act.createdBy,
+      "collaboration_declined",
+      `A member declined the invite to collaborate on "${act.title}".`,
+      now,
+      activityId,
+    );
+  }
   return act;
 }
 
@@ -134,11 +242,15 @@ export function submitDailyLog(
   date: string,
   data: SubmitDailyLogData,
   now: Date,
+  userId: string | null = null,
 ): void {
   const act = db.activities.find((a) => a.id === activityId);
   const wasMissed = act?.status === "missed";
   const log = db.dailyLogs.find(
-    (l) => l.activityId === activityId && l.date === date,
+    (l) =>
+      l.activityId === activityId &&
+      l.date === date &&
+      (l.userId ?? null) === (userId ?? null),
   );
   if (!log) return;
   Object.assign(log, {
@@ -268,10 +380,15 @@ export function pushNotification(
 }
 
 export function activitiesFor(db: TrakDb, userId: string): Activity[] {
-  return db.activities.filter(
-    (a) =>
-      (a.createdBy === userId || a.assigneeId === userId) && !a.softDeletedAt,
-  );
+  return db.activities.filter((a) => {
+    if (a.softDeletedAt) return false;
+    if (a.createdBy === userId || a.assigneeId === userId) return true;
+    return Boolean(
+      a.collaborators?.some(
+        (c) => c.userId === userId && c.status === "accepted",
+      ),
+    );
+  });
 }
 
 export function bucket(db: TrakDb, userId: string) {

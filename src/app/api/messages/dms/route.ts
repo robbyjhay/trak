@@ -4,6 +4,7 @@ import {
   parseJsonBody,
   requireSession,
 } from "@/lib/api/http";
+import { tryIdempotent } from "@/lib/idempotency";
 import {
   listDmsForUser,
   myNotifications,
@@ -36,6 +37,11 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
+  // --- idempotency check (Phase 3B) ---
+  const { cached, storeResult } = await tryIdempotent(req);
+  if (cached) return cached;
+  // -----------------------------------
+
   try {
     const { session, error } = await requireSession();
     if (error) return error;
@@ -57,13 +63,15 @@ export async function POST(req: Request) {
       void processLinkPreviewAsync(result.id, "dm", body.text, session.id);
     }
 
-    return jsonOk({
+    const responseBody = {
       id: result.id,
       dms,
       notifications,
-    });
+    };
+    storeResult(responseBody);
+    return jsonOk(responseBody);
   } catch (err) {
-    console.error("[POST /api/messages/dms] ERROR:", err);
+    // Failure: do NOT persist the key, so the client can retry safely.
     return handleServiceError(err);
   }
 }

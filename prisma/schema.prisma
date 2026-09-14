@@ -49,6 +49,25 @@ enum AuditAction {
   settings_change
 }
 
+// ---------------------------------------------------------------------------
+// Idempotency keys (Phase 3B)
+// ---------------------------------------------------------------------------
+
+model IdempotencyKey {
+  key          String    @unique
+  userId       String    @map("user_id") @db.Uuid
+  resultJson   String    // JSON payload to return on duplicate
+  status       String    @default("active") @map("status")
+  expiresAt    DateTime  @map("expires_at") @db.Timestamptz(3)
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("idempotency_keys")
+}
+
 enum ActivityType {
   Meeting
   Project
@@ -113,6 +132,15 @@ enum NotificationType {
   innovation_declined
   innovation_implemented
   work_delegated
+  collaboration_invite
+  collaboration_accepted
+  collaboration_declined
+}
+
+enum CollaborationInviteStatus {
+  pending
+  accepted
+  declined
 }
 
 enum DelegationType {
@@ -169,6 +197,7 @@ model User {
   emailVerifiedAt    DateTime? @map("email_verified_at") @db.Timestamptz(3)
   isActive           Boolean   @default(true) @map("is_active")
   lastLoginAt        DateTime? @map("last_login_at") @db.Timestamptz(3)
+  lastSeenAt         DateTime? @map("last_seen_at") @db.Timestamptz(3)
   createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt          DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
 
@@ -176,10 +205,13 @@ model User {
   sessions    Session[]
   authTokens  AuthToken[]
   preferences UserPreferences?
+  idempotencyKeys IdempotencyKey[]
 
   activitiesCreated   Activity[]                @relation("ActivityCreatedBy")
   activitiesDelegated Activity[]                @relation("ActivityDelegatedBy")
   activitiesAssigned  Activity[]                @relation("ActivityAssignee")
+  activityCollaborations ActivityCollaborator[] @relation("CollaboratorUser")
+  activityCollaborationsInvited ActivityCollaborator[] @relation("CollaboratorInvitedBy")
   comments            Comment[]                 @relation("CommentAuthor")
   responsibilities    Responsibility[]          @relation("ResponsibilityCreatedBy")
   directMessagesAsA   DirectMessage[]           @relation("DirectMessageParticipantA")
@@ -330,6 +362,7 @@ model Activity {
   reminderStatus     Json?          @default("{}")
   reminderVersion    Int            @default(1)
   hidden             Boolean        @default(false)
+  collaborative      Boolean        @default(false)
   hasBudget          Boolean        @default(false) @map("has_budget")
   estimatedAmountNgn Decimal?       @map("estimated_amount_ngn") @db.Decimal(14, 2)
   initiativeTeamwork String         @default("") @map("initiative_teamwork") @db.Text
@@ -348,6 +381,7 @@ model Activity {
   responsibilities ActivityResponsibility[]
   dailyLogs        DailyLog[]
   comments         Comment[]
+  collaborators    ActivityCollaborator[]
 
   @@index([createdById, status])
   @@index([assigneeId])
@@ -356,6 +390,7 @@ model Activity {
   @@index([startDate, endDate])
   @@index([status])
   @@index([hidden])
+  @@index([collaborative])
   @@map("activities")
 }
 
@@ -370,9 +405,28 @@ model ActivityResponsibility {
   @@map("activity_responsibilities")
 }
 
+model ActivityCollaborator {
+  id          String   @id @default(uuid()) @db.Uuid
+  activityId  String   @map("activity_id") @db.Uuid
+  userId      String   @map("user_id") @db.Uuid
+  invitedById String   @map("invited_by_id") @db.Uuid
+  status      CollaborationInviteStatus @default(pending)
+  respondedAt DateTime? @map("responded_at") @db.Timestamptz(3)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  activity  Activity @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  user      User     @relation("CollaboratorUser", fields: [userId], references: [id], onDelete: Cascade)
+  invitedBy User     @relation("CollaboratorInvitedBy", fields: [invitedById], references: [id], onDelete: Cascade)
+
+  @@unique([activityId, userId])
+  @@index([userId, status])
+  @@map("activity_collaborators")
+}
+
 model DailyLog {
   id                  String         @id @default(uuid()) @db.Uuid
   activityId          String         @map("activity_id") @db.Uuid
+  userId              String?        @map("user_id") @db.Uuid
   date                DateTime       @db.Date
   objectives          String         @default("") @db.Text
   activityDescription String         @default("") @map("activity_description") @db.Text
@@ -394,8 +448,9 @@ model DailyLog {
   attendees   Attendee[]
   attachments Attachment[]
 
-  @@unique([activityId, date])
+  @@unique([activityId, date, userId])
   @@index([activityId])
+  @@index([userId])
   @@map("daily_logs")
 }
 
@@ -460,14 +515,15 @@ model Comment {
 // ---------------------------------------------------------------------------
 
 model DirectMessage {
-  id           String    @id @default(uuid()) @db.Uuid
-  participantA String    @db.Uuid
-  participantB String    @db.Uuid
-  fromUserId   String    @map("from_user_id") @db.Uuid
-  text         String    @db.Text
-  replyToId    String?   @map("reply_to_id") @db.Uuid
-  deletedAt    DateTime? @map("deleted_at") @db.Timestamptz(3)
-  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  id           String     @id @default(uuid()) @db.Uuid
+  participantA String     @db.Uuid
+  participantB String     @db.Uuid
+  fromUserId   String     @map("from_user_id") @db.Uuid
+  text         String     @db.Text
+  replyToId    String?    @map("reply_to_id") @db.Uuid
+  readAt       DateTime?  @map("read_at") @db.Timestamptz(3)
+  deletedAt    DateTime?  @map("deleted_at") @db.Timestamptz(3)
+  createdAt    DateTime   @default(now()) @map("created_at") @db.Timestamptz(3)
 
   userA   User @relation("DirectMessageParticipantA", fields: [participantA], references: [id], onDelete: Cascade)
   userB   User @relation("DirectMessageParticipantB", fields: [participantB], references: [id], onDelete: Cascade)

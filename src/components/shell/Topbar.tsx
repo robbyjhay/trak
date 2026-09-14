@@ -17,17 +17,28 @@ import {
 import { cn } from "@/lib/utils";
 import { useConnectNav } from "@/context/ConnectNav";
 import { ConnectTabs } from "@/components/messaging/ConnectTabs";
+import { OfflineSyncIndicator } from "@/components/offline-sync-indicator";
+import { purgeRscCacheSession } from "@/lib/sw/rsc-cache-session";
 
 export function Topbar() {
   const pathname = usePathname();
   const router = useRouter();
-  const { sessionUser, myNotifications, markNotifRead, markAllNotifsRead } =
-    useTrak();
+  const {
+    sessionUser,
+    myNotifications,
+    markNotifRead,
+    markAllNotifsRead,
+    isSyncing,
+    pendingMutations,
+    failedMutations,
+    retryFailedMutations,
+  } = useTrak();
   const { isMobileThreadOpen } = useConnectNav();
   const [menuOpen, setMenuOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
   const chipRef = useRef<HTMLDivElement>(null);
   const notifRef = useRef<HTMLDivElement>(null);
+  const [showSyncIndicator, setShowSyncIndicator] = useState(false);
 
   const notifs = myNotifications();
   const unread = notifs.filter((n) => !n.read).length;
@@ -37,6 +48,10 @@ export function Topbar() {
   const isActivities = pathname === "/activities" || pathname.startsWith("/member/");
   const isLibrary = pathname === "/library" || pathname.startsWith("/library/");
   const isInnovation = pathname === "/innovation-cloud" || pathname.startsWith("/innovation-cloud/");
+
+  useEffect(() => {
+    setShowSyncIndicator(true);
+  }, []);
 
   useEffect(() => {
     function onDoc(e: MouseEvent) {
@@ -235,6 +250,9 @@ export function Topbar() {
               </MenuBtn>
               <form action={logoutAction} onSubmit={async () => {
                 if (typeof window !== "undefined" && "serviceWorker" in navigator) {
+                  try {
+                    void purgeRscCacheSession();
+                  } catch (e) {}
                   try {
                     const reg = await navigator.serviceWorker.ready;
                     const sub = await reg.pushManager.getSubscription();

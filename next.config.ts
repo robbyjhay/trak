@@ -2,6 +2,20 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   reactCompiler: true,
+  serverExternalPackages: ["playwright-core"],
+  async headers() {
+    return [
+      {
+        source: "/sw.js",
+        headers: [
+          {
+            key: "Cache-Control",
+            value: "no-cache, no-store, must-revalidate",
+          },
+        ],
+      },
+    ];
+  },
   // Dev-only: allow LAN device access during local development.
   // Never required in production builds.
   ...(process.env.NODE_ENV === "development" && process.env.ALLOWED_DEV_ORIGINS
@@ -11,7 +25,7 @@ const nextConfig: NextConfig = {
           .filter(Boolean),
       }
     : process.env.NODE_ENV === "development"
-      ? { allowedDevOrigins: ["10.18.161.231", "192.168.100.13", "172.20.10.3", "10.18.161.98"] }
+      ? { allowedDevOrigins: ["10.18.161.231", "192.168.100.13", "172.20.10.3", "10.18.161.98", "*.loca.lt", "*.trycloudflare.com"] }
       : {}),
 };
 

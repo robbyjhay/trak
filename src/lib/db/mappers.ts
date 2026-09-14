@@ -4,6 +4,7 @@
  */
 import type {
   Activity as DbActivity,
+  ActivityCollaborator as DbActivityCollaborator,
   ActivityResponsibility,
   Announcement as DbAnnouncement,
   AnnouncementReaction as DbAnnouncementReaction,
@@ -27,11 +28,13 @@ import type {
 } from "@prisma/client";
 import type {
   Activity,
+  ActivityCollaborator,
   Announcement,
   Attachment,
   Attendee,
   Broadcast,
   CallRecord,
+  CollaboratorStatus,
   Comment,
   CommunityMessage,
   DailyLog,
@@ -105,6 +108,7 @@ export function mapUser(row: UserWithProfile): User {
     stateOfOrigin: p?.stateOfOrigin ?? "",
     dateJoined: p?.dateJoined ? dateOnly(p.dateJoined) : "",
     photoUrl: p?.photoKey ?? null,
+    lastSeenAt: row.lastSeenAt ? row.lastSeenAt.toISOString() : null,
   };
 }
 
@@ -121,7 +125,22 @@ export function mapResponsibility(row: DbResponsibility): Responsibility {
 
 export type ActivityWithRelations = DbActivity & {
   responsibilities?: ActivityResponsibility[];
+  collaborators?: DbActivityCollaborator[];
 };
+
+export function mapActivityCollaborator(
+  row: DbActivityCollaborator,
+): ActivityCollaborator {
+  return {
+    id: row.id,
+    activityId: row.activityId,
+    userId: row.userId,
+    invitedById: row.invitedById,
+    status: row.status as CollaboratorStatus,
+    respondedAt: row.respondedAt ? row.respondedAt.toISOString() : null,
+    createdAt: row.createdAt.toISOString(),
+  };
+}
 
 export function mapActivity(row: ActivityWithRelations): Activity {
   return {
@@ -135,6 +154,8 @@ export function mapActivity(row: ActivityWithRelations): Activity {
     delegationType: row.delegationType ?? null,
     libraryResourceId: row.libraryResourceId ?? null,
     innovationId: row.innovationId ?? null,
+    collaborative: row.collaborative ?? false,
+    collaborators: (row.collaborators ?? []).map(mapActivityCollaborator),
     startDate: dateOnly(row.startDate),
     endDate: dateOnly(row.endDate),
     startTime: row.startTime,
@@ -195,6 +216,7 @@ export function mapDailyLog(row: DailyLogWithRelations): DailyLog {
   return {
     id: row.id,
     activityId: row.activityId,
+    userId: row.userId ?? null,
     date: dateOnly(row.date),
     objectives: row.objectives,
     activityDescription: row.activityDescription,
@@ -277,6 +299,7 @@ export function mapDm(
     from: row.fromUserId,
     text: isDeleted ? "This message was deleted." : row.text,
     at: row.createdAt.toISOString(),
+    readAt: row.readAt ? row.readAt.toISOString() : null,
     attachments: isDeleted ? undefined : row.attachments?.map(mapMessageAttachment),
     isDeleted,
     replyToId: (row as any).replyToId ?? null,

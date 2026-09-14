@@ -2,7 +2,7 @@ import React, { useMemo, useState } from "react";
 import { useTrak } from "@/context/TrakStore";
 import { useCall } from "@/context/CallContext";
 import { cn, formatDuration } from "@/lib/utils";
-import { getPresenceStatus } from "@/lib/presence";
+import { getPresenceStatus, formatLastOnline } from "@/lib/presence";
 import { UserAvatar } from "@/components/ui/UserAvatar";
 import { PATHS } from "@/components/icons";
 import { ANNOUNCEMENT_CHANNEL } from "@/lib/announcements";
@@ -276,6 +276,7 @@ export function ConversationList({
               unreadCount={unreadMap[pid]}
               pinned={pid === me}
               isOnline={pid !== me ? getPresenceStatus(pid, onlineUsers, signalingConnected, presenceSynced) === "online" : undefined}
+              lastSeenTitle={pid !== me && userMap[pid]?.lastSeenAt ? formatLastOnline(userMap[pid].lastSeenAt) : undefined}
             />
           );
         })}
@@ -323,6 +324,7 @@ function ConvItem({
   unreadCount,
   pinned,
   isOnline,
+  lastSeenTitle,
   index = 0,
 }: {
   active: boolean;
@@ -334,6 +336,7 @@ function ConvItem({
   unreadCount?: number;
   pinned?: boolean;
   isOnline?: boolean;
+  lastSeenTitle?: string;
   index?: number;
 }) {
   return (
@@ -352,6 +355,7 @@ function ConvItem({
         {avatar}
         {isOnline !== undefined && (
           <span
+            title={isOnline ? "Online" : lastSeenTitle}
             className={cn(
               "absolute bottom-0 right-0 block h-[10px] w-[10px] rounded-full ring-2 ring-surface transition-colors duration-200",
               isOnline ? "bg-emerald-500" : "bg-gray-400",

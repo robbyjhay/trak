@@ -26,9 +26,13 @@ export type NotifType =
   | "innovation_approved"
   | "innovation_declined"
   | "innovation_implemented"
-  | "work_delegated";
+  | "work_delegated"
+  | "collaboration_invite"
+  | "collaboration_accepted"
+  | "collaboration_declined";
 
 export type DelegationType = "UNIT_WORK" | "SELF_DEVELOPMENT" | "INNOVATION";
+export type CollaboratorStatus = "pending" | "accepted" | "declined";
 
 export const DELEGATION_TYPES: DelegationType[] = [
   "UNIT_WORK",
@@ -55,6 +59,8 @@ export interface User {
   dateJoined: string;
   photoUrl: string | null;
   isActive: boolean;
+  /** ISO timestamp of last known activity (realtime presence heartbeat). */
+  lastSeenAt?: string | null;
 }
 
 /** Server-only credential row — never sent to the client. */
@@ -133,6 +139,18 @@ export interface Activity {
   estimatedAmountNgn: number | null;
   hidden: boolean;
   softDeletedAt: string | null;
+  collaborative: boolean;
+  collaborators?: ActivityCollaborator[];
+}
+
+export interface ActivityCollaborator {
+  id: string;
+  activityId: string;
+  userId: string;
+  invitedById: string;
+  status: CollaboratorStatus;
+  respondedAt: string | null;
+  createdAt: string;
 }
 
 export interface ReminderStatus {
@@ -145,6 +163,7 @@ export interface ReminderStatus {
 export interface DailyLog {
   id: string;
   activityId: string;
+  userId: string | null;
   date: string;
   objectives: string;
   activityDescription: string;
@@ -213,6 +232,8 @@ export interface Dm {
   from: string;
   text: string;
   at: string;
+  /** ISO timestamp when the recipient read this message (read receipt). */
+  readAt?: string | null;
   attachments?: MessageAttachment[];
   replyToId?: string | null;
   replyTo?: ReplyPreview | null;
@@ -421,6 +442,8 @@ export interface CreateActivityInput {
   hasBudget?: boolean;
   estimatedAmountNgn?: number | null;
   defaultDueAt?: string | null;
+  collaborative?: boolean;
+  collaboratorIds?: string[];
 }
 
 export interface SubmitDailyLogData {
@@ -434,6 +457,8 @@ export interface SubmitDailyLogData {
   amountReleasedNgn?: number | null;
   amountSpentNgn?: number | null;
   spendingItems?: SpendingItem[];
+  /** For collaborative activities: which participant this log belongs to. */
+  userId?: string | null;
 }
 
 export interface WrapupData {

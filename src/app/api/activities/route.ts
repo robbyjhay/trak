@@ -4,6 +4,7 @@ import {
   parseJsonBody,
   requireSession,
 } from "@/lib/api/http";
+import { tryIdempotent } from "@/lib/idempotency";
 import {
   createActivity,
   listActivitiesForSession,
@@ -43,6 +44,11 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
+  // --- idempotency check (Phase 3B) ---
+  const { cached, storeResult } = await tryIdempotent(req);
+  if (cached) return cached;
+  // -----------------------------------
+
   try {
     const { session, error } = await requireSession();
     if (error) return error;
@@ -66,6 +72,8 @@ export async function POST(req: Request) {
       location?: string;
       hasBudget?: boolean;
       estimatedAmountNgn?: number | null;
+      collaborative?: boolean;
+      collaboratorIds?: string[];
     }>(req);
 
     if (!body.title?.trim()) {
@@ -97,18 +105,23 @@ export async function POST(req: Request) {
       location: body.location,
       hasBudget: body.hasBudget,
       estimatedAmountNgn: body.estimatedAmountNgn,
+      collaborative: body.collaborative,
+      collaboratorIds: body.collaboratorIds,
     };
 
     const activity = await createActivity(session, input);
     const dailyLogs = await getActivityLogs(session, activity.id);
     const notifications = await myNotifications(session);
 
-    return jsonOk({
+    const responseBody = {
       activity,
       dailyLogs,
       notifications,
-    });
+    };
+    storeResult(responseBody);
+    return jsonOk(responseBody);
   } catch (err) {
+    // Failure: do NOT persist the key, so the client can retry safely.
     return handleServiceError(err);
   }
 }

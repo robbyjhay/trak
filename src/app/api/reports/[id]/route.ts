@@ -1,5 +1,7 @@
 import { buildActivityReportHTML } from "@/lib/reports/buildReport";
+import { renderHtmlToPdf } from "@/lib/reports/pdf";
 import { createNow } from "@/lib/dates";
+import { prisma } from "@/lib/db/prisma";
 import {
   getActivity,
   getActivityComments,
@@ -16,8 +18,8 @@ import { recordAuditEvent } from "@/lib/services/audit.service";
 import type { TrakDb } from "@/lib/types";
 
 /**
- * Server-side activity report as Word-compatible HTML (.doc).
- * GET /api/reports/[id]?format=doc|html
+ * Server-side activity report.
+ * GET /api/reports/[id]?format=doc|html|pdf
  */
 export async function GET(
   req: Request,
@@ -51,12 +53,33 @@ export async function GET(
     };
 
     const userMap = Object.fromEntries(users.map((u) => [u.id, u]));
+
+    const [libraryTitles, innovationTitles] = await Promise.all([
+      act.libraryResourceId
+        ? prisma.libraryResource
+            .findUnique({
+              where: { id: act.libraryResourceId },
+              select: { id: true, title: true },
+            })
+            .then((r) => (r ? { [r.id]: r.title } : {}))
+        : Promise.resolve({}),
+      act.innovationId
+        ? prisma.innovation
+            .findUnique({
+              where: { id: act.innovationId },
+              select: { id: true, title: true },
+            })
+            .then((r) => (r ? { [r.id]: r.title } : {}))
+        : Promise.resolve({}),
+    ]);
+
     const html = buildActivityReportHTML(
       act,
       db,
       userMap,
       responsibilities,
       createNow(),
+      { libraryTitles, innovationTitles },
     );
 
     await recordAuditEvent({
@@ -87,6 +110,20 @@ export async function GET(
       .replace(/[\\/:*?"<>|]+/g, "")
       .trim()
       .slice(0, 100);
+
+    if (format === "pdf") {
+      const pdf = await renderHtmlToPdf(html);
+      return new Response(new Uint8Array(pdf), {
+        status: 200,
+        headers: {
+          "Content-Type": "application/pdf",
+          "Content-Disposition": `attachment; filename="${safeName}.pdf"`,
+          "Cache-Control": "no-store",
+          "X-Content-Type-Options": "nosniff",
+        },
+      });
+    }
+
     const blob = `\ufeff${html}`;
     return new Response(blob, {
       status: 200,

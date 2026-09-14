@@ -18,8 +18,15 @@ export default function NewActivityPage() {
     responsibilities.map((r) => [r.id, r]),
   );
   const isHead = sessionUser.role === "head";
-  const members = users.filter((u) => u.role !== "head" && u.isActive);
+  const members = users.filter(
+    (u) => u.role !== "head" && u.isActive && u.id !== sessionUser.id,
+  );
+  const memberMap = Object.fromEntries(members.map((m) => [m.id, m]));
   const [assigneeId, setAssigneeId] = useState("");
+  const [collaborative, setCollaborative] = useState(false);
+  const [collaboratorIds, setCollaboratorIds] = useState<Set<string>>(
+    new Set(),
+  );
   const [activityType, setActivityType] = useState<ActivityType | null>(null);
   const [selectedResp, setSelectedResp] = useState<Set<string>>(new Set());
   const [title, setTitle] = useState("");
@@ -37,10 +44,20 @@ export default function NewActivityPage() {
     title.trim().length > 2 &&
     start &&
     time &&
-    selectedResp.size > 0;
+    selectedResp.size > 0 &&
+    (!collaborative || collaboratorIds.size > 0);
 
   function toggleResp(id: string) {
     setSelectedResp((prev) => {
+      const n = new Set(prev);
+      if (n.has(id)) n.delete(id);
+      else n.add(id);
+      return n;
+    });
+  }
+
+  function toggleCollabMember(id: string) {
+    setCollaboratorIds((prev) => {
       const n = new Set(prev);
       if (n.has(id)) n.delete(id);
       else n.add(id);
@@ -109,6 +126,29 @@ export default function NewActivityPage() {
               </span>
             )}
           </div>
+          {collaborative && (
+            <>
+              <div className="mt-4 mb-1.5 text-[12.5px] text-paper/50">
+                Collaborators
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {collaboratorIds.size ? (
+                  [...collaboratorIds].map((id) => (
+                    <span
+                      key={id}
+                      className="rounded-full bg-paper/10 px-2.5 py-0.5 text-[10.5px]"
+                    >
+                      {memberMap[id]?.name || "Member"}
+                    </span>
+                  ))
+                ) : (
+                  <span className="rounded-full bg-paper/10 px-2.5 py-0.5 text-[10.5px]">
+                    Pick at least one member
+                  </span>
+                )}
+              </div>
+            </>
+          )}
         </div>
 
         {/* Form */}
@@ -280,6 +320,56 @@ export default function NewActivityPage() {
             </div>
           </Section>
 
+          <Section label="Collaborate with members" optional>
+            <div className="mb-3 flex items-center gap-3">
+              <Switch
+                id="collaborate"
+                checked={collaborative}
+                onChange={(v) => {
+                  setCollaborative(v);
+                  if (v) {
+                    setAssigneeId("");
+                  }
+                }}
+                aria-label="Collaborate with members"
+              />
+              <label
+                htmlFor="collaborate"
+                className="cursor-pointer text-[13px] font-semibold"
+              >
+                {collaborative
+                  ? "Joint activity — everyone logs their own share"
+                  : "Log this activity on your own"}
+              </label>
+            </div>
+            {collaborative && (
+              <>
+                <div className="mb-2 text-[11px] font-bold text-foreground-faint uppercase">
+                  Invite members (required)
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {members.map((m) => {
+                    const on = collaboratorIds.has(m.id);
+                    return (
+                      <button
+                        key={m.id}
+                        type="button"
+                        onClick={() => toggleCollabMember(m.id)}
+                        className={`cursor-pointer rounded-full border-[1.5px] px-4 py-2 text-[12.5px] font-semibold transition-colors ${
+                          on
+                            ? "border-primary bg-primary text-primary-foreground"
+                            : "border-border bg-surface text-foreground-secondary hover:border-border-strong hover:text-foreground"
+                        }`}
+                      >
+                        {m.name}
+                      </button>
+                    );
+                  })}
+                </div>
+              </>
+            )}
+          </Section>
+
           {isHead && (
             <Section
               label="Assign to member"
@@ -287,7 +377,10 @@ export default function NewActivityPage() {
             >
               <select
                 value={assigneeId}
-                onChange={(e) => setAssigneeId(e.target.value)}
+                onChange={(e) => {
+                  setAssigneeId(e.target.value);
+                  if (e.target.value) setCollaborative(false);
+                }}
                 className="w-full max-w-[320px] rounded-[11px] border-[1.5px] border-input-border bg-input text-foreground px-[15px] py-3.5 text-sm outline-none focus:border-border-strong"
               >
                 <option value="">
@@ -322,9 +415,15 @@ export default function NewActivityPage() {
                     estimatedAmountNgn: hasBudget && estimatedAmount
                       ? Number(estimatedAmount)
                       : null,
-                    assigneeId: assigneeId || null,
-                    delegatedBy: assigneeId ? sessionUser.id : null,
-                    delegationType: assigneeId ? "UNIT_WORK" : null,
+                    assigneeId: collaborative ? null : assigneeId || null,
+                    delegatedBy:
+                      !collaborative && assigneeId ? sessionUser.id : null,
+                    delegationType:
+                      !collaborative && assigneeId ? "UNIT_WORK" : null,
+                    collaborative,
+                    collaboratorIds: collaborative
+                      ? [...collaboratorIds]
+                      : undefined,
                   });
                   showToast(
                     "Saved to Pending Activities",

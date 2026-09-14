@@ -42,6 +42,7 @@ export function ActivityDetail({
     refresh,
     users,
     responsibilities,
+    respondToCollaborate,
   } = useTrak();
   const respMap = Object.fromEntries(
     responsibilities.map((r) => [r.id, r]),
@@ -86,6 +87,21 @@ export function ActivityDetail({
     sessionUser.role === "head" &&
     act.status === "pending" &&
     !act.assigneeId;
+
+  const collaborators = act.collaborators ?? [];
+  const acceptedCollabs = collaborators.filter(
+    (c) => c.status === "accepted",
+  );
+  const myCollab = act.collaborative
+    ? collaborators.find((c) => c.userId === sessionUser.id)
+    : undefined;
+  // Each participant only sees (and submits) their OWN share of a
+  // collaborative activity; the completed view still shows everyone's logs.
+  const myLogs = act.collaborative
+    ? logs.filter((l) => l.userId === sessionUser.id)
+    : logs;
+  const collabInvitePending =
+    act.collaborative && myCollab?.status === "pending";
 
   return (
     <div>
@@ -169,6 +185,14 @@ export function ActivityDetail({
                 : act.delegationType === "INNOVATION"
                   ? "Innovation"
                   : "Unit Work"}
+            </span>
+          )}
+          {act.collaborative && (
+            <span className="inline-flex items-center gap-1 rounded-full bg-aztec-2 px-2.5 py-1 text-[11px] font-bold text-saffron">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2 M23 21v-2a4 4 0 0 0-3-3.87 M16 3.13a4 4 0 0 1 0 7.75 M16 11a4 4 0 0 0-2 7.46" />
+              </svg>
+              Collaborate{acceptedCollabs.length ? " · " + acceptedCollabs.map((c) => firstName(userMap[c.userId]?.name || "Member")).join(", ") : ""}
             </span>
           )}
           {(act.delegationType === "SELF_DEVELOPMENT" && act.libraryResourceId) ||
@@ -257,6 +281,57 @@ export function ActivityDetail({
         />
       )}
 
+      {collabInvitePending && (
+        <div className="mb-6 rounded-[18px] border border-primary/40 bg-primary/5 px-[26px] py-6">
+          <div className="mb-1 flex items-center gap-2 text-[14px] font-bold">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-primary">
+              <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+              <circle cx="9" cy="7" r="4" />
+              <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+              <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+            </svg>
+            {firstName(owner?.name || "")} invited you to collaborate
+          </div>
+          <p className="m-0 mb-4 text-[13px] leading-relaxed text-foreground-secondary">
+            Accept to join this joint activity — you&apos;ll submit your own log
+            for each day, and the activity only completes once every participant
+            has logged their share.
+          </p>
+          <div className="flex flex-wrap gap-2.5">
+            <PrimaryBtn
+              className="px-4 py-2 text-[12.5px]"
+              onClick={async () => {
+                try {
+                  await respondToCollaborate(act.id, "accept");
+                  showToast(
+                    "Invite accepted",
+                    "You're now a collaborator — log your share from this page.",
+                  );
+                  refresh().catch(() => {});
+                } catch {
+                  showToast("Could not accept", "Please try again.");
+                }
+              }}
+            >
+              Accept invite
+            </PrimaryBtn>
+            <GhostBtn
+              className="px-4 py-2 text-[12.5px]"
+              onClick={async () => {
+                try {
+                  await respondToCollaborate(act.id, "decline");
+                  showToast("Invite declined", "The creator has been notified.");
+                } catch {
+                  showToast("Could not decline", "Please try again.");
+                }
+              }}
+            >
+              Decline
+            </GhostBtn>
+          </div>
+        </div>
+      )}
+
       {act.status === "missed" && (
         <ExceptionPanel
           act={act}
@@ -280,9 +355,18 @@ export function ActivityDetail({
                 className="mb-6 rounded-[18px] border border-border bg-surface px-[26px] py-6 last:mb-0"
               >
                 <div className="mb-[18px] flex items-center justify-between">
-                  <h2 className="m-0 font-display text-[17px] font-semibold">
-                    {logs.length > 1 ? fmtDate(l.date) : "Activity log"}
-                  </h2>
+                  <div>
+                    <h2 className="m-0 font-display text-[17px] font-semibold">
+                      {logs.length > 1 ? fmtDate(l.date) : "Activity log"}
+                    </h2>
+                    {act.collaborative && l.userId && (
+                      <div className="mt-0.5 text-[10.5px] font-bold text-foreground-faint uppercase">
+                        Submitted by{" "}
+                        {firstName(userMap[l.userId]?.name || "Member")}
+                        {l.userId === act.createdBy ? " · creator" : " · collaborator"}
+                      </div>
+                    )}
+                  </div>
                   <span className="text-[11.5px] text-foreground-faint">
                     Submitted {l.submittedAt ? formatRelativeDate(l.submittedAt) : ""}
                   </span>
@@ -461,10 +545,11 @@ export function ActivityDetail({
         (act.status === "missed" &&
           act.exceptionStatus === "approved" &&
           act.gracePeriodExpiresAt != null &&
-          new Date(act.gracePeriodExpiresAt) >= new Date())) && (
+          new Date(act.gracePeriodExpiresAt) >= new Date())) &&
+        !collabInvitePending && (
         <PendingForm
           act={act}
-          logs={logs}
+          logs={myLogs}
           ownerName={owner?.name || ""}
           users={users}
           setLogRsvpToken={setLogRsvpToken}
@@ -598,7 +683,9 @@ function PendingForm({
     return (
       <div className="rounded-[18px] border border-border bg-surface px-[26px] py-6">
         <div className="py-8 text-center text-[13px] text-foreground-faint">
-          All days for this activity have been submitted.
+          {act.collaborative
+            ? "You've logged your share — the activity completes once every other participant has submitted theirs."
+            : "All days for this activity have been submitted."}
         </div>
       </div>
     );

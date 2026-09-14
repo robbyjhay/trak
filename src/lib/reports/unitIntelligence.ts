@@ -79,6 +79,18 @@ function isoToDate(iso: string) {
   return new Date(iso);
 }
 
+/** An activity is attributed to a user when they created/own it OR accepted a
+ *  collaboration invite on it. Collaborative work counts toward every
+ *  accepted participant so member stats never hide joint effort. */
+function activityBelongsTo(act: Activity, userId: string): boolean {
+  if (act.createdBy === userId || act.assigneeId === userId) return true;
+  return Boolean(
+    act.collaborators?.some(
+      (c) => c.userId === userId && c.status === "accepted",
+    ),
+  );
+}
+
 export function generateUnitIntelligence({
   currentActivities,
   currentLogs,
@@ -154,14 +166,22 @@ export function generateUnitIntelligence({
 
   // Member Stats
   const memberStats: MemberStat[] = activeUsers.map(u => {
-    const uActs = currentActivities.filter(a => a.createdBy === u.id);
+    const uActs = currentActivities.filter(a => activityBelongsTo(a, u.id));
     const uCompleted = uActs.filter(a => a.status === "completed").length;
     const uPending = uActs.filter(a => a.status === "pending").length;
     const uMissed = uActs.filter(a => a.status === "missed").length;
     const uLate = uActs.filter(a => a.status === "completed" && a.submissionType === "late").length;
     const uOverdue = uActs.filter(a => a.status === "pending" && a.endDate < endIso).length;
-    
-    const uLogs = currentLogs.filter(l => uActs.some(a => a.id === l.activityId));
+
+    // For collaborative activities, attribute participation logs to the member
+    // who submitted them — otherwise joint attendance would be double-counted.
+    const uActsById = new Map(uActs.map(a => [a.id, a]));
+    const uLogs = currentLogs.filter(l => {
+      const act = uActsById.get(l.activityId);
+      if (!act) return false;
+      if (act.collaborative) return l.userId === u.id;
+      return true;
+    });
     let uAtt = 0;
     for (const log of uLogs) {
        uAtt += (log.attendees?.length || parseInt(log.attendanceCount as string) || 0);
