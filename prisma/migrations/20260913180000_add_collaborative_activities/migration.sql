@@ -2,7 +2,11 @@
 -- constraint on idempotency_keys that is not part of migration history and is
 -- a superset of the existing unique (key). Drop it so history matches the DB
 -- without any data loss (the row-level uniqueness guarantee is unchanged).
-ALTER TABLE "idempotency_keys" DROP CONSTRAINT "idempotency_keys_key_user_id_key";
+-- Production-safe: IF EXISTS makes this a no-op on any DB maintained purely by
+-- migration history (where the composite was never created), while still
+-- reconciling drifted dev DBs. Prisma never generates IF EXISTS, but migrate
+-- deploy executes this SQL verbatim, so a hard DROP would fail on clean DBs.
+ALTER TABLE "idempotency_keys" DROP CONSTRAINT IF EXISTS "idempotency_keys_key_user_id_key";
 
 -- CreateEnum
 CREATE TYPE "CollaborationInviteStatus" AS ENUM ('pending', 'accepted', 'declined');
