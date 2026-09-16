@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useEffect, useState } from "react";
-
+import { PasswordInput } from "@/components/ui/PasswordInput";
 import { changePasswordAction } from "./actions";
 
 export function ChangePasswordForm() {
@@ -36,8 +36,7 @@ export function ChangePasswordForm() {
         >
           Current Password
         </label>
-        <input
-          type="password"
+        <PasswordInput
           id="currentPassword"
           name="currentPassword"
           required
@@ -53,8 +52,7 @@ export function ChangePasswordForm() {
         >
           New Password
         </label>
-        <input
-          type="password"
+        <PasswordInput
           id="newPassword"
           name="newPassword"
           required
@@ -70,8 +68,7 @@ export function ChangePasswordForm() {
         >
           Confirm Password
         </label>
-        <input
-          type="password"
+        <PasswordInput
           id="confirmPassword"
           name="confirmPassword"
           required

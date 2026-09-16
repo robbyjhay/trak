@@ -23,6 +23,7 @@ enum AuthTokenType {
   email_verify
   invite
   initial_password
+  onboard
 }
 
 enum AuditAction {
@@ -47,6 +48,9 @@ enum AuditAction {
   activity_miss
   report_generate
   settings_change
+  onboarding_requested
+  onboarding_approved
+  onboarding_declined
 }
 
 // ---------------------------------------------------------------------------
@@ -135,6 +139,15 @@ enum NotificationType {
   collaboration_invite
   collaboration_accepted
   collaboration_declined
+  onboarding_requested
+  onboarding_approved
+  onboarding_declined
+}
+
+enum OnboardingStatus {
+  pending
+  approved
+  declined
 }
 
 enum CollaborationInviteStatus {
@@ -234,10 +247,37 @@ model User {
   libraryReviewed     LibraryResource[]         @relation("LibraryReviewedBy")
   innovationsSubmitted Innovation[]             @relation("InnovationSubmittedBy")
   innovationsReviewed  Innovation[]             @relation("InnovationReviewedBy")
+  onboardingRequests  OnboardingRequest[]       @relation("HeadOnboardingRequests")
+  onboardingDecisions OnboardingRequest[]       @relation("OnboardingDecision")
 
   @@index([role])
   @@index([isActive])
   @@map("users")
+}
+
+model OnboardingRequest {
+  id            String           @id @default(uuid()) @db.Uuid
+  headId        String           @map("head_id") @db.Uuid
+  head          User             @relation("HeadOnboardingRequests", fields: [headId], references: [id])
+  name          String           @db.VarChar(200)
+  phone         String           @db.VarChar(40)
+  email         String           @db.VarChar(255)
+  username      String?          @db.VarChar(64)
+  designation   String?          @db.VarChar(200)
+  gradeLevel    String?          @map("grade_level") @db.VarChar(40)
+  sex           String?          @db.VarChar(20)
+  stateOfOrigin String?          @map("state_of_origin") @db.VarChar(40)
+  dateJoined    DateTime?        @map("date_joined") @db.Timestamptz(3)
+  status        OnboardingStatus @default(pending)
+  decidedById   String?          @map("decided_by_id") @db.Uuid
+  decidedBy     User?            @relation("OnboardingDecision", fields: [decidedById], references: [id])
+  decidedAt     DateTime?        @map("decided_at") @db.Timestamptz(3)
+  createdAt     DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt     DateTime         @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@index([headId, status])
+  @@index([status, createdAt])
+  @@map("onboarding_requests")
 }
 
 model UserProfile {

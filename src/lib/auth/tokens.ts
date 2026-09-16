@@ -21,6 +21,7 @@ const DEFAULT_TTL_MS: Record<AuthTokenType, number> = {
   invite: 7 * 24 * 60 * 60 * 1000, // 7d
   email_verify: 48 * 60 * 60 * 1000, // 48h
   initial_password: 24 * 60 * 60 * 1000, // 24h
+  onboard: 12 * 60 * 60 * 1000, // 12h
 };
 
 export async function createAuthToken(
@@ -59,10 +60,12 @@ export async function consumeAuthToken(
   if (row.consumedAt) return null;
   if (row.expiresAt.getTime() <= Date.now()) return null;
 
-  await prisma.authToken.update({
-    where: { id: row.id },
+  // Atomic single-use claim: only one consumer can flip consumedAt.
+  const claimed = await prisma.authToken.updateMany({
+    where: { id: row.id, consumedAt: null },
     data: { consumedAt: new Date() },
   });
+  if (claimed.count !== 1) return null;
 
   return { userId: row.userId, id: row.id };
 }

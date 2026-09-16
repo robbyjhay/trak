@@ -100,6 +100,12 @@ export function resolvePushContent(
       url: activityId ? `/activity/${activityId}` : "/activities",
     };
   }
+  if (type === "onboarding_requested") {
+    return { title: "Onboarding request", body: text, url: "/onboarding" };
+  }
+  if (type === "onboarding_approved" || type === "onboarding_declined") {
+    return { title: "Onboarding update", body: text, url: "/onboarding" };
+  }
   // activity_created | activity_completed | activity_missed
   return {
     title: "Activity update",
@@ -282,5 +288,26 @@ export const NOTIFICATION_TAXONOMY: Record<
     deepLink: "/activity/:id",
     prefCategory: "activities",
     dedupe: "collab-declined:{activityId}:{collaboratorId}",
+  },
+  onboarding_requested: {
+    recipient: "Unit Head whose link was used",
+    title: "Onboarding request",
+    deepLink: "/onboarding",
+    prefCategory: "activities",
+    dedupe: "onboarding-requested:{requestId}",
+  },
+  onboarding_approved: {
+    recipient: "Unit Head and newly onboarded member",
+    title: "Onboarding update",
+    deepLink: "/onboarding",
+    prefCategory: "activities",
+    dedupe: "onboarding-approved:{requestId}",
+  },
+  onboarding_declined: {
+    recipient: "Unit Head (after declining)",
+    title: "Onboarding update",
+    deepLink: "/onboarding",
+    prefCategory: "activities",
+    dedupe: "onboarding-declined:{requestId}",
   },
 };

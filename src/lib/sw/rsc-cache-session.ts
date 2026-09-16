@@ -92,7 +92,7 @@ export function writeSessionKeyRecord(
       !key
     ) {
       resolve();
-      return;
+      return; 
     }
     try {
       const req = indexedDB.open(SW_KEY_DB, 1);

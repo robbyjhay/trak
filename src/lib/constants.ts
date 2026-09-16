@@ -78,6 +78,11 @@ export const NOTIF_PATHS: Record<NotifType, string> = {
   collaboration_accepted: "M22 11.08V12a10 10 0 1 1-5.93-9.14 M22 4L12 14.01l-3-3",
   collaboration_declined:
     "M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20z M8 8l8 8 M16 8l-8 8",
+  onboarding_requested:
+    "M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM14 2v6h6M9 13l2 2 4-4",
+  onboarding_approved: "M20 6L9 17l-5-5",
+  onboarding_declined:
+    "M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM14 2v6h6M9 15l6-6M15 15l-6-6",
 };
 
 export const SAMPLE_TRANSCRIPT =

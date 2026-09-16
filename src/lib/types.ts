@@ -29,7 +29,10 @@ export type NotifType =
   | "work_delegated"
   | "collaboration_invite"
   | "collaboration_accepted"
-  | "collaboration_declined";
+  | "collaboration_declined"
+  | "onboarding_requested"
+  | "onboarding_approved"
+  | "onboarding_declined";
 
 export type DelegationType = "UNIT_WORK" | "SELF_DEVELOPMENT" | "INNOVATION";
 export type CollaboratorStatus = "pending" | "accepted" | "declined";

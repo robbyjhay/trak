@@ -63,6 +63,7 @@
 
 /* Prototype CSS variable aliases (exact names from source) */
 :root {
+  color-scheme: light;
   --aztec: #0d1d1a;
   --aztec-2: #122b26;
   --aztec-3: #193b34;
@@ -164,6 +165,7 @@
 }
 
 .dark {
+  color-scheme: dark;
   /* Semantic Theme Tokens - Dark */
   --background: #0b1413; /* deep neutral charcoal, slight green tint */
   --foreground: #f6f5f1; /* warm near-white */

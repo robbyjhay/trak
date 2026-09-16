@@ -6,6 +6,7 @@ import { LibraryIcon, PATHS } from "@/components/icons";
 import { cn } from "@/lib/utils";
 import { useTrak } from "@/context/TrakStore";
 import { countUnreadMessages } from "@/lib/unreadMessages";
+import { isHead } from "@/lib/permissions";
 
 function RailSvg({
   path,
@@ -35,6 +36,7 @@ const NAV: {
   icon: (cls?: string) => React.ReactNode;
   also?: string[];
   bottom?: boolean;
+  headOnly?: boolean;
 }[] = [
   { href: "/dashboard", label: "Dashboard", icon: (c) => <RailSvg path={PATHS.dashboard} className={c} /> },
   { href: "/new-activity", label: "New Activity", icon: (c) => <RailSvg path={PATHS.plus} className={c} /> },
@@ -43,13 +45,19 @@ const NAV: {
   { href: "/messages", label: "Connect", icon: (c) => <RailSvg path={PATHS.messages} className={c} />, also: ["/contacts"] },
   { href: "/library", label: "Library", icon: (c) => <LibraryIcon size={19} className={c} />, also: ["/library/manage"] },
   { href: "/innovation-cloud", label: "Innovation Cloud", icon: (c) => <RailSvg path={PATHS.bulb} className={c} />, also: ["/innovation-cloud/manage"] },
+  { href: "/onboarding", label: "Onboarding", icon: (c) => <RailSvg path={PATHS.file} className={c} />, headOnly: true },
   { href: "/settings", label: "Settings", icon: (c) => <RailSvg path={PATHS.settings} className={c} />, bottom: true },
 ];
 
 export function Rail() {
   const pathname = usePathname();
-  const { myNotifications } = useTrak();
+  const { myNotifications, sessionUser } = useTrak();
   const unread = countUnreadMessages(myNotifications());
+  const isHeadUser = isHead(sessionUser);
+  const onboardingPending = myNotifications().filter(
+    (n) => n.type === "onboarding_requested" && !n.read,
+  ).length;
+  const nav = NAV.filter((n) => !n.headOnly || isHeadUser);
 
   return (
     <nav
@@ -65,7 +73,7 @@ export function Rail() {
         <img src="/logo-white.png" alt="Trak" className="h-full w-full object-contain hidden dark:block" />
       </Link>
 
-      {NAV.filter((n) => !n.bottom).map((item) => (
+      {nav.filter((n) => !n.bottom).map((item) => (
         <RailItem
           key={item.href}
           {...item}
@@ -74,13 +82,19 @@ export function Rail() {
             (item.also?.some((a) => pathname.startsWith(a)) ?? false) ||
             (item.href === "/messages" && pathname.startsWith("/contacts"))
           }
-          badge={item.href === "/messages" ? unread : 0}
+          badge={
+            item.href === "/messages"
+              ? unread
+              : item.href === "/onboarding"
+                ? onboardingPending
+                : 0
+          }
         />
       ))}
 
       <div className="flex-1" />
 
-      {NAV.filter((n) => n.bottom).map((item) => (
+      {nav.filter((n) => n.bottom).map((item) => (
         <RailItem
           key={item.href}
           {...item}

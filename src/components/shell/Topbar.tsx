@@ -168,6 +168,11 @@ export function Topbar() {
                         else if (n.type === "innovation_approved" || n.type === "innovation_declined" || n.type === "innovation_implemented") router.push("/innovation-cloud");
                         else if (n.type === "library_submitted") router.push("/library/manage");
                         else if (n.type === "library_new" || n.type === "library_approved" || n.type === "library_declined") router.push("/library");
+                        else if (n.type === "onboarding_requested" || n.type === "onboarding_approved" || n.type === "onboarding_declined") {
+                          if (n.type === "onboarding_requested") router.push("/onboarding");
+                          else if (sessionUser?.role === "head") router.push("/onboarding");
+                          else router.push("/");
+                        }
                       }}
                     >
                       <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-[9px] bg-navigation-hover text-primary">

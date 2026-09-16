@@ -3,6 +3,7 @@
 import { useActionState, useEffect } from "react";
 import { updateDefaultPasswordAction } from "@/lib/auth/actions";
 import { useTrak } from "@/context/TrakStore";
+import { PasswordInput } from "@/components/ui/PasswordInput";
 
 export function DefaultPasswordForm() {
   const [state, formAction, pending] = useActionState(updateDefaultPasswordAction, null);
@@ -26,9 +27,8 @@ export function DefaultPasswordForm() {
         <label className="mb-1.5 block text-[11px] font-bold tracking-wider text-foreground-secondary uppercase">
           New Default Password
         </label>
-        <input
+        <PasswordInput
           name="password"
-          type="password"
           placeholder="At least 12 characters"
           minLength={12}
           maxLength={128}
@@ -40,9 +40,8 @@ export function DefaultPasswordForm() {
         <label className="mb-1.5 block text-[11px] font-bold tracking-wider text-foreground-secondary uppercase">
           Confirm Password
         </label>
-        <input
+        <PasswordInput
           name="confirm"
-          type="password"
           placeholder="Repeat password"
           minLength={12}
           maxLength={128}

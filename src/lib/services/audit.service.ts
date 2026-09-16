@@ -24,7 +24,10 @@ export type AuditAction =
   | "activity_complete"
   | "activity_miss"
   | "report_generate"
-  | "settings_change";
+  | "settings_change"
+  | "onboarding_requested"
+  | "onboarding_approved"
+  | "onboarding_declined";
 
 export interface AuditEventInput {
   userId?: string;

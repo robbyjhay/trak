@@ -2,6 +2,7 @@
 
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
+import { PasswordInput } from "@/components/ui/PasswordInput";
 
 export function ResetPasswordForm({ token }: { token: string }) {
   const router = useRouter();
@@ -53,10 +54,9 @@ export function ResetPasswordForm({ token }: { token: string }) {
         >
           New password
         </label>
-        <input
+        <PasswordInput
           id="rpPass"
           name="password"
-          type="password"
           autoComplete="new-password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
@@ -74,10 +74,9 @@ export function ResetPasswordForm({ token }: { token: string }) {
         >
           Confirm password
         </label>
-        <input
+        <PasswordInput
           id="rpConfirm"
           name="confirm"
-          type="password"
           autoComplete="new-password"
           value={confirm}
           onChange={(e) => setConfirm(e.target.value)}

@@ -5,6 +5,7 @@ import { loginAction, type LoginResult } from "@/lib/auth/actions";
 import { cn, initials, firstName } from "@/lib/utils";
 import { roleLabel } from "@/lib/permissions";
 import { PATHS } from "@/components/icons";
+import { PasswordInput } from "@/components/ui/PasswordInput";
 import type { UserRole } from "@/lib/types";
 
 type RosterItem = {
@@ -84,9 +85,7 @@ export function LoginForm({
             Welcome back
           </h2>
           <p className="mb-6 text-[14.5px] text-foreground-secondary">
-            {showRoster
-              ? "Select your profile to auto-fill your credentials, or enter your details manually."
-              : "Enter your username and password to continue."}
+            Enter your username and password to continue.
           </p>
 
           {showRoster && roster.length > 0 && (
@@ -154,7 +153,7 @@ export function LoginForm({
                 name="username"
                 type="text"
                 autoComplete="username"
-                placeholder="Auto-filled from your profile"
+                placeholder="Enter your username"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 className="w-full rounded-xl border-[1.5px] border-input-border bg-input px-3.5 py-3.5 text-[14.5px] text-foreground outline-none placeholder:text-input-placeholder focus:border-border-strong focus:ring-1 focus:ring-border"
@@ -169,12 +168,11 @@ export function LoginForm({
               >
                 Password
               </label>
-              <input
+              <PasswordInput
                 id="loginPass"
                 name="password"
-                type="password"
                 autoComplete="current-password"
-                placeholder="•••••••••••••"
+                placeholder="Enter your password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 className="w-full rounded-xl border-[1.5px] border-input-border bg-input px-3.5 py-3.5 text-[14.5px] text-foreground outline-none placeholder:text-input-placeholder focus:border-border-strong focus:ring-1 focus:ring-border"

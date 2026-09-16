@@ -89,3 +89,48 @@ export async function sendPasswordChangedEmail(to: string) {
     log.error("email_password_changed_failed", err, { to });
   }
 }
+
+/**
+ * Onboarding approval — the member's login details (username + starter password).
+ * Email is compulsory on the onboarding form exactly so this can be delivered.
+ */
+export async function sendOnboardingApprovedEmail(
+  to: string,
+  opts: { name: string; username: string; starterPassword: string },
+) {
+  const loginLink = `${appUrl()}/login`;
+  const terms = `Your username is <code>${opts.username}</code> and your initial password is <code>${opts.starterPassword}</code>.`;
+  const mailOptions = {
+    from,
+    to,
+    subject: "You have been onboarded to Trak — sign in",
+    text: `Hi ${opts.name},\n\nYour Unit Head has approved your onboarding to Trak (Digital Learning Unit activity register).\n\nUsername: ${opts.username}\nInitial password: ${opts.starterPassword}\n\nSign in at ${loginLink}. You will be asked to set your own password on first sign-in.\n\nIf you did not expect this, ignore this email.`,
+    html: `<p>Hi ${opts.name},</p><p>Your Unit Head has approved your onboarding to <strong>Trak</strong> (Digital Learning Unit activity register).</p><p>${terms}</p><p><a href="${loginLink}">Sign in to Trak</a>. You will be asked to set your own password on first sign-in.</p><p style="color:#5f7069;font-size:13px">If you did not expect this, ignore this email.</p>`,
+  };
+
+  try {
+    await transporter.sendMail(mailOptions);
+    log.info("email_onboarding_approved_sent", { to });
+  } catch (err) {
+    log.error("email_onboarding_approved_failed", err, { to });
+    throw err;
+  }
+}
+
+/** Onboarding decline — member was not accepted (email is best-effort). */
+export async function sendOnboardingDeclinedEmail(to: string, name: string) {
+  const mailOptions = {
+    from,
+    to,
+    subject: "Update on your Trak onboarding request",
+    text: `Hi ${name},\n\nYour Unit Head declined your onboarding request to Trak. If you believe this is a mistake, please speak with your Unit Head.`,
+    html: `<p>Hi ${name},</p><p>Your Unit Head declined your onboarding request to <strong>Trak</strong>.</p><p>If you believe this is a mistake, please speak with your Unit Head.</p>`,
+  };
+
+  try {
+    await transporter.sendMail(mailOptions);
+    log.info("email_onboarding_declined_sent", { to });
+  } catch (err) {
+    log.error("email_onboarding_declined_failed", err, { to });
+  }
+}

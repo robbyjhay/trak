@@ -2,6 +2,7 @@
 
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
+import { PasswordInput } from "@/components/ui/PasswordInput";
 
 export function AcceptInviteForm({ token }: { token: string }) {
   const router = useRouter();
@@ -53,10 +54,9 @@ export function AcceptInviteForm({ token }: { token: string }) {
         >
           New password
         </label>
-        <input
+        <PasswordInput
           id="aiPass"
           name="password"
-          type="password"
           autoComplete="new-password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
@@ -74,10 +74,9 @@ export function AcceptInviteForm({ token }: { token: string }) {
         >
           Confirm password
         </label>
-        <input
+        <PasswordInput
           id="aiConfirm"
           name="confirm"
-          type="password"
           autoComplete="new-password"
           value={confirm}
           onChange={(e) => setConfirm(e.target.value)}

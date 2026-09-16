@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useTrak } from "@/context/TrakStore";
 import { MemberDashboard, Card, RespBars, QuickActionTile } from "./MemberDashboard";
@@ -18,6 +18,8 @@ import { useReportPreview } from "@/components/reports/ReportPreview";
 import { RespManageList } from "@/components/activity/RespManageList";
 import { CopyButton } from "@/components/ui/CopyButton";
 import { motion, useReducedMotion } from "framer-motion";
+import { apiGet, apiSend } from "@/lib/api/client";
+import type { OnboardingRequestView } from "@/lib/services/onboarding.service";
 
 export function HeadDashboard() {
   const { userMap, users, sessionUser } = useTrak();
@@ -132,6 +134,11 @@ function AccountingOfficer() {
   const [commentText, setCommentText] = useState("");
   const [profileOpen, setProfileOpen] = useState(false);
   const [addMemberOpen, setAddMemberOpen] = useState(false);
+  const [inviteLinkOpen, setInviteLinkOpen] = useState(false);
+  const [mintBusy, setMintBusy] = useState(false);
+  const [mintedLink, setMintedLink] = useState<{ link: string; expiresAt: string } | null>(null);
+  const [onboardingReqs, setOnboardingReqs] = useState<OnboardingRequestView[]>([]);
+  const [onboardingBusy, setOnboardingBusy] = useState<string | null>(null);
   const [editUserId, setEditUserId] = useState("");
   const [pe, setPe] = useState({
     designation: "",
@@ -211,6 +218,61 @@ function AccountingOfficer() {
   ];
   const stackTotal = Math.max(1, typeOrder.reduce((s, [k]) => s + tb[k], 0));
 
+  // Onboarding approvals + invite links
+  const loadOnboarding = async () => {
+    try {
+      const data = await apiGet<{ requests: OnboardingRequestView[] }>(
+        "/api/onboarding/requests?status=pending&limit=50",
+      );
+      setOnboardingReqs(data.requests);
+    } catch {
+      /* best-effort */
+    }
+  };
+  useEffect(() => {
+    if (sessionUser.role !== "head") return;
+    loadOnboarding();
+  }, [sessionUser.role]);
+
+  const handleMintLink = async () => {
+    setMintBusy(true);
+    try {
+      const data = await apiSend<{ link: string; expiresAt: string }>(
+        "/api/onboarding/mint",
+        "POST",
+      );
+      setMintedLink(data);
+      showToast("Invite link ready", "Share it with the new member. It expires in 12 hours.");
+    } catch (err) {
+      showToast("Could not create link", err instanceof Error ? err.message : "Please try again.");
+    } finally {
+      setMintBusy(false);
+    }
+  };
+
+  const handleOnboardDecision = async (id: string, decision: "approve" | "decline") => {
+    setOnboardingBusy(id);
+    try {
+      await apiSend(`/api/onboarding/requests/${id}/decide`, "POST", {
+        action: decision,
+      });
+      showToast(
+        decision === "approve" ? "Member onboarded" : "Request declined",
+        decision === "approve"
+          ? "They have been emailed their login details."
+          : "The applicant has been notified.",
+      );
+      await loadOnboarding();
+    } catch (err) {
+      showToast(
+        decision === "approve" ? "Could not approve" : "Could not decline",
+        err instanceof Error ? err.message : "Please try again.",
+      );
+    } finally {
+      setOnboardingBusy(null);
+    }
+  };
+
   return (
     <div>
       {/* Featured Summary & Unit Status */}
@@ -240,7 +302,7 @@ function AccountingOfficer() {
       </div>
 
       {/* Quick Actions Row */}
-      <div className="mb-8 grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="mb-8 grid grid-cols-2 md:grid-cols-5 gap-4">
         <QuickActionTile 
           icon={PATHS.send} 
           label="Delegate Task" 
@@ -256,6 +318,14 @@ function AccountingOfficer() {
           icon={PATHS.users} 
           label="Add Member" 
           onClick={() => setAddMemberOpen(true)} 
+        />
+        <QuickActionTile 
+          icon={PATHS.file} 
+          label="Invite by Link" 
+          onClick={() => {
+            setMintedLink(null);
+            setInviteLinkOpen(true);
+          }} 
         />
         <QuickActionTile 
           icon={PATHS.chart} 
@@ -527,6 +597,57 @@ function AccountingOfficer() {
         </div>
 
         <div className="flex flex-col gap-6">
+          <Card
+            title="Pending onboarding"
+            action={
+              <button
+                type="button"
+                className="cursor-pointer rounded-[9px] border-[1.5px] border-border bg-surface px-3 py-1.5 text-[11.5px] font-bold text-foreground-secondary transition-colors hover:border-primary hover:text-foreground"
+                onClick={() => router.push("/onboarding")}
+              >
+                View all
+              </button>
+            }
+          >
+            {onboardingReqs.length === 0 ? (
+              <div className="py-2 text-[13px] text-foreground-secondary">
+                No members waiting for approval. Share an invite link to get started.
+              </div>
+            ) : (
+              <div className="flex flex-col gap-2">
+                {onboardingReqs.slice(0, 3).map((req) => (
+                  <div
+                    key={req.id}
+                    className="flex items-center justify-between gap-3 rounded-xl bg-surface-muted px-3.5 py-3"
+                  >
+                    <div className="min-w-0">
+                      <div className="truncate text-[13px] font-bold text-foreground">{req.name}</div>
+                      <div className="truncate text-[11.5px] text-foreground-secondary">{req.email}</div>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-1.5">
+                      <button
+                        type="button"
+                        disabled={onboardingBusy === req.id}
+                        onClick={() => handleOnboardDecision(req.id, "decline")}
+                        className="cursor-pointer rounded-[8px] border-[1.5px] border-critical-semantic/40 px-2.5 py-1.5 text-[10.5px] font-bold text-critical-semantic transition-colors hover:bg-critical-surface disabled:opacity-50"
+                      >
+                        Decline
+                      </button>
+                      <button
+                        type="button"
+                        disabled={onboardingBusy === req.id}
+                        onClick={() => handleOnboardDecision(req.id, "approve")}
+                        className="cursor-pointer rounded-[8px] border-none bg-success px-2.5 py-1.5 text-[10.5px] font-bold text-white transition-colors hover:bg-success/90 disabled:opacity-50"
+                      >
+                        {onboardingBusy === req.id ? "…" : "Accept"}
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </Card>
+
           <Card title="Unit activities by type" sub="Last 90 days">
             <div className="mb-3 flex h-[26px] overflow-hidden rounded-md">
               {typeOrder.map(([name, color]) => {
@@ -987,6 +1108,54 @@ function AccountingOfficer() {
       )}
 
       {addMemberOpen && <AddMember onClose={() => setAddMemberOpen(false)} />}
+
+      {inviteLinkOpen && (
+        <ModalBackdrop
+          open={inviteLinkOpen}
+          onClose={() => !mintBusy && setInviteLinkOpen(false)}
+          labelledBy="invite-link-title"
+        >
+          <ModalPanel>
+            <h2 id="invite-link-title" className="font-display text-[20px] font-bold text-foreground">
+              Invite a new member by link
+            </h2>
+            <p className="mt-1 text-[13px] text-foreground-secondary">
+              Generate a link the member opens to onboard themselves. It works once and expires after 12 hours.
+            </p>
+
+            {!mintedLink ? (
+              <button
+                type="button"
+                disabled={mintBusy}
+                onClick={handleMintLink}
+                className="mt-5 w-full cursor-pointer rounded-[11px] border-none bg-primary py-3.5 text-[14px] font-bold text-primary-foreground transition-colors hover:bg-primary-hover disabled:opacity-50"
+              >
+                {mintBusy ? "Generating…" : "Generate invite link"}
+              </button>
+            ) : (
+              <div className="mt-5">
+                <div className="flex items-center justify-between gap-3 rounded-[10px] border-[1.5px] border-border bg-surface-muted px-3.5 py-3">
+                  <span className="min-w-0 flex-1 truncate font-mono text-[12.5px] text-foreground">
+                    {mintedLink.link}
+                  </span>
+                  <CopyButton text={mintedLink.link} label="Copy" successLabel="Copied" size="md" />
+                </div>
+                <p className="mt-2 text-[11.5px] text-foreground-faint">
+                  Expires {formatRelativeDate(mintedLink.expiresAt)}
+                </p>
+                <button
+                  type="button"
+                  disabled={mintBusy}
+                  onClick={handleMintLink}
+                  className="mt-4 w-full cursor-pointer rounded-[10px] border-[1.5px] border-border bg-surface py-3 font-bold text-foreground transition-colors hover:border-primary disabled:opacity-50"
+                >
+                  {mintBusy ? "Generating…" : "Generate another"}
+                </button>
+              </div>
+            )}
+          </ModalPanel>
+        </ModalBackdrop>
+      )}
 
       <style jsx global>{`
         .field-input {

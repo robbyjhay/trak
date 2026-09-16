@@ -19,6 +19,7 @@ const PUBLIC_PAGE_PREFIXES = [
   "/forgot-password",
   "/reset-password",
   "/accept-invite",
+  "/onboard",
 ];
 
 /** Exact public API paths (not prefixes under /api/auth). */
@@ -30,6 +31,7 @@ const PUBLIC_API_EXACT = new Set([
   "/api/auth/password/forgot",
   "/api/auth/password/reset",
   "/api/auth/invite/accept",
+  "/api/auth/invite/onboard",
 ]);
 
 /** Public API path prefixes (parameterized routes). */

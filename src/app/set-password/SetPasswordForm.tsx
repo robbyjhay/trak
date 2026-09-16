@@ -9,6 +9,7 @@ import {
 } from "@/lib/auth/actions";
 import { firstName } from "@/lib/utils";
 import { PATHS } from "@/components/icons";
+import { PasswordInput } from "@/components/ui/PasswordInput";
 import { purgeRscCacheSession } from "@/lib/sw/rsc-cache-session";
 
 export function SetPasswordForm({
@@ -53,10 +54,9 @@ export function SetPasswordForm({
               >
                 New password
               </label>
-              <input
+              <PasswordInput
                 id="spPass"
                 name="password"
-                type="password"
                 autoComplete="new-password"
                 placeholder="At least 12 characters"
                 minLength={12}
@@ -72,10 +72,9 @@ export function SetPasswordForm({
               >
                 Confirm password
               </label>
-              <input
+              <PasswordInput
                 id="spConfirm"
                 name="confirm"
-                type="password"
                 autoComplete="new-password"
                 placeholder="Repeat the new password"
                 minLength={12}

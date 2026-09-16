@@ -908,6 +908,26 @@ export async function createUser(
   input: NewUserInput,
 ): Promise<{ user: User; credentials: CreatedUserCredentials }> {
   const actor = await requireActor(session);
+  return createUserAs(actor, input, {
+    auditUserId: session.authUserId,
+    sendInviteEmail: true,
+  });
+}
+
+export interface CreateUserAsOptions {
+  /** User id recorded in the audit trail as the actor (defaults to actor.id). */
+  auditUserId?: string;
+  /** Force a role type regardless of input (used by self-onboarding = member). */
+  forceRoleType?: NonNullable<NewUserInput["roleType"]>;
+  /** Send the invite email when an email is on file (defaults true). */
+  sendInviteEmail?: boolean;
+}
+
+export async function createUserAs(
+  actor: UserWithProfile,
+  input: NewUserInput,
+  opts: CreateUserAsOptions = {},
+): Promise<{ user: User; credentials: CreatedUserCredentials }> {
   if (!canManageTeamProfiles(mapUser(actor))) {
     throw new ServiceError(403, "Only the Unit Head can add members.");
   }
@@ -942,7 +962,7 @@ export async function createUser(
     throw new ServiceError(409, "That username is already in use.");
   }
 
-  const roleType = input.roleType || "member";
+  const roleType = opts.forceRoleType || input.roleType || "member";
   
   let starterPassword = await getDefaultMemberPassword();
   if (!starterPassword) {
@@ -983,7 +1003,7 @@ export async function createUser(
   });
 
   await recordAuditEvent({
-    userId: session.authUserId,
+    userId: opts.auditUserId ?? actor.id,
     action: "user_create",
     targetId: created.id,
     targetType: "user",
@@ -991,7 +1011,9 @@ export async function createUser(
   });
 
   // Prefer invite email when an address is on file (AUDIT_05 / Phase 4).
-  if (email) {
+  // Skipped for self-onboarding, where the invitee is the one creating the
+  // account and does not need a separate "accept" link.
+  if (email && opts.sendInviteEmail !== false) {
     try {
       const { createAuthToken } = await import("@/lib/auth/tokens");
       const { rawToken } = await createAuthToken("invite", created.id);
@@ -1003,7 +1025,7 @@ export async function createUser(
         name,
       });
       await recordAuditEvent({
-        userId: session.authUserId,
+        userId: opts.auditUserId ?? actor.id,
         action: "invite_create",
         targetId: created.id,
         targetType: "user",
@@ -1781,7 +1803,7 @@ export async function updateActivityMetadata(
     action: "activity_update",
     targetId: activityId,
     targetType: "activity",
-  });
+  }); 
 
   return mapActivity(updatedAct);
 }
