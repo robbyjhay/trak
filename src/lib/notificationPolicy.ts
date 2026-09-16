@@ -106,6 +106,9 @@ export function resolvePushContent(
   if (type === "onboarding_approved" || type === "onboarding_declined") {
     return { title: "Onboarding update", body: text, url: "/onboarding" };
   }
+  if (type === "member_onboarded") {
+    return { title: "New member onboarded", body: text, url: "/" };
+  }
   // activity_created | activity_completed | activity_missed
   return {
     title: "Activity update",
@@ -309,5 +312,12 @@ export const NOTIFICATION_TAXONOMY: Record<
     deepLink: "/onboarding",
     prefCategory: "activities",
     dedupe: "onboarding-declined:{requestId}",
+  },
+  member_onboarded: {
+    recipient: "Every active member (except the newly onboarded member)",
+    title: "New member onboarded",
+    deepLink: "/",
+    prefCategory: "activities",
+    dedupe: "member-onboarded:{requestId}",
   },
 };

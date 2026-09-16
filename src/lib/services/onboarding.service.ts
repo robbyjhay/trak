@@ -15,7 +15,7 @@ import "server-only";
 import { prisma } from "@/lib/db/prisma";
 import { createAuthToken, consumeAuthToken } from "@/lib/auth/tokens";
 import { AuthError, findById } from "@/lib/services/auth.service";
-import { notifyUser } from "@/lib/notifications";
+import { notifyMany, notifyUser } from "@/lib/notifications";
 import { recordAuditEvent } from "@/lib/services/audit.service";
 import { createUserAs } from "@/lib/db/service";
 import {
@@ -296,6 +296,9 @@ export async function approveOnboardingRequest(
     meta: { requestId: request.id },
   });
 
+  // Global notice — every other active member learns a new member joined.
+  await notifyUnitOfOnboarding(request.id, request.name, created.user.id);
+
   // Compulsory email — deliver sign-in details so they can log in normally.
   try {
     await sendOnboardingApprovedEmail(request.email, {
@@ -320,6 +323,32 @@ export async function approveOnboardingRequest(
     starterPassword: created.credentials.starterPassword,
     memberName: request.name,
   };
+}
+
+/** Fan out a global "new member onboarded" notice to every active member. */
+async function notifyUnitOfOnboarding(
+  requestId: string,
+  memberName: string,
+  newMemberId: string,
+) {
+  const members = await prisma.user.findMany({
+    where: {
+      isActive: true,
+      role: { not: "head" },
+      id: { not: newMemberId },
+    },
+    select: { id: true },
+  });
+  if (members.length === 0) return;
+  await notifyMany(
+    members.map((m) => ({
+      userId: m.id,
+      type: "member_onboarded" as const,
+      text: `${memberName} has been onboarded to your unit.`,
+      meta: { requestId },
+      dedupeKey: `member-onboarded:${requestId}`,
+    })),
+  );
 }
 
 /** Head declines a pending onboarding request. No account is created. */

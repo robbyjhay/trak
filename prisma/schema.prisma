@@ -142,6 +142,7 @@ enum NotificationType {
   onboarding_requested
   onboarding_approved
   onboarding_declined
+  member_onboarded
 }
 
 enum OnboardingStatus {

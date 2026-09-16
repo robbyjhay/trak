@@ -83,6 +83,8 @@ export const NOTIF_PATHS: Record<NotifType, string> = {
   onboarding_approved: "M20 6L9 17l-5-5",
   onboarding_declined:
     "M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM14 2v6h6M9 15l6-6M15 15l-6-6",
+  member_onboarded:
+    "M16 11V7a4 4 0 0 0-8 0v4 M5 9h14l1 12H4L5 9z M9 13v4 M15 13v4",
 };
 
 export const SAMPLE_TRANSCRIPT =
