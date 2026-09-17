@@ -18,6 +18,24 @@
 - Connections **must** present a valid `trak_session` cookie (same opaque session as REST).
 - Unauthenticated upgrades are closed with code `4401`; client-supplied `userId` is never trusted.
 - Scaling: Single-process by default. Set `TRAK_RUNTIME_MODE=multi` and provide `REDIS_URL` to enable cross-instance WebSocket signaling via Redis Pub/Sub.
+- The server runs a protocol-level ping/pong heartbeat (every 30s) and terminates clients that stop answering, so half-open sockets cannot hold a user slot forever.
+
+### Voice calls (WebRTC)
+
+- Signaling reliability: the client queues critical call messages (`call_offer`, `call_answer`, `ice_candidate`, `ice_restart_offer`, `ice_restart_answer`, `call_reject`, `call_end`) while the WebSocket is down and replays them on reconnect (10s TTL, de-duplicated, only while a call is active).
+- A `4000` "replaced" close normally stops reconnecting; during an active call the client reconnects (bounded) so offer/answer/ICE are not lost.
+- ICE restarts are bounded (2 attempts / 12s round-trip) and both sides enforce a call-establishment timeout, so a call that cannot connect terminates cleanly instead of ringing forever.
+- **TURN** is optional but strongly recommended so calls work behind symmetric NAT / strict firewalls. Google STUN is always included; configure TURN with:
+
+| Variable | Notes |
+|----------|--------|
+| `NEXT_PUBLIC_TURN_URL` | TURN (or TURNS) URL; comma-separated for multiple servers |
+| `NEXT_PUBLIC_TURN_USERNAME` | TURN username (short-lived preferred) |
+| `NEXT_PUBLIC_TURN_CREDENTIAL` | TURN credential (short-lived preferred) |
+
+`NEXT_PUBLIC_*` values are inlined into the browser bundle at build time and are **not secrets** — WebRTC sends them to the TURN server as part of the normal ICE config. Use a TURN provider that issues time-limited ephemeral credentials (e.g. coturn static-auth + REST API, or a cloud TURN service). At minimum the SRTP/DTLS-TURN settings must permit UDP relay.
+
+- Call diagnostics are **off** by default. Set `NEXT_PUBLIC_DEBUG_CALLS=1` (client) to stream concise call/WebRTC lifecycle logs to the browser console.
 
 ### Required production env
 

@@ -10,9 +10,10 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { useSignaling } from "@/hooks/useSignaling";
+import { useSignaling, setSignalingCallActive } from "@/hooks/useSignaling";
 import { useWebRtc } from "@/hooks/useWebRtc";
 import { useTrak } from "@/context/TrakStore";
+import { callDebug } from "@/lib/callDebug";
 import type { IncomingMessage } from "@/lib/signaling-types";
 
 export type CallDirection = "outgoing" | "incoming";
@@ -44,6 +45,12 @@ interface CallContextValue {
 const CallContext = createContext<CallContextValue | null>(null);
 
 const CALL_TIMEOUT_MS = 30_000;
+/** After a call is answered, media must connect within this window (both sides). */
+const CALL_ESTABLISH_TIMEOUT_MS = 45_000;
+/** Wait for an ICE restart round-trip before giving up / retrying. */
+const ICE_RESTART_TIMEOUT_MS = 12_000;
+/** Max ICE restart attempts before terminating a call cleanly. */
+const MAX_ICE_RESTART_ATTEMPTS = 2;
 
 function playRingtone(): AudioContext | null {
   try {
@@ -112,6 +119,8 @@ export function CallProvider({
   const callTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingOfferRef = useRef<{ sdp: RTCSessionDescriptionInit; from: string } | null>(null);
   const iceRestartInProgressRef = useRef(false);
+  const iceRestartTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const iceRestartAttemptsRef = useRef(0);
   const mutedRef = useRef(false);
 
   // Keep refs current
@@ -129,6 +138,64 @@ export function CallProvider({
     }
   }, []);
 
+  // Clear ICE-restart round-trip timer (idempotent)
+  const clearIceRestartTimer = useCallback(() => {
+    if (iceRestartTimerRef.current) {
+      clearTimeout(iceRestartTimerRef.current);
+      iceRestartTimerRef.current = null;
+    }
+  }, []);
+
+  /**
+   * Terminal cleanup shared by every call-end path. Idempotent and "safe to
+   * call even while the PeerConnection exists" — this is what guarantees a
+   * call never hangs indefinitely. When `notify` is true a call_end is sent
+   * so the remote side tears down too.
+   */
+  const terminateCallCleanup = useCallback(
+    (partnerId: string | null, notify: boolean) => {
+      clearCallTimeout();
+      clearIceRestartTimer();
+      iceRestartInProgressRef.current = false;
+      iceRestartAttemptsRef.current = 0;
+      if (partnerId && notify) {
+        sendRef.current({ type: "call_end", to: partnerId });
+      }
+      stopRingtone(ringtoneRef.current);
+      ringtoneRef.current = null;
+      setActiveCall(null);
+      setIncomingCallFrom(null);
+      partnerIdRef.current = null;
+      pendingOfferRef.current = null;
+      pendingIceRef.current = [];
+      setMuted(false);
+      webrtcRef.current.cleanup();
+    },
+    [clearCallTimeout, clearIceRestartTimer],
+  );
+  const terminateCallCleanupRef = useRef(terminateCallCleanup);
+  useEffect(() => { terminateCallCleanupRef.current = terminateCallCleanup; }, [terminateCallCleanup]);
+
+  /**
+   * Arm a bounded "call must establish media" timer. Used on BOTH sides: the
+   * caller (unanswered timeout) and the recipient (post-accept). Cleared on
+   * connect / answer / end. If it fires while the call is still not connected
+   * the call is terminated cleanly instead of ringing forever.
+   */
+  const armCallEstablishTimeout = useCallback(
+    (partnerId: string, timeoutMs: number) => {
+      clearCallTimeout();
+      callTimeoutRef.current = setTimeout(() => {
+        const ac = activeCallRef.current;
+        if (!ac) return;
+        if (ac.status === "connected" || ac.status === "ended") return;
+        callDebug("[calls] establishment timeout fired", ac.status);
+        terminateCallCleanupRef.current(partnerId, true);
+      }, timeoutMs);
+    },
+    [clearCallTimeout],
+  );
+
   // ---- ICE restart ----
   const attemptIceRestart = useCallback(async (partnerId: string) => {
     if (iceRestartInProgressRef.current) return; // prevent concurrent restarts
@@ -138,9 +205,27 @@ export function CallProvider({
     if (!pc) return;
 
     iceRestartInProgressRef.current = true;
+    iceRestartAttemptsRef.current += 1;
+    callDebug("[calls] ICE restart attempt", iceRestartAttemptsRef.current);
     try {
       const offer = await w.createRestartOffer(pc);
       s({ type: "ice_restart_offer", to: partnerId, sdp: offer });
+
+      // Bound the round-trip: if the peer never answers, retry (once) then
+      // terminate cleanly — never leave the call stuck in a restart loop.
+      clearIceRestartTimer();
+      iceRestartTimerRef.current = setTimeout(() => {
+        if (!iceRestartInProgressRef.current) return;
+        if (iceRestartAttemptsRef.current >= MAX_ICE_RESTART_ATTEMPTS) {
+          callDebug("[calls] ICE restart exhausted — terminating call");
+          iceRestartInProgressRef.current = false;
+          terminateCallCleanupRef.current(partnerId, true);
+        } else {
+          callDebug("[calls] ICE restart timed out — retrying");
+          iceRestartInProgressRef.current = false;
+          void attemptIceRestartRef.current(partnerId);
+        }
+      }, ICE_RESTART_TIMEOUT_MS);
     } catch (err) {
       console.error("ICE restart failed:", err);
       // Recovery ultimately failed — terminate the call cleanly
@@ -154,20 +239,26 @@ export function CallProvider({
       w.cleanup();
     }
   }, []);
+  const attemptIceRestartRef = useRef(attemptIceRestart);
+  useEffect(() => { attemptIceRestartRef.current = attemptIceRestart; }, [attemptIceRestart]);
 
   // ---- ICE failure handler (passed to useWebRtc) ----
   const handleIceFailed = useCallback(() => {
     const ac = activeCallRef.current;
     if (!ac || ac.status === "ended") return;
+    callDebug("[calls] ICE failed — attempting restart", ac.partnerId);
     // Attempt ICE restart if not already in progress
     void attemptIceRestart(ac.partnerId);
   }, [attemptIceRestart]);
 
   const handleIceConnected = useCallback(() => {
     iceRestartInProgressRef.current = false;
+    iceRestartAttemptsRef.current = 0;
     clearCallTimeout();
+    clearIceRestartTimer();
+    callDebug("[calls] media connected");
     setActiveCall((c) => c ? { ...c, status: "connected" } : null);
-  }, [clearCallTimeout]);
+  }, [clearCallTimeout, clearIceRestartTimer]);
 
   // Listen for signaling messages (uses refs to avoid stale closures)
   useEffect(() => {
@@ -190,6 +281,7 @@ export function CallProvider({
           // Do NOT create a PeerConnection here — only buffer the offer.
           // The real PC is created in acceptCall().
           pendingOfferRef.current = { sdp: msg.sdp, from: msg.from };
+          callDebug("[calls] call_offer received");
           break;
         }
 
@@ -205,6 +297,9 @@ export function CallProvider({
             await w.addIceCandidate(pc, c);
           }
           pendingIceRef.current = [];
+          // Answer received — media must still establish; bound it on both sides.
+          armCallEstablishTimeout(msg.from, CALL_ESTABLISH_TIMEOUT_MS);
+          callDebug("[calls] call_answer received");
           break;
         }
 
@@ -227,6 +322,8 @@ export function CallProvider({
           if (!ac || ac.status === "ended") return;
           const answer = await w.handleOffer(pc, msg.sdp);
           s({ type: "ice_restart_answer", to: msg.from, sdp: answer });
+          clearIceRestartTimer();
+          callDebug("[calls] ice_restart_offer received and answered");
           break;
         }
 
@@ -236,21 +333,28 @@ export function CallProvider({
           if (!pc) return;
           if (!ac || ac.status === "ended") return;
           await w.handleAnswer(pc, msg.sdp);
+          clearIceRestartTimer();
           iceRestartInProgressRef.current = false;
+          callDebug("[calls] ice_restart_answer received");
           break;
         }
 
         case "call_reject": {
           clearCallTimeout();
+          clearIceRestartTimer();
+          iceRestartAttemptsRef.current = 0;
           stopRingtone(ringtoneRef.current);
           ringtoneRef.current = null;
           setActiveCall(null);
           w.cleanup();
+          callDebug("[calls] call_reject received");
           break;
         }
 
         case "call_end": {
           clearCallTimeout();
+          clearIceRestartTimer();
+          iceRestartAttemptsRef.current = 0;
           stopRingtone(ringtoneRef.current);
           ringtoneRef.current = null;
           setActiveCall(null);
@@ -259,21 +363,25 @@ export function CallProvider({
           pendingIceRef.current = [];
           iceRestartInProgressRef.current = false;
           w.cleanup();
+          callDebug("[calls] call_end received");
           break;
         }
 
         case "peer_busy":
         case "peer_unavailable": {
           clearCallTimeout();
+          clearIceRestartTimer();
+          iceRestartAttemptsRef.current = 0;
           stopRingtone(ringtoneRef.current);
           ringtoneRef.current = null;
           setActiveCall(null);
           w.cleanup();
+          callDebug("[calls] peer", msg.type, "received");
           break;
         }
       }
     });
-  }, [onMessage, clearCallTimeout]);
+  }, [onMessage, clearCallTimeout, clearIceRestartTimer, armCallEstablishTimeout]);
 
   // Timer
   useEffect(() => {
@@ -303,19 +411,10 @@ export function CallProvider({
       w.addLocalTracks(pc, stream);
       const offer = await w.createOffer(pc);
       s({ type: "call_offer", to: partnerId, sdp: offer });
+      callDebug("[calls] call_offer sent");
 
-      // Start unanswered-call timeout
-      callTimeoutRef.current = setTimeout(() => {
-        // Timeout fired — check if call was already answered/ended
-        if (!activeCallRef.current || activeCallRef.current.status !== "ringing") return;
-        s({ type: "call_end", to: partnerId });
-        stopRingtone(ringtoneRef.current);
-        ringtoneRef.current = null;
-        setActiveCall(null);
-        partnerIdRef.current = null;
-        pendingIceRef.current = [];
-        w.cleanup();
-      }, CALL_TIMEOUT_MS);
+      // Start unanswered-call timeout (cleared on answer / connect / end).
+      armCallEstablishTimeout(partnerId, CALL_TIMEOUT_MS);
     } catch (err: any) {
       console.error("startCall failed:", err);
       clearCallTimeout();
@@ -326,7 +425,7 @@ export function CallProvider({
       setActiveCall(null);
       webrtcRef.current.cleanup();
     }
-  }, [clearCallTimeout, handleIceConnected, handleIceFailed]);
+  }, [clearCallTimeout, handleIceConnected, handleIceFailed, armCallEstablishTimeout]);
 
   // Accept incoming call
   const acceptCall = useCallback(async () => {
@@ -355,12 +454,16 @@ export function CallProvider({
       w.addLocalTracks(pc, stream);
       const answer = await w.handleOffer(pc, sdp);
       s({ type: "call_answer", to: from, sdp: answer });
+      callDebug("[calls] call_answer sent");
 
       // Drain all buffered ICE candidates into the real PeerConnection
       for (const c of pendingIceRef.current) {
         await w.addIceCandidate(pc, c);
       }
       pendingIceRef.current = [];
+      // Recipient must reach a connected state in bounded time — otherwise the
+      // call terminates cleanly instead of ringing forever after accepting.
+      armCallEstablishTimeout(from, CALL_ESTABLISH_TIMEOUT_MS);
     } catch (err: any) {
       console.error("acceptCall failed:", err);
       showToastRef.current(
@@ -370,7 +473,7 @@ export function CallProvider({
       setActiveCall(null);
       webrtcRef.current.cleanup();
     }
-  }, [handleIceConnected, handleIceFailed]);
+  }, [handleIceConnected, handleIceFailed, armCallEstablishTimeout]);
 
   // Reject incoming call
   const rejectCall = useCallback(() => {
@@ -379,15 +482,18 @@ export function CallProvider({
       sendRef.current({ type: "call_reject", to: pending.from });
       pendingOfferRef.current = null;
     }
+    clearIceRestartTimer();
+    iceRestartAttemptsRef.current = 0;
     stopRingtone(ringtoneRef.current);
     ringtoneRef.current = null;
     setIncomingCallFrom(null);
     pendingIceRef.current = [];
-  }, []);
+  }, [clearIceRestartTimer]);
 
   // End active call (cleanup-safe — idempotent)
   const endCall = useCallback(() => {
     clearCallTimeout();
+    clearIceRestartTimer();
     const partnerId = partnerIdRef.current;
     if (partnerId) {
       sendRef.current({ type: "call_end", to: partnerId });
@@ -400,9 +506,16 @@ export function CallProvider({
     pendingOfferRef.current = null;
     pendingIceRef.current = [];
     iceRestartInProgressRef.current = false;
+    iceRestartAttemptsRef.current = 0;
     setMuted(false);
     webrtcRef.current.cleanup();
-  }, [clearCallTimeout]);
+  }, [clearCallTimeout, clearIceRestartTimer]);
+
+  // Keep the signaling layer aware of whether a call is active so its
+  // reconnect policy and message queue match the live call state.
+  useEffect(() => {
+    setSignalingCallActive(Boolean(activeCall) || Boolean(incomingCallFrom));
+  }, [activeCall, incomingCallFrom]);
 
   // ---- Mute control ----
   const toggleMute = useCallback((): boolean => {

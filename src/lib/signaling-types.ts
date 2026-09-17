@@ -26,4 +26,5 @@ export type IncomingMessage =
   | { type: "peer_busy"; from: string }
   | { type: "peer_unavailable"; from: string }
   | { type: "dm_read"; from: string; readDmIds: string[]; at?: string }
+  | { type: "pong" }
   | { type: "error"; code: string; message?: string };

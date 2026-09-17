@@ -230,6 +230,22 @@ app.prepare().then(async () => {
 
   const wss = new WebSocketServer({ noServer: true });
 
+  // Server-side half-open detection: browsers auto-answer protocol-level pings
+  // with pongs. If a connection stops responding, terminate it so its user slot
+  // is freed (reconnects, presence, and pending calls are not blocked by a
+  // dead socket). Complements the client's JSON ping/pong heartbeat.
+  const wssHeartbeatTimer = setInterval(() => {
+    for (const client of wss.clients) {
+      if ((client as any).isAlive === false) {
+        client.terminate();
+        continue;
+      }
+      (client as any).isAlive = false;
+      client.ping();
+    }
+  }, 30_000);
+  wssHeartbeatTimer.unref();
+
   httpServer.on("upgrade", (req, socket, head) => {
     const { pathname } = parse(req.url!, true);
     if (pathname === "/ws") {
@@ -244,6 +260,12 @@ app.prepare().then(async () => {
   wss.on("connection", (ws: WebSocket, req: IncomingMessage) => {
     let userId: string | null = null;
     let authPending = true;
+
+    // Heartbeat health tracking (see wssHeartbeatTimer above).
+    (ws as any).isAlive = true;
+    ws.on("pong", () => {
+      (ws as any).isAlive = true;
+    });
 
     // Authenticate from session cookie on upgrade (never trust client userId).
     void (async () => {
