@@ -8,6 +8,7 @@ import { useTrak } from "@/context/TrakStore";
 import { LibraryIcon, PATHS } from "@/components/icons";
 import { ResourceCard } from "@/components/library/ResourceCard";
 import { AddResourceModal } from "@/components/library/AddResourceModal";
+import { EditResourceModal } from "@/components/library/EditResourceModal";
 import { ResourceDetailModal } from "@/components/library/ResourceDetailModal";
 import { TrakLoader } from "@/components/ui/TrakLoader";
 import { markSectionSeen, isNewSinceSeen } from "@/lib/seenSections";
@@ -38,6 +39,7 @@ function TabContent({
   isNewResource,
   onOpen,
   onAdd,
+  refreshTrigger,
 }: {
   tab: "library" | "mine";
   showStatus: boolean;
@@ -47,6 +49,7 @@ function TabContent({
   isNewResource: (r: LibraryResource) => boolean;
   onOpen: (r: LibraryResource) => void;
   onAdd: () => void;
+  refreshTrigger?: number;
 }) {
   const [resources, setResources] = useState<LibraryResource[]>([]);
   const [total, setTotal] = useState(0);
@@ -89,7 +92,7 @@ function TabContent({
 
   useEffect(() => {
     fetchResources();
-  }, [fetchResources]);
+  }, [fetchResources, refreshTrigger]);
 
   if (error) {
     return (
@@ -183,6 +186,8 @@ export default function LibraryPage() {
   // Modals
   const [addOpen, setAddOpen] = useState(false);
   const [detailResource, setDetailResource] = useState<LibraryResource | null>(null);
+  const [editResource, setEditResource] = useState<LibraryResource | null>(null);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
 
   const TABS: { key: "library" | "mine"; label: string }[] = [
     { key: "library", label: "Approved Resources" },
@@ -335,6 +340,7 @@ export default function LibraryPage() {
               isNewResource={isNewResource}
               onOpen={setDetailResource}
               onAdd={() => setAddOpen(true)}
+              refreshTrigger={refreshTrigger}
             />
           </div>
           <div className="w-1/2 shrink-0">
@@ -347,6 +353,7 @@ export default function LibraryPage() {
               isNewResource={isNewResource}
               onOpen={setDetailResource}
               onAdd={() => setAddOpen(true)}
+              refreshTrigger={refreshTrigger}
             />
           </div>
         </div>
@@ -364,6 +371,21 @@ export default function LibraryPage() {
         resource={detailResource}
         showStatus={activeTab === "mine"}
         onClose={() => setDetailResource(null)}
+        onEdit={(r) => {
+          setDetailResource(null);
+          setEditResource(r);
+        }}
+      />
+
+      <EditResourceModal
+        resource={editResource}
+        open={Boolean(editResource)}
+        onClose={() => setEditResource(null)}
+        onUpdated={() => {
+          setDetailResource(null);
+          setEditResource(null);
+          setRefreshTrigger((n) => n + 1);
+        }}
       />
     </div>
   );

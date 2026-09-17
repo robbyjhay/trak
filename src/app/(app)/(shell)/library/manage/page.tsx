@@ -8,6 +8,7 @@ import { apiGet, apiSend } from "@/lib/api/client";
 import { PATHS } from "@/components/icons";
 import { fmtDate } from "@/lib/dates";
 import { ResourceDetailModal, PrimaryBtn } from "@/components/library/ResourceDetailModal";
+import { EditResourceModal } from "@/components/library/EditResourceModal";
 import { CategoryChip, StatusBadge } from "@/components/library/bits";
 import { DelegateModal } from "@/components/delegation/DelegateModal";
 import { ModalBackdrop, ModalPanel } from "@/components/ui/Modal";
@@ -49,6 +50,7 @@ export default function ManageLibraryPage() {
   
   // Modals
   const [reviewResource, setReviewResource] = useState<LibraryResource | null>(null);
+  const [editResource, setEditResource] = useState<LibraryResource | null>(null);
   const [declineOpen, setDeclineOpen] = useState(false);
   const [declineReason, setDeclineReason] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -285,6 +287,10 @@ export default function ManageLibraryPage() {
         resource={reviewResource}
         showStatus={true}
         onClose={() => setReviewResource(null)}
+        onEdit={(r) => {
+          setReviewResource(null);
+          setEditResource(r);
+        }}
         actions={
           reviewResource?.status === "PENDING" ? (
             <>
@@ -333,6 +339,16 @@ export default function ManageLibraryPage() {
           }}
         />
       )}
+
+      <EditResourceModal
+        resource={editResource}
+        open={Boolean(editResource)}
+        onClose={() => setEditResource(null)}
+        onUpdated={() => {
+          setEditResource(null);
+          fetchResources();
+        }}
+      />
 
       {/* Decline Reason Modal */}
       <ModalBackdrop open={declineOpen} onClose={() => !submitting && setDeclineOpen(false)} labelledBy="decline-title">

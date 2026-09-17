@@ -323,6 +323,66 @@ export async function approveLibraryResource(
   return mapLibraryResource(updated);
 }
 
+export interface UpdateLibraryInput {
+  title?: string;
+  category?: string;
+  description?: string;
+  externalUrl?: string;
+  thumbnailKey?: string | null;
+}
+
+export async function updateLibraryResource(
+  session: SessionUser,
+  id: string,
+  input: UpdateLibraryInput,
+): Promise<LibraryResource> {
+  requireActor(session);
+  const existing = await prisma.libraryResource.findUnique({
+    where: { id },
+    select: { submittedById: true, status: true },
+  });
+  if (!existing) throw new ServiceError(404, "Resource not found.");
+  if (existing.submittedById !== session.id && !isHead(session)) {
+    throw new ServiceError(403, "You can only edit your own resources.");
+  }
+
+  const title = input.title !== undefined ? parseTitle(input.title) : undefined;
+  const category = input.category !== undefined ? parseCategory(input.category) : undefined;
+  const description = input.description !== undefined ? parseDescription(input.description) : undefined;
+  const externalUrl = input.externalUrl !== undefined ? parseExternalUrl(input.externalUrl) : undefined;
+
+  let thumbnailData: { thumbnailKey: string | null; thumbnailUrl: string | null } | undefined;
+  if (input.thumbnailKey !== undefined || externalUrl !== undefined) {
+    const resolvedUrl = externalUrl ?? (await prisma.libraryResource.findUnique({ where: { id }, select: { externalUrl: true } }))!.externalUrl;
+    const resolvedThumb = input.thumbnailKey !== undefined
+      ? input.thumbnailKey
+      : (await prisma.libraryResource.findUnique({ where: { id }, select: { thumbnailKey: true } }))!.thumbnailKey;
+    thumbnailData = resolveThumbnail(resolvedUrl, resolvedThumb, session.id);
+  }
+
+  const data: Record<string, unknown> = {};
+  if (title !== undefined) data.title = title;
+  if (category !== undefined) data.category = category;
+  if (description !== undefined) data.description = description;
+  if (externalUrl !== undefined) data.externalUrl = externalUrl;
+  if (thumbnailData) {
+    data.thumbnailKey = thumbnailData.thumbnailKey;
+    data.thumbnailUrl = thumbnailData.thumbnailUrl;
+  }
+
+  if (Object.keys(data).length === 0) {
+    throw new ServiceError(400, "No changes provided.");
+  }
+
+  const updated = await prisma.libraryResource.update({
+    where: { id },
+    data,
+    include: resourceInclude,
+  });
+
+  return mapLibraryResource(updated);
+}
+
 export async function declineLibraryResource(
   session: SessionUser,
   id: string,
