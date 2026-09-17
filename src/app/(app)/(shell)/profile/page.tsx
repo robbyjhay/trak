@@ -321,7 +321,7 @@ export default function ProfilePage() {
           ) : (
             <Switch
               id="profile-notifications-toggle"
-              checked={pushState === "enabled"}
+              checked={pushState as string === "enabled"}
               onChange={handleNotifToggle}
               disabled={pushBusy}
               aria-label="Mobile notifications"
