@@ -338,6 +338,22 @@ button {
   outline-offset: 2px;
 }
 
+/* Composer textarea — explicitly disable the browser/global focus outline on the
+   composer's textarea. The saffron focus state lives on the pill container
+   (focus-within ring/border), so the input itself must stay clean. Scoped to
+   the composer so other controls keep their accessibility focus ring. !important
+   is required because globals.css rules are un-layered and would otherwise beat
+   Tailwind's layered outline-none utilities. */
+.chat-composer textarea,
+.chat-composer textarea:focus,
+.chat-composer textarea:focus-visible {
+  outline: none !important;
+  box-shadow: none !important;
+  border: none !important;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
 /* Prefer reduced motion */
 @media (prefers-reduced-motion: reduce) {
   *,

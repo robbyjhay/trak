@@ -53,7 +53,13 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
-  interactiveWidget: "overlays-content",
+  // resizes-content: when the on-screen keyboard opens, the browser resizes the
+  // layout viewport to the visible area, so 100dvh / position:fixed content (the
+  // chat thread overlay) ends exactly at the top of the keyboard — the same
+  // behavior native messaging apps have. Supported by Android/Chromium, Firefox
+  // and Samsung Internet; iOS/WebKit ignores it (WebKit bug #259770), where the
+  // visual viewport pinning in Messaging.tsx covers the same contract.
+  interactiveWidget: "resizes-content",
 };
 
 export default async function RootLayout({

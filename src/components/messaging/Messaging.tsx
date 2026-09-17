@@ -28,7 +28,6 @@ import type { CallRecord, Dm, TrakDb, MessageAttachment } from "@/lib/types";
 import { ConversationList } from "./ConversationList";
 import { ChatThread } from "./ChatThread";
 import { Composer, type ReplyingTo } from "./Composer";
-import { KeyboardSpacer } from "./KeyboardSpacer";
 import { AnnouncementsPanel } from "./Announcements";
 
 type ThreadItem =
@@ -96,6 +95,7 @@ export function Messaging({
   const [replyingTo, setReplyingTo] = useState<ReplyingTo>(null);
   const [unreadDividers, setUnreadDividers] = useState<Record<string, { firstUnreadId: string; count: number }>>({});
   const prevConvRef = useRef(activeConv);
+  const threadPanelRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (prevConvRef.current !== activeConv) {
@@ -189,6 +189,50 @@ export function Messaging({
     window.addEventListener("popstate", handlePopState);
     return () => window.removeEventListener("popstate", handlePopState);
   }, [mobilePane]);
+
+  // Pin the full-screen mobile thread overlay to the *visual* viewport.
+  //
+  // iOS/WebKit does not implement `interactive-widget=resizes-content`
+  // (WebKit bug #259770), so `position: fixed; inset: 0` stays anchored to the
+  // full-height layout viewport and the composer sits *behind* the keyboard.
+  // iOS then auto-pans the visual viewport to reveal the focused input, pushing
+  // the chat header/contact name off-screen. Sizing the overlay to the visual
+  // viewport (and translating it by its pan offset) keeps header + message list
+  // + composer inside the visible area, so the composer hugs the keyboard like a
+  // native messenger. On Android with `resizes-content` this is a harmless no-op
+  // because the layout viewport already shrank above the keyboard.
+  useEffect(() => {
+    if (isDesktop || mobilePane !== "thread") return;
+    if (typeof window === "undefined" || !window.visualViewport) return;
+    const panel = threadPanelRef.current;
+    if (!panel) return;
+    const vv = window.visualViewport;
+    let raf = 0;
+    const apply = () => {
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(() => {
+        panel.style.top = `${vv.offsetTop}px`;
+        panel.style.height = `${vv.height}px`;
+      });
+    };
+    apply();
+    vv.addEventListener("resize", apply);
+    vv.addEventListener("scroll", apply);
+    // Re-pin after an input grabs focus: Safari can settle its keyboard/pan
+    // animation after the last resize event, so a final pass keeps the composer
+    // glued to the top of the keyboard with no flicker.
+    panel.addEventListener("focusin", apply);
+    panel.addEventListener("focusout", apply);
+    return () => {
+      cancelAnimationFrame(raf);
+      vv.removeEventListener("resize", apply);
+      vv.removeEventListener("scroll", apply);
+      panel.removeEventListener("focusin", apply);
+      panel.removeEventListener("focusout", apply);
+      panel.style.top = "";
+      panel.style.height = "";
+    };
+  }, [isDesktop, mobilePane]);
 
   // Clear reply when switching conversations if mismatch
   useEffect(() => {
@@ -289,9 +333,12 @@ export function Messaging({
           </div>
 
           {/* Active Thread Panel — on mobile a fullscreen overlay.
-              With interactiveWidget="resizes-content", the layout viewport shrinks,
-              so fixed inset-0 automatically stays above the keyboard. */}
+              On Android (interactive-widget=resizes-content) the layout viewport
+              shrinks above the keyboard, so fixed inset-0 ends at the keyboard.
+              On iOS the overlay is pinned to the visual viewport below so the
+              composer sits right above the keyboard. */}
           <div
+            ref={threadPanelRef}
             className={cn(
               "min-w-0 min-h-0 flex-1 flex-col bg-surface shadow-[-10px_0_20px_-15px_rgba(0,0,0,0.1)] z-10",
               mobilePane === "list"
@@ -599,7 +646,6 @@ export function Messaging({
                   })()}
                 </div>
               )}
-          <KeyboardSpacer />
           </div>
         </div>
       ) : (

@@ -308,7 +308,7 @@ export function Composer({
   return (
     <div
       ref={containerRef}
-      className={`flex shrink-0 flex-col z-10 relative bg-background border-t border-border/40 ${isDragging ? 'bg-primary/5 border-primary border-dashed !border-t-2' : ''}`}
+      className={`chat-composer flex shrink-0 flex-col z-10 relative bg-background border-t border-border/40 ${isDragging ? 'bg-primary/5 border-primary border-dashed !border-t-2' : ''}`}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
@@ -412,8 +412,10 @@ export function Composer({
         )}
       </AnimatePresence>
 
-      {/* Real messaging composer — pill input that belongs to the conversation, not a form card */}
-      <div className="flex items-end gap-2 px-3 py-2.5 pb-[calc(8px+env(safe-area-inset-bottom))] sm:px-4 sm:py-3 bg-background">
+      {/* Real messaging composer — pill input that belongs to the conversation, not a form card.
+           Bottom safe-area is applied via --safe-area-bottom, which .keyboard-open zeroes,
+           so there is no gap between the composer and the software keyboard on iOS. */}
+      <div className="flex items-end gap-2 px-3 py-2.5 pb-[calc(8px_+_var(--safe-area-bottom))] sm:px-4 sm:py-3 bg-background">
         <div className="flex flex-1 items-end gap-1.5 rounded-[28px] bg-surface border border-border/60 shadow-sm px-1.5 py-1.5 focus-within:border-primary/40 focus-within:ring-2 focus-within:ring-primary/25 focus-within:shadow-md transition-all">
           <input
             type="file"
@@ -449,6 +451,7 @@ export function Composer({
             inputMode="text"
             autoComplete="off"
             autoCorrect="on"
+            autoCapitalize="sentences"
             spellCheck
             rows={1}
             disabled={uploading}
