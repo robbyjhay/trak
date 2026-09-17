@@ -47,8 +47,15 @@ export async function POST(req: Request) {
       throw new ServiceError(429, "Announcement rate limit exceeded.");
     }
 
-    const body = await parseJsonBody<{ text?: string }>(req);
-    const result = await postAnnouncement(session, body.text || "");
+    const body = await parseJsonBody<{
+      text?: string;
+      mentions?: { userId: string; position: number }[];
+    }>(req);
+    const result = await postAnnouncement(
+      session,
+      body.text || "",
+      body.mentions,
+    );
     const { announcements } = await listAnnouncements(session, { limit: 50 });
     const notifications = await myNotifications(session);
 

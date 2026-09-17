@@ -5,6 +5,7 @@ import { useTrak } from "@/context/TrakStore";
 import { GhostBtn } from "@/components/ui/Buttons";
 import { PATHS } from "@/components/icons";
 import { RespFormModal } from "@/components/activity/RespFormModal";
+import { isNewSinceSeen } from "@/lib/seenSections";
 
 export function RespManageList() {
   const { responsibilities, sessionUser, deactivateResponsibility, showToast } = useTrak();
@@ -17,6 +18,11 @@ export function RespManageList() {
     <div>
       {responsibilities.map((r) => {
         const open = openId === r.id;
+        const isNew = Boolean(
+          r.createdAt &&
+            r.isActive !== false &&
+            isNewSinceSeen(sessionUser.id, "responsibilities", r.createdAt),
+        );
         return (
           <div
             key={r.id}
@@ -32,6 +38,11 @@ export function RespManageList() {
                   {r.code}
                 </span>
                 <span className="truncate text-[13px] font-bold">{r.name}</span>
+                {isNew && (
+                  <span className="shrink-0 rounded-full bg-saffron px-2 py-0.5 text-[9.5px] font-extrabold tracking-wide text-saffron-foreground uppercase">
+                    New
+                  </span>
+                )}
               </button>
               <div className="flex shrink-0 items-center gap-2.5">
                 {isHead && (

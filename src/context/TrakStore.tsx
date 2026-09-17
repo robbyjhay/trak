@@ -206,7 +206,7 @@ interface TrakStoreValue {
   deleteDmMessage: (messageId: string, forEveryone: boolean) => Promise<void>;
   deleteCommunityMessage: (messageId: string, forEveryone: boolean) => Promise<void>;
   sendBroadcast: (text: string) => Promise<void>;
-  sendAnnouncement: (text: string) => Promise<void>;
+  sendAnnouncement: (text: string, mentions?: { userId: string; displayName?: string; position: number; length: number }[]) => Promise<void>;
   deleteAnnouncement: (announcementId: string) => Promise<void>;
   reactToAnnouncement: (announcementId: string, emoji: string) => Promise<void>;
   recordCall: (partnerId: string, durationSec: number) => Promise<void>;
@@ -1338,8 +1338,8 @@ export function TrakStoreProvider({
         bump();
       }
     },
-    sendAnnouncement: async (text) => {
-      const temp = buildOfflineAnnouncement(session.id, text);
+    sendAnnouncement: async (text, mentions) => {
+      const temp = buildOfflineAnnouncement(session.id, text, mentions);
       try {
         const res = await sendQueued<{
           announcements: typeof db.announcements;
@@ -1347,7 +1347,7 @@ export function TrakStoreProvider({
         }>(
           "/api/messages/announcements",
           "POST",
-          { text },
+          { text, mentions },
           { tempId: temp.id },
         );
         stateRef.current.db.announcements = res.announcements;

@@ -28,6 +28,7 @@ function seedMissedActivity(db: TrakDb, now: Date) {
   db.dailyLogs.push({
     id: "log1",
     activityId: act.id,
+    userId: null,
     date: "2026-08-30",
     objectives: "",
     activityDescription: "",

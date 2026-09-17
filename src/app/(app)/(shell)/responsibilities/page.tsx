@@ -1,16 +1,22 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTrak } from "@/context/TrakStore";
 import { RespManageList } from "@/components/activity/RespManageList";
 import { RespFormModal } from "@/components/activity/RespFormModal";
 import { GhostBtn } from "@/components/ui/Buttons";
 import { PATHS } from "@/components/icons";
+import { markSectionSeen } from "@/lib/seenSections";
 
 export default function ResponsibilitiesPage() {
   const { sessionUser } = useTrak();
   const isHead = sessionUser.role === "head";
   const [adding, setAdding] = useState(false);
+
+  useEffect(() => {
+    markSectionSeen(sessionUser.id, "responsibilities");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionUser.id]);
 
   return (
     <div>

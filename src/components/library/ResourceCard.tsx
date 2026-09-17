@@ -50,15 +50,22 @@ export function ResourceCard({
   resource,
   onOpen,
   showStatus = false,
+  isNew = false,
   footer,
 }: {
   resource: LibraryResource;
   onOpen: () => void;
   showStatus?: boolean;
+  isNew?: boolean;
   footer?: React.ReactNode;
 }) {
   return (
-    <article className="overflow-hidden rounded-card border border-border bg-surface shadow-card transition-all duration-150 hover:-translate-y-0.5 hover:shadow-modal focus-within:ring-2 focus-within:ring-primary">
+    <article className="relative overflow-hidden rounded-card border border-border bg-surface shadow-card transition-all duration-150 hover:-translate-y-0.5 hover:shadow-modal focus-within:ring-2 focus-within:ring-primary">
+      {isNew && (
+        <span className="absolute top-2 left-2 z-10 rounded-full bg-saffron px-2 py-0.5 text-[9.5px] font-extrabold tracking-wide text-saffron-foreground uppercase shadow-sm">
+          New
+        </span>
+      )}
       {/* Mobile: compact horizontal */}
       <div className="flex gap-3 p-3 sm:hidden">
         <Thumb resource={resource} className="h-[72px] w-[72px] shrink-0 rounded-[10px]" />

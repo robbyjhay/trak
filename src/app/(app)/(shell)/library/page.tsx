@@ -10,6 +10,7 @@ import { ResourceCard } from "@/components/library/ResourceCard";
 import { AddResourceModal } from "@/components/library/AddResourceModal";
 import { ResourceDetailModal } from "@/components/library/ResourceDetailModal";
 import { TrakLoader } from "@/components/ui/TrakLoader";
+import { markSectionSeen, isNewSinceSeen } from "@/lib/seenSections";
 import type { LibraryResource, LibraryCategory } from "@/lib/types";
 
 /* ── helper ────────────────────────────────────────────────────────── */
@@ -34,6 +35,7 @@ function TabContent({
   search,
   category,
   sort,
+  isNewResource,
   onOpen,
   onAdd,
 }: {
@@ -42,6 +44,7 @@ function TabContent({
   search: string;
   category: LibraryCategory | "ALL";
   sort: SortKey;
+  isNewResource: (r: LibraryResource) => boolean;
   onOpen: (r: LibraryResource) => void;
   onAdd: () => void;
 }) {
@@ -133,7 +136,13 @@ function TabContent({
     <>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
         {resources.map((res) => (
-          <ResourceCard key={res.id} resource={res} onOpen={() => onOpen(res)} showStatus={showStatus} />
+          <ResourceCard
+            key={res.id}
+            resource={res}
+            onOpen={() => onOpen(res)}
+            showStatus={showStatus}
+            isNew={tab === "library" && isNewResource(res)}
+          />
         ))}
       </div>
 
@@ -162,7 +171,7 @@ function TabContent({
 /* ── page ───────────────────────────────────────────────────────────── */
 export default function LibraryPage() {
   const reducedMotion = useReducedMotion();
-  const { sessionUser } = useTrak();
+  const { sessionUser, myNotifications, markNotifsRead } = useTrak();
 
   const [activeTab, setActiveTab] = useState<"library" | "mine">("library");
 
@@ -179,6 +188,28 @@ export default function LibraryPage() {
     { key: "library", label: "Approved Resources" },
     { key: "mine", label: "My Submissions" },
   ];
+
+  // Visiting the section clears the Library badge (both the submit-received
+  // notices members get and the review-queue notices heads get) and records
+  // "seen" so freshly added resources can be flagged as NEW.
+  useEffect(() => {
+    if (!sessionUser?.id) return;
+    markSectionSeen(sessionUser.id, "library");
+    const unread = myNotifications().filter(
+      (n) =>
+        !n.read &&
+        (n.type === "library_new" || n.type === "library_submitted"),
+    );
+    if (unread.length > 0) void markNotifsRead(unread.map((n) => n.id));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionUser?.id]);
+
+  const isNewResource = (r: LibraryResource) =>
+    isNewSinceSeen(
+      sessionUser.id,
+      "library",
+      (r.status === "APPROVED" && r.reviewedAt) || r.createdAt,
+    );
 
   return (
     <div>
@@ -301,6 +332,7 @@ export default function LibraryPage() {
               search={search}
               category={category}
               sort={sort}
+              isNewResource={isNewResource}
               onOpen={setDetailResource}
               onAdd={() => setAddOpen(true)}
             />
@@ -312,6 +344,7 @@ export default function LibraryPage() {
               search={search}
               category={category}
               sort={sort}
+              isNewResource={isNewResource}
               onOpen={setDetailResource}
               onAdd={() => setAddOpen(true)}
             />

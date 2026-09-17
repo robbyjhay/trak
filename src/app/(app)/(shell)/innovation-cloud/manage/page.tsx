@@ -18,6 +18,7 @@ import {
 import { ModalBackdrop, ModalPanel } from "@/components/ui/Modal";
 import { GhostBtn } from "@/components/ui/Buttons";
 import { TrakLoader } from "@/components/ui/TrakLoader";
+import { markSectionSeen } from "@/lib/seenSections";
 import { INNOVATION_CATEGORIES } from "@/lib/types";
 import type { Innovation, InnovationCategory, InnovationStatus } from "@/lib/types";
 
@@ -25,7 +26,19 @@ type SortOpt = "newest" | "oldest" | "name-asc" | "name-desc";
 
 export default function ManageInnovationPage() {
   const router = useRouter();
-  const { showToast } = useTrak();
+  const { sessionUser, showToast, myNotifications, markNotifsRead } = useTrak();
+
+  useEffect(() => {
+    if (!sessionUser?.id) return;
+    markSectionSeen(sessionUser.id, "innovation");
+    const unread = myNotifications().filter(
+      (n) =>
+        !n.read &&
+        (n.type === "innovation_new" || n.type === "innovation_submitted"),
+    );
+    if (unread.length > 0) void markNotifsRead(unread.map((n) => n.id));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionUser?.id]);
 
   const [innovations, setInnovations] = useState<Innovation[]>([]);
   const [total, setTotal] = useState(0);

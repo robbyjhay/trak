@@ -1,4 +1,4 @@
-import type { NotifType } from "@/lib/types";
+import type { NotifType, Notification } from "@/lib/types";
 
 /**
  * Client-safe notification policy (no server imports).
@@ -70,6 +70,9 @@ export function resolvePushContent(
   if (type === "innovation_submitted") {
     return { title: "New Innovation submitted", body: text, url: "/innovation-cloud/manage" };
   }
+  if (type === "innovation_new") {
+    return { title: "New innovation added", body: text, url: "/innovation-cloud" };
+  }
   if (type === "innovation_approved") {
     return { title: "Innovation approved!", body: text, url: "/innovation-cloud" };
   }
@@ -115,6 +118,72 @@ export function resolvePushContent(
     body: text,
     url: activityId ? `/activity/${activityId}` : "/activities",
   };
+}
+
+/**
+ * Resolve the deep-link URL for a notification.
+ * Uses the notification's activityId when available for activity-related types,
+ * falling back to the section-level route defined in NOTIFICATION_TAXONOMY.
+ */
+export function resolveNotificationDeepLink(n: Notification): string {
+  if (n.activityId) {
+    const ACTIVITY_DEEP_LINK_TYPES = new Set<NotifType>([
+      "activity_created",
+      "activity_completed",
+      "activity_missed",
+      "activity_reminder",
+      "comment",
+      "work_delegated",
+      "collaboration_invite",
+      "collaboration_accepted",
+      "collaboration_declined",
+    ]);
+    if (ACTIVITY_DEEP_LINK_TYPES.has(n.type)) {
+      return `/activity/${n.activityId}`;
+    }
+  }
+
+  // Chat notifications carry the originating message id; deep-link to the
+  // thread and have the messaging UI scroll to (and highlight) that message.
+  if (n.messageId) {
+    switch (n.type) {
+      case "dm":
+      case "community":
+      case "mention":
+      case "announcement":
+        return `/messages?message=${encodeURIComponent(n.messageId)}`;
+      default:
+        break;
+    }
+  }
+
+  switch (n.type) {
+    case "dm":
+    case "community":
+    case "mention":
+    case "broadcast":
+    case "announcement":
+      return "/messages";
+    case "library_submitted":
+      return "/library/manage";
+    case "library_new":
+    case "library_approved":
+    case "library_declined":
+      return "/library";
+    case "innovation_submitted":
+      return "/innovation-cloud/manage";
+    case "innovation_new":
+    case "innovation_approved":
+    case "innovation_declined":
+    case "innovation_implemented":
+      return "/innovation-cloud";
+    case "onboarding_requested":
+    case "onboarding_approved":
+    case "onboarding_declined":
+      return "/onboarding";
+    default:
+      return "/";
+  }
 }
 
 /**
@@ -242,6 +311,13 @@ export const NOTIFICATION_TAXONOMY: Record<
     deepLink: "/innovation-cloud/manage",
     prefCategory: "activities",
     dedupe: "60s identical-event window + submission key",
+  },
+  innovation_new: {
+    recipient: "Every active member (except submitter) once approved",
+    title: "New innovation added",
+    deepLink: "/innovation-cloud",
+    prefCategory: "activities",
+    dedupe: "innovation-new:{innovationId}",
   },
   innovation_approved: {
     recipient: "Submitting member on approval",

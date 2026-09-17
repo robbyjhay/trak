@@ -2386,7 +2386,7 @@ export async function listAnnouncements(
       orderBy: { createdAt: "desc" },
       skip,
       take: limit,
-      include: { reactions: true },
+      include: { reactions: true, mentions: { include: { user: { include: { profile: true } } } } },
     }),
     prisma.announcement.count({ where }),
   ]);
@@ -2400,6 +2400,7 @@ export async function listAnnouncements(
 export async function postAnnouncement(
   session: SessionUser,
   text: string,
+  mentions?: { userId: string; position: number }[],
   unitId: string = DEFAULT_UNIT_ID,
 ): Promise<{ id: string }> {
   const actor = await requireActor(session);
@@ -2418,26 +2419,64 @@ export async function postAnnouncement(
     );
   }
 
-  const row = await prisma.announcement.create({
-    data: { unitId, fromUserId: session.id, text: trimmed },
+  const row = await prisma.$transaction(async (tx) => {
+    const created = await tx.announcement.create({
+      data: { unitId, fromUserId: session.id, text: trimmed },
+    });
+    if (mentions && mentions.length > 0) {
+      await tx.announcementMention.createMany({
+        data: mentions.map((m) => ({
+          announcementId: created.id,
+          userId: m.userId,
+          position: m.position,
+        })),
+        skipDuplicates: true,
+      });
+    }
+    return created;
   });
 
-  const others = await prisma.user.findMany({
-    where: { isActive: true, id: { not: session.id } },
-    select: { id: true },
-  });
-  if (others.length) {
-    const textPreview = `Announcement from ${mapUser(actor).name}: ${trimmed}`;
-    // Centralized pipeline: persistent history always; push follows the
-    // messages preference (announcements are not mandatory like broadcasts).
-    await notifyMany(
-      others.map((u) => ({
-        userId: u.id,
-        type: "announcement" as const,
-        text: textPreview,
-        messageId: row.id,
-      })),
+  const senderName = mapUser(actor).name;
+  const preview = trimmed.length > 120 ? `${trimmed.slice(0, 120)}…` : trimmed;
+  // Centralized pipeline: persistent history always; push follows the
+  // messages preference (announcements are not mandatory like broadcasts).
+  // Mentioned users get ONE mention notification (not mention + announcement).
+  try {
+    const mentionedIds = new Set(
+      (mentions ?? []).map((m) => m.userId).filter((id) => id !== session.id),
     );
+
+    if (mentionedIds.size > 0) {
+      await notifyMany(
+        [...mentionedIds].map((userId) => ({
+          userId,
+          type: "mention" as const,
+          text: `${senderName} mentioned you in an announcement: "${preview}"`,
+          messageId: row.id,
+        })),
+      );
+    }
+
+    const others = await prisma.user.findMany({
+      where: {
+        isActive: true,
+        id: { not: session.id, notIn: [...mentionedIds] },
+      },
+      select: { id: true },
+    });
+    if (others.length) {
+      await notifyMany(
+        others.map((u) => ({
+          userId: u.id,
+          type: "announcement" as const,
+          text: `Announcement from ${senderName}: ${trimmed}`,
+          messageId: row.id,
+        })),
+      );
+    }
+  } catch (err) {
+    // Notifications must never break the announcement itself.
+    console.error("[postAnnouncement] notification fan-out failed:", err);
   }
 
   return { id: row.id };
@@ -2481,7 +2520,7 @@ export async function reactToAnnouncement(
   }
   const row = await prisma.announcement.findUnique({
     where: { id },
-    include: { reactions: true },
+    include: { reactions: true, mentions: { include: { user: { include: { profile: true } } } } },
   });
   if (!row) throw new ServiceError(404, "Announcement not found.");
   if (row.unitId !== DEFAULT_UNIT_ID) {
@@ -2501,7 +2540,7 @@ export async function reactToAnnouncement(
 
   const updated = await prisma.announcement.findUnique({
     where: { id },
-    include: { reactions: true },
+    include: { reactions: true, mentions: { include: { user: { include: { profile: true } } } } },
   });
   if (!updated) throw new ServiceError(404, "Announcement not found.");
   return mapAnnouncement(updated, session.id);
@@ -2607,7 +2646,7 @@ export async function getPollSnapshot(session: SessionUser): Promise<{
       where: { unitId: DEFAULT_UNIT_ID, deletedAt: null },
       orderBy: { createdAt: "desc" },
       take: 50,
-      include: { reactions: true },
+      include: { reactions: true, mentions: { include: { user: { include: { profile: true } } } } },
     }),
   ]);
 
@@ -2954,7 +2993,7 @@ export async function getScopedBootstrap(session: SessionUser): Promise<{
       where: { unitId: DEFAULT_UNIT_ID, deletedAt: null },
       orderBy: { createdAt: "desc" },
       take: 50,
-      include: { reactions: true },
+      include: { reactions: true, mentions: { include: { user: { include: { profile: true } } } } },
     }),
     prisma.notification.findMany({
       where: { userId: session.id },

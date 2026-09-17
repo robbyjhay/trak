@@ -39,6 +39,7 @@ export function ChatThread({
   canDeleteAny = false,
   onMentionClick,
   highlightedId: externalHighlightedId,
+  deepLinkMessageId,
   unreadDivider,
   reactions,
   onReact,
@@ -52,6 +53,8 @@ export function ChatThread({
   canDeleteAny?: boolean;
   onMentionClick?: (userId: string) => void;
   highlightedId?: string | null;
+  /** Message to scroll to + flash when navigating in from a notification. */
+  deepLinkMessageId?: string | null;
   unreadDivider?: { firstUnreadId: string; count: number };
   /** Announcement reactions keyed by message id, for the reaction bar under each bubble. */
   reactions?: Record<string, AnnouncementReaction[]>;
@@ -60,6 +63,7 @@ export function ChatThread({
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [highlightedId, setHighlightedId] = useState<string | null>(null);
+  const handledDeepLinkRef = useRef<string | null>(null);
   const reduceMotion = useReducedMotion();
 
   // Scroll to bottom on new messages — but not if a reply highlight is active
@@ -76,6 +80,35 @@ export function ChatThread({
       return () => clearTimeout(t);
     }
   }, [externalHighlightedId]);
+
+  // Deep link: once the target bubble exists in the DOM, scroll to it and
+  // flash it. Keeps retrying while items stream in, then never again for the
+  // same id.
+  useEffect(() => {
+    if (!deepLinkMessageId || handledDeepLinkRef.current === deepLinkMessageId) return;
+    let attempts = 0;
+    let timer: ReturnType<typeof setTimeout>;
+    const timers: ReturnType<typeof setTimeout>[] = [];
+    const target = () => {
+      const el = document.querySelector<HTMLElement>(
+        `[data-message-id="${CSS.escape(deepLinkMessageId)}"]`,
+      );
+      if (!el) {
+        attempts += 1;
+        if (attempts < 10) timer = setTimeout(target, 120);
+        return;
+      }
+      handledDeepLinkRef.current = deepLinkMessageId;
+      setHighlightedId(deepLinkMessageId);
+      scrollToMessage(deepLinkMessageId, scrollRef.current);
+      timers.push(setTimeout(() => setHighlightedId(null), 1500));
+    };
+    target();
+    return () => {
+      clearTimeout(timer);
+      timers.forEach(clearTimeout);
+    };
+  }, [deepLinkMessageId, items]);
 
   function handleBubbleReply(messageId: string) {
     onReply?.(messageId);

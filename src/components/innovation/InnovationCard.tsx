@@ -9,19 +9,26 @@ export function InnovationCard({
   innovation,
   onOpen,
   showStatus = false,
+  isNew = false,
 }: {
   innovation: Innovation;
   onOpen: () => void;
   showStatus?: boolean;
+  isNew?: boolean;
 }) {
   return (
     <article
       className={cn(
-        "overflow-hidden rounded-card border border-border bg-surface shadow-card",
+        "relative overflow-hidden rounded-card border border-border bg-surface shadow-card",
         "transition-all duration-150 hover:-translate-y-0.5 hover:shadow-modal",
         "focus-within:ring-2 focus-within:ring-primary",
       )}
     >
+      {isNew && (
+        <span className="absolute top-2 left-2 z-10 rounded-full bg-saffron px-2 py-0.5 text-[9.5px] font-extrabold tracking-wide text-saffron-foreground uppercase shadow-sm">
+          New
+        </span>
+      )}
       {/* Mobile: compact horizontal */}
       <div className="flex gap-3 p-4 sm:hidden">
         <div

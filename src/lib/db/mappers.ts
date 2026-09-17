@@ -7,6 +7,7 @@ import type {
   ActivityCollaborator as DbActivityCollaborator,
   ActivityResponsibility,
   Announcement as DbAnnouncement,
+  AnnouncementMention as DbAnnouncementMention,
   AnnouncementReaction as DbAnnouncementReaction,
   Attachment as DbAttachment,
   Attendee as DbAttendee,
@@ -120,6 +121,7 @@ export function mapResponsibility(row: DbResponsibility): Responsibility {
     desc: row.description,
     deliverables: parseDeliverables(row.deliverables),
     isActive: row.isActive,
+    createdAt: row.createdAt.toISOString(),
   };
 }
 
@@ -362,7 +364,10 @@ export function mapBroadcast(row: DbBroadcast): Broadcast {
 }
 
 export function mapAnnouncement(
-  row: DbAnnouncement & { reactions?: DbAnnouncementReaction[] },
+  row: DbAnnouncement & {
+    reactions?: DbAnnouncementReaction[];
+    mentions?: (DbAnnouncementMention & { user?: { id: string; profile?: { name: string } | null } })[];
+  },
   viewerId: string,
 ): Announcement {
   return {
@@ -372,6 +377,12 @@ export function mapAnnouncement(
     text: row.text,
     at: row.createdAt.toISOString(),
     reactions: summarizeReactions(row.reactions ?? [], viewerId),
+    mentions: row.mentions?.map((m) => ({
+      userId: m.userId,
+      displayName: m.user?.profile?.name ?? m.user?.id ?? "Unknown",
+      position: m.position,
+      length: (m as any).length,
+    })),
   };
 }
 

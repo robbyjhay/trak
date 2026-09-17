@@ -148,7 +148,7 @@ async function notifyHeadsOfSubmission(resource: { id: string; title: string }, 
   );
 }
 
-async function notifyUnitOfSubmission(resource: { id: string; title: string }, submitterId: string) {
+async function notifyUnitOfNewResource(resource: { id: string; title: string }, submitterId: string) {
   const members = await prisma.user.findMany({
     where: { isActive: true, role: { not: "head" }, id: { not: submitterId } },
     select: { id: true },
@@ -158,7 +158,7 @@ async function notifyUnitOfSubmission(resource: { id: string; title: string }, s
     members.map((m) => ({
       userId: m.id,
       type: "library_new" as const,
-      text: `A new Library resource "${resource.title}" has been submitted for approval.`,
+      text: `A new Library resource "${resource.title}" has been added to the Library.`,
       meta: { libraryId: resource.id, url: "/library" },
       dedupeKey: `library:new:${resource.id}`,
     })),
@@ -287,7 +287,6 @@ export async function submitLibraryResource(
   });
 
   await notifyHeadsOfSubmission(created, session.id);
-  await notifyUnitOfSubmission(created, session.id);
   return mapLibraryResource(created);
 }
 
@@ -320,6 +319,7 @@ export async function approveLibraryResource(
       dedupeKey: `library:review:${updated.id}:approved`,
     });
   }
+  await notifyUnitOfNewResource(updated, updated.submittedById);
   return mapLibraryResource(updated);
 }
 

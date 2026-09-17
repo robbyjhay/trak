@@ -26,6 +26,49 @@ describe("unitIntelligence Engine", () => {
     expect(result.narrative).toBe("There is no activity logged for this period.");
   });
 
+  it("Collaborative activities count toward the creator AND every accepted collaborator", () => {
+    const users = createMockUsers();
+    const acts: Partial<Activity>[] = [
+      {
+        id: "a1",
+        createdBy: "u1",
+        assigneeId: null,
+        collaborative: true,
+        status: "completed",
+        startDate: "2026-08-01",
+        endDate: "2026-08-01",
+        collaborators: [
+          { id: "c1", activityId: "a1", userId: "u2", status: "accepted", invitedById: "u1", respondedAt: "2026-07-31T01:00:00Z", createdAt: "2026-07-31T00:00:00Z" },
+        ],
+      },
+    ];
+    const logs: Partial<DailyLog>[] = [
+      { activityId: "a1", userId: "u1", date: "2026-08-01", attendanceCount: "5" },
+      { activityId: "a1", userId: "u2", date: "2026-08-01", attendanceCount: "4" },
+    ];
+
+    const result = generateUnitIntelligence({
+      currentActivities: acts as Activity[],
+      currentLogs: logs as DailyLog[],
+      prevActivities: null,
+      prevLogs: null,
+      users,
+      now,
+    });
+
+    // Both members are credited with the completed collaborative activity.
+    const m1 = result.memberStats.find((m) => m.userId === "u1")!;
+    const m2 = result.memberStats.find((m) => m.userId === "u2")!;
+    expect(m1.totalAssigned).toBe(1);
+    expect(m1.completed).toBe(1);
+    expect(m2.totalAssigned).toBe(1);
+    expect(m2.completed).toBe(1);
+
+    // Each member's participation logs are attributed only to themselves.
+    expect(m1.attendance).toBe(5);
+    expect(m2.attendance).toBe(4);
+  });
+
   it("Healthy unit", () => {
     // high completion, no overdue, good attendance, balanced workload
     const users = createMockUsers();

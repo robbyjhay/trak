@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback, useRef } from "react";
+import { useSearchParams } from "next/navigation";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { useNow } from "@/hooks/useNow";
 import { useTrak } from "@/context/TrakStore";
@@ -83,6 +84,9 @@ export function Messaging({
   const me = sessionUser.id;
   const isDesktop = useMediaQuery("(min-width: 768px)");
   const now = useNow();
+  const searchParams = useSearchParams();
+  const deepLinkMessageId = searchParams?.get("message") ?? null;
+  const deepLinkHandledRef = useRef<string | null>(null);
   
   const [activeConv, setActiveConv] = useState<string | null>(null);
   const [mobilePane, setMobilePane] = useState<"list" | "thread">("list");
@@ -272,6 +276,31 @@ export function Messaging({
     setNewConvOpen(false);
   }
 
+  // Notification deep-linking: /messages?message=<id> arrives from a tapped
+  // notification. Resolve the message to its thread (DM peer / community /
+  // announcements), open it, and hand the id to ChatThread for scroll+flash.
+  useEffect(() => {
+    const msgId = searchParams?.get("message") ?? null;
+    if (!msgId || deepLinkHandledRef.current === msgId) return;
+
+    const dm = db.dms.find((d) => d.id === msgId);
+    if (dm) {
+      deepLinkHandledRef.current = msgId;
+      openThread(dm.a === me ? dm.b : dm.a);
+      return;
+    }
+    if (db.community.some((c) => c.id === msgId)) {
+      deepLinkHandledRef.current = msgId;
+      openThread("community");
+      return;
+    }
+    if (db.announcements.some((a) => a.id === msgId)) {
+      deepLinkHandledRef.current = msgId;
+      openThread(ANNOUNCEMENT_CHANNEL);
+      return;
+    }
+  }, [searchParams, db.dms, db.community, db.announcements, me]);
+
   function handleBack() {
     if (window.location.hash === "#thread") {
       window.history.back();
@@ -426,6 +455,7 @@ export function Messaging({
                   userMap={userMap} 
                   isGroup={true}
                   unreadDivider={unreadDividers["community"]}
+                  deepLinkMessageId={deepLinkMessageId}
                   onMentionClick={openThread}
                   onReply={handleReplySelect}
                   onDeleteMessage={(messageId, forEveryone) => {
@@ -483,7 +513,7 @@ export function Messaging({
                     </div>
                   </div>
                 </div>
-                <AnnouncementsPanel />
+                <AnnouncementsPanel deepLinkMessageId={deepLinkMessageId} />
               </div>
             )}
 
@@ -607,6 +637,7 @@ export function Messaging({
                           me={me} 
                           userMap={userMap}
                           unreadDivider={unreadDividers[activeConv]}
+                          deepLinkMessageId={deepLinkMessageId}
                           onReply={handleReplySelect}
                           onDeleteMessage={(messageId, forEveryone) => {
                             void deleteDmMessage(messageId, forEveryone).catch(() =>

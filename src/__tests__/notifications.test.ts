@@ -2,9 +2,10 @@ import { describe, expect, test } from "vitest";
 import {
   NOTIFICATION_TAXONOMY,
   prefAllowsPush,
+  resolveNotificationDeepLink,
   resolvePushContent,
 } from "@/lib/notificationPolicy";
-import type { NotifType } from "@/lib/types";
+import type { NotifType, Notification } from "@/lib/types";
 
 const ALL_TYPES: NotifType[] = [
   "comment",
@@ -17,6 +18,24 @@ const ALL_TYPES: NotifType[] = [
   "broadcast",
   "announcement",
   "mention",
+  "work_delegated",
+  "collaboration_invite",
+  "collaboration_accepted",
+  "collaboration_declined",
+  "library_submitted",
+  "library_new",
+  "library_approved",
+  "library_declined",
+  "innovation_submitted",
+  "innovation_new",
+  "innovation_approved",
+  "innovation_declined",
+  "innovation_implemented",
+  "onboarding_requested",
+  "onboarding_approved",
+  "onboarding_declined",
+  "profile_updated",
+  "member_onboarded",
 ];
 
 describe("notification preferences gate delivery, never history", () => {
@@ -84,6 +103,86 @@ describe("push deep links", () => {
   test("activity types without an id fall back to list routes", () => {
     expect(resolvePushContent("activity_created", "hello", null).url).toBe("/activities");
     expect(resolvePushContent("comment", "hello").url).toBe("/activities");
+  });
+
+  test("collaboration types link to the activity and follow the activity toggle", () => {
+    for (const t of ["collaboration_invite", "collaboration_accepted", "collaboration_declined"] as NotifType[]) {
+      expect(resolvePushContent(t, "hello", "abc-123").url).toBe("/activity/abc-123");
+      const prefs = { notificationsEnabled: true, dmNotifications: true, activityNotifications: false };
+      expect(prefAllowsPush(prefs, t)).toBe(false);
+    }
+    expect(resolvePushContent("collaboration_invite", "hello").title).toBe("Collaboration invite");
+  });
+});
+
+describe("resolveNotificationDeepLink", () => {
+  function notif(type: NotifType, overrides: Partial<Notification> = {}) {
+    return {
+      id: "1",
+      userId: "u1",
+      type,
+      text: "hi",
+      activityId: null,
+      createdAt: new Date().toISOString(),
+      read: false,
+      ...overrides,
+    };
+  }
+
+  test("message types link to /messages", () => {
+    for (const t of ["dm", "community", "mention", "broadcast", "announcement"] as NotifType[]) {
+      expect(resolveNotificationDeepLink(notif(t))).toBe("/messages");
+    }
+  });
+
+  test("message types link to /messages even with an activityId present", () => {
+    expect(
+      resolveNotificationDeepLink(notif("dm", { activityId: "abc-123" })),
+    ).toBe("/messages");
+  });
+
+  test("message types deep-link to the exact message when messageId exists", () => {
+    for (const t of ["dm", "community", "mention", "announcement"] as NotifType[]) {
+      expect(
+        resolveNotificationDeepLink(notif(t, { messageId: "msg-42" })),
+      ).toBe("/messages?message=msg-42");
+    }
+    // Broadcasts are not a thread, so they stay on the plain messages route.
+    expect(
+      resolveNotificationDeepLink(notif("broadcast", { messageId: "msg-42" })),
+    ).toBe("/messages");
+  });
+
+  test("activity types deep-link to the singular activity when activityId exists", () => {
+    for (const t of ["activity_created", "activity_completed", "activity_missed", "activity_reminder", "comment", "work_delegated", "collaboration_invite", "collaboration_accepted", "collaboration_declined"] as NotifType[]) {
+      expect(resolveNotificationDeepLink(notif(t, { activityId: "abc-123" }))).toBe("/activity/abc-123");
+    }
+  });
+
+  test("library types link to the library sections", () => {
+    expect(resolveNotificationDeepLink(notif("library_submitted"))).toBe("/library/manage");
+    expect(resolveNotificationDeepLink(notif("library_new"))).toBe("/library");
+    expect(resolveNotificationDeepLink(notif("library_approved"))).toBe("/library");
+    expect(resolveNotificationDeepLink(notif("library_declined"))).toBe("/library");
+  });
+
+  test("innovation types link to the innovation sections", () => {
+    expect(resolveNotificationDeepLink(notif("innovation_submitted"))).toBe("/innovation-cloud/manage");
+    expect(resolveNotificationDeepLink(notif("innovation_new"))).toBe("/innovation-cloud");
+    expect(resolveNotificationDeepLink(notif("innovation_approved"))).toBe("/innovation-cloud");
+    expect(resolveNotificationDeepLink(notif("innovation_declined"))).toBe("/innovation-cloud");
+    expect(resolveNotificationDeepLink(notif("innovation_implemented"))).toBe("/innovation-cloud");
+  });
+
+  test("onboarding types link to /onboarding", () => {
+    for (const t of ["onboarding_requested", "onboarding_approved", "onboarding_declined"] as NotifType[]) {
+      expect(resolveNotificationDeepLink(notif(t))).toBe("/onboarding");
+    }
+  });
+
+  test("unknown types fall back to the home route", () => {
+    expect(resolveNotificationDeepLink(notif("profile_updated"))).toBe("/");
+    expect(resolveNotificationDeepLink(notif("member_onboarded"))).toBe("/");
   });
 });
 

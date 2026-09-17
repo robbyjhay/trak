@@ -23,6 +23,7 @@ export type NotifType =
   | "library_approved"
   | "library_declined"
   | "innovation_submitted"
+  | "innovation_new"
   | "innovation_approved"
   | "innovation_declined"
   | "innovation_implemented"
@@ -83,6 +84,8 @@ export interface Responsibility {
   desc: string;
   deliverables: string[];
   isActive: boolean;
+  /** ISO timestamp when the head created the responsibility (NEW marker). */
+  createdAt?: string;
 }
 
 export interface Attendee {
@@ -294,6 +297,7 @@ export interface Announcement {
   text: string;
   at: string;
   reactions: AnnouncementReaction[];
+  mentions?: MessageMention[];
 }
 
 export interface Notification {

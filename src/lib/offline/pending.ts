@@ -195,6 +195,7 @@ export function buildOfflineBroadcast(
 export function buildOfflineAnnouncement(
   from: string,
   text: string,
+  mentions?: { userId: string; displayName?: string; position: number; length: number }[],
   tempId: string = newTempId(),
 ): Announcement {
   return {
@@ -204,6 +205,12 @@ export function buildOfflineAnnouncement(
     text,
     at: new Date().toISOString(),
     reactions: [],
+    mentions: mentions?.map((m) => ({
+      userId: m.userId,
+      displayName: m.displayName ?? m.userId,
+      position: m.position,
+      length: m.length,
+    })),
   };
 }
 
@@ -219,6 +226,7 @@ export function buildOfflineResponsibility(
     desc: input.desc,
     deliverables: input.deliverables,
     isActive: true,
+    createdAt: new Date().toISOString(),
   };
 }
 

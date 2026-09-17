@@ -167,7 +167,9 @@ describe("Announcements — API routes", () => {
   test("POST route requires a session before posting", () => {
     const route = readFile("src/app/api/messages/announcements/route.ts");
     expect(route).toContain("requireSession()");
-    expect(route).toContain("postAnnouncement(session, body.text || \"\")");
+    expect(route).toContain("postAnnouncement(");
+    expect(route).toContain('body.text || ""');
+    expect(route).toContain("body.mentions");
     expect(route).toContain("checkRateLimit");
   });
 

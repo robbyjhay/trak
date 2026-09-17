@@ -134,6 +134,26 @@ async function notifyHeadsOfSubmission(
   );
 }
 
+async function notifyUnitOfNewInnovation(
+  innovation: { id: string; title: string },
+  submitterId: string,
+) {
+  const members = await prisma.user.findMany({
+    where: { isActive: true, role: { not: "head" }, id: { not: submitterId } },
+    select: { id: true },
+  });
+  if (members.length === 0) return;
+  await notifyMany(
+    members.map((m) => ({
+      userId: m.id,
+      type: "innovation_new" as const,
+      text: `A new Innovation idea "${innovation.title}" has been added to the Innovation Cloud.`,
+      meta: { innovationId: innovation.id, url: "/innovation-cloud" },
+      dedupeKey: `innovation:new:${innovation.id}`,
+    })),
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Queries
 // ---------------------------------------------------------------------------
@@ -282,6 +302,7 @@ export async function approveInnovation(
       dedupeKey: `innovation:review:${updated.id}:approved`,
     });
   }
+  await notifyUnitOfNewInnovation(updated, updated.submittedById);
   return mapInnovation(updated);
 }
 

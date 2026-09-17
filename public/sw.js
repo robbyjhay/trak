@@ -537,7 +537,16 @@ self.addEventListener("notificationclick", (event) => {
   event.notification.close();
 
   const payloadData = event.notification.data || {};
-  const urlToOpen = resolveTargetUrl(payloadData.url || "/dashboard");
+  let urlToOpen = resolveTargetUrl(payloadData.url || "/dashboard");
+  // Chat notifications carry the originating message id — deep-link to the
+  // thread so the app can open it and scroll to / highlight that message.
+  const msgId = payloadData.messageId;
+  const isMessageType = ["dm", "community", "mention", "announcement"].includes(payloadData.type);
+  if (isMessageType && msgId) {
+    const u = new URL(urlToOpen, self.location.origin);
+    u.searchParams.set("message", msgId);
+    urlToOpen = u.pathname + u.search;
+  }
   const absoluteUrl = new URL(urlToOpen, self.location.origin).href;
 
   event.waitUntil(

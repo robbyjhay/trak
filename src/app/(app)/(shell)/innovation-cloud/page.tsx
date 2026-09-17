@@ -10,6 +10,7 @@ import { SubmitInnovationModal } from "@/components/innovation/SubmitInnovationM
 import { InnovationDetailModal } from "@/components/innovation/InnovationDetailModal";
 import { BulbIcon, INNOVATION_CATEGORY_LABELS } from "@/components/innovation/bits";
 import { TrakLoader } from "@/components/ui/TrakLoader";
+import { markSectionSeen, isNewSinceSeen } from "@/lib/seenSections";
 import { INNOVATION_CATEGORIES } from "@/lib/types";
 import type { Innovation, InnovationCategory } from "@/lib/types";
 
@@ -17,7 +18,7 @@ type Tab = "hub" | "mine";
 type SortOpt = "newest" | "oldest" | "name-asc" | "name-desc";
 
 export default function InnovationCloudPage() {
-  const { sessionUser } = useTrak();
+  const { sessionUser, myNotifications, markNotifsRead } = useTrak();
 
   const [activeTab, setActiveTab] = useState<Tab>("hub");
   const [innovations, setInnovations] = useState<Innovation[]>([]);
@@ -79,6 +80,28 @@ export default function InnovationCloudPage() {
   useEffect(() => {
     setPage(1);
   }, [debouncedSearch, category, sort, activeTab]);
+
+  // Visiting the section clears the Innovation badge (both the approved-idea
+  // notices members get and the review-queue notices heads get) and records
+  // "seen" so newly added ideas can be flagged as NEW.
+  useEffect(() => {
+    if (!sessionUser?.id) return;
+    markSectionSeen(sessionUser.id, "innovation");
+    const unread = myNotifications().filter(
+      (n) =>
+        !n.read &&
+        (n.type === "innovation_new" || n.type === "innovation_submitted"),
+    );
+    if (unread.length > 0) void markNotifsRead(unread.map((n) => n.id));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionUser?.id]);
+
+  const isNewInnovation = (inno: Innovation) =>
+    isNewSinceSeen(
+      sessionUser.id,
+      "innovation",
+      (inno.status === "APPROVED" && inno.reviewedAt) || inno.createdAt,
+    );
 
   function handleCreated(innovation: Innovation) {
     // Go to "My Submissions" after creating
@@ -217,6 +240,7 @@ export default function InnovationCloudPage() {
                 innovation={inno}
                 onOpen={() => setDetailInnovation(inno)}
                 showStatus={activeTab === "mine"}
+                isNew={activeTab === "hub" && isNewInnovation(inno)}
               />
             ))}
           </div>

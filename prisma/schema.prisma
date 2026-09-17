@@ -132,6 +132,7 @@ enum NotificationType {
   library_approved
   library_declined
   innovation_submitted
+  innovation_new
   innovation_approved
   innovation_declined
   innovation_implemented
@@ -235,6 +236,7 @@ model User {
   communityMentions   CommunityMessageMention[] @relation("CommunityMessageMentionUser")
   broadcasts          Broadcast[]               @relation("BroadcastSender")
   announcements       Announcement[]            @relation("AnnouncementSender")
+  announcementMentions AnnouncementMention[]    @relation("AnnouncementMentionUser")
   announcementReactions AnnouncementReaction[]  @relation("AnnouncementReactionUser")
   callRecordsAsA      CallRecord[]              @relation("CallParticipantA")
   callRecordsAsB      CallRecord[]              @relation("CallParticipantB")
@@ -696,9 +698,23 @@ model Announcement {
 
   sender    User                   @relation("AnnouncementSender", fields: [fromUserId], references: [id], onDelete: Cascade)
   reactions AnnouncementReaction[]
+  mentions  AnnouncementMention[]
 
   @@index([unitId, createdAt])
   @@map("announcements")
+}
+
+model AnnouncementMention {
+  announcementId String @map("announcement_id") @db.Uuid
+  userId         String @map("user_id") @db.Uuid
+  position       Int    @default(0)
+
+  announcement Announcement @relation(fields: [announcementId], references: [id], onDelete: Cascade)
+  user         User         @relation("AnnouncementMentionUser", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([announcementId, userId])
+  @@index([userId])
+  @@map("announcement_mentions")
 }
 
 model AnnouncementReaction {

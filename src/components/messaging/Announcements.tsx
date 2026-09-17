@@ -8,7 +8,11 @@ import type { Dm } from "@/lib/types";
 import { ChatThread } from "./ChatThread";
 import { Composer, type ReplyingTo } from "./Composer";
 
-export function AnnouncementsPanel() {
+export function AnnouncementsPanel({
+  deepLinkMessageId,
+}: {
+  deepLinkMessageId?: string | null;
+}) {
   const { sessionUser, users, userMap, db, sendAnnouncement, deleteAnnouncement, showToast, reactToAnnouncement } = useTrak();
   const [input, setInput] = useState("");
   const [replyingTo, setReplyingTo] = useState<ReplyingTo>(null);
@@ -30,6 +34,7 @@ export function AnnouncementsPanel() {
           text: a.text,
           at: a.at,
         } as Dm,
+        mentions: a.mentions,
       }));
   }, [db.announcements]);
 
@@ -53,6 +58,7 @@ export function AnnouncementsPanel() {
         userMap={userMap}
         isGroup={true}
         onReply={handleReplySelect}
+        deepLinkMessageId={deepLinkMessageId}
         onDeleteMessage={(messageId, forEveryone) => {
           void deleteAnnouncement(messageId).catch(() =>
             showToast("Could not delete announcement", "Please try again."),
@@ -81,7 +87,7 @@ export function AnnouncementsPanel() {
             const text = input.trim();
             setInput("");
             setReplyingTo(null);
-            void sendAnnouncement(text)
+            void sendAnnouncement(text, mentions)
               .then(() => {
                 showToast(
                   "Announcement posted",
