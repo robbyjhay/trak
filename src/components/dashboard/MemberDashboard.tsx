@@ -6,6 +6,8 @@ import { addDays, iso } from "@/lib/dates";
 import { firstName } from "@/lib/utils";
 import { rampColor } from "@/lib/constants";
 import { PATHS } from "@/components/icons";
+import { GhostBtn } from "@/components/ui/Buttons";
+import { NotificationSetup } from "@/components/notifications/NotificationSetup";
 import type { User, Activity } from "@/lib/types";
 import { useEffect, useState } from "react";
 
@@ -22,6 +24,7 @@ export function MemberDashboard({ user }: { user: User }) {
 
   return (
     <div>
+      <NotificationSetup />
       {/* Featured Summary & Greeting */}
       <div
         className="mb-8 rounded-3xl bg-surface p-8 shadow-sm border border-border"

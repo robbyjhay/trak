@@ -21,7 +21,10 @@ import { motion, useReducedMotion } from "framer-motion";
 import { apiGet, apiSend } from "@/lib/api/client";
 import type { OnboardingRequestView } from "@/lib/services/onboarding.service";
 
+import { NotificationSetup } from "@/components/notifications/NotificationSetup";
+
 export function HeadDashboard() {
+
   const { userMap, users, sessionUser } = useTrak();
   const [panel, setPanel] = useState<"mine" | "ao">("ao");
   const head =
@@ -32,6 +35,7 @@ export function HeadDashboard() {
 
   return (
     <div>
+      <NotificationSetup />
       <div className="page-head mb-6">
         <div className="mb-2 text-[12px] font-bold tracking-[0.12em] text-saffron-dim dark:text-saffron uppercase">
           {longDateLabel(useTrak().now)} · PSSDC — Digital Learning Unit

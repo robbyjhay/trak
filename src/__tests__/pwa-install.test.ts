@@ -88,7 +88,8 @@ describe("manifest — single installable source", () => {
   test("layout links the manifest and iOS touch icon", () => {
     const layout = readSrc("src/app/layout.tsx");
     expect(layout).toContain('manifest: "/manifest.webmanifest"');
-    expect(layout).toContain("apple-touch-icon");
+    // apple-touch-icon must be a real <link> tag, not just a comment.
+    expect(layout).toContain('<link rel="apple-touch-icon"');
     expect(layout).toContain("appleWebApp");
   });
 

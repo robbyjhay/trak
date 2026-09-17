@@ -5,7 +5,8 @@ import { usePathname } from "next/navigation";
 import { LibraryIcon, PATHS } from "@/components/icons";
 import { cn } from "@/lib/utils";
 import { useTrak } from "@/context/TrakStore";
-import { countUnreadMessages } from "@/lib/unreadMessages";
+import { countUnreadMessages, countUnreadLibrary, countUnreadInnovation, countPendingActivities } from "@/lib/unreadMessages";
+import { countNewSinceSeen } from "@/lib/seenSections";
 import { isHead } from "@/lib/permissions";
 
 function RailSvg({
@@ -51,12 +52,26 @@ const NAV: {
 
 export function Rail() {
   const pathname = usePathname();
-  const { myNotifications, sessionUser } = useTrak();
-  const unread = countUnreadMessages(myNotifications());
+  const { myNotifications, sessionUser, bucket, responsibilities } = useTrak();
+  const notifs = myNotifications();
+  const unread = countUnreadMessages(notifs);
   const isHeadUser = isHead(sessionUser);
-  const onboardingPending = myNotifications().filter(
+  const onboardingPending = notifs.filter(
     (n) => n.type === "onboarding_requested" && !n.read,
   ).length;
+  const activitiesBadge = countPendingActivities(
+    bucket(sessionUser.id).pending,
+    sessionUser.id,
+    isHeadUser,
+  );
+  const responsibilitiesBadge = countNewSinceSeen(
+    sessionUser.id,
+    "responsibilities",
+    responsibilities.filter((r) => r.isActive !== false),
+    (r) => r.createdAt ?? "",
+  );
+  const libraryBadge = countUnreadLibrary(notifs, isHeadUser);
+  const innovationBadge = countUnreadInnovation(notifs, isHeadUser);
   const nav = NAV.filter((n) => !n.headOnly || isHeadUser);
 
   return (
@@ -87,7 +102,15 @@ export function Rail() {
               ? unread
               : item.href === "/onboarding"
                 ? onboardingPending
-                : 0
+                : item.href === "/activities"
+                  ? activitiesBadge
+                  : item.href === "/responsibilities"
+                    ? responsibilitiesBadge
+                    : item.href === "/library"
+                      ? libraryBadge
+                      : item.href === "/innovation-cloud"
+                        ? innovationBadge
+                        : 0
           }
         />
       ))}
@@ -122,6 +145,17 @@ function RailItem({
   return (
     <Link
       href={href}
+      data-tour={
+        href === "/dashboard" ? "dashboard"
+        : href === "/new-activity" ? "new-activity"
+        : href === "/activities" ? "activities"
+        : href === "/messages" ? "messages"
+        : href === "/responsibilities" ? "responsibilities"
+        : href === "/library" ? "library"
+        : href === "/innovation-cloud" ? "innovation"
+        : href === "/settings" ? "more"
+        : undefined
+      }
       className={cn(
         "group relative flex h-12 w-12 items-center justify-center rounded-rail transition-colors focus-visible:ring-2 focus-visible:ring-saffron focus-visible:outline-none",
         active

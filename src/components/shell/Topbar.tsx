@@ -14,6 +14,7 @@ import {
   APP_RECOVERY_NOTIFICATION,
   APP_RECOVERY_ICON_PATH,
 } from "@/lib/appRecoveryNotification";
+import { resolveNotificationDeepLink } from "@/lib/notificationPolicy";
 import { cn } from "@/lib/utils";
 import { useConnectNav } from "@/context/ConnectNav";
 import { ConnectTabs } from "@/components/messaging/ConnectTabs";
@@ -98,6 +99,7 @@ export function Topbar() {
         <div className="relative" ref={notifRef}>
           <button
             type="button"
+            data-tour="notifications"
             className="relative flex h-9 w-9 cursor-pointer items-center justify-center rounded-full text-foreground-secondary transition-colors hover:bg-surface-muted focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none"
             aria-label={`${unread} unread notifications`}
             onClick={() => {
@@ -162,17 +164,7 @@ export function Topbar() {
                       onClick={() => {
                         void markNotifRead(n.id);
                         setNotifOpen(false);
-                        if (n.activityId) router.push(`/activity/${n.activityId}`);
-                        else if (n.type === "dm" || n.type === "mention" || n.type === "broadcast") router.push("/messages");
-                        else if (n.type === "innovation_submitted") router.push("/innovation-cloud/manage");
-                        else if (n.type === "innovation_approved" || n.type === "innovation_declined" || n.type === "innovation_implemented") router.push("/innovation-cloud");
-                        else if (n.type === "library_submitted") router.push("/library/manage");
-                        else if (n.type === "library_new" || n.type === "library_approved" || n.type === "library_declined") router.push("/library");
-                        else if (n.type === "onboarding_requested" || n.type === "onboarding_approved" || n.type === "onboarding_declined") {
-                          if (n.type === "onboarding_requested") router.push("/onboarding");
-                          else if (sessionUser?.role === "head") router.push("/onboarding");
-                          else router.push("/");
-                        }
+                        router.push(resolveNotificationDeepLink(n));
                       }}
                     >
                       <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-[9px] bg-navigation-hover text-primary">
@@ -201,6 +193,7 @@ export function Topbar() {
         <div className="relative ml-2" ref={chipRef}>
           <button
             type="button"
+            data-tour="profile"
             className="flex cursor-pointer items-center gap-3 rounded-full border border-border/50 bg-surface p-1.5 sm:pr-4 transition-colors hover:bg-surface-hover focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none shadow-sm"
             onClick={() => {
               setMenuOpen((v) => !v);

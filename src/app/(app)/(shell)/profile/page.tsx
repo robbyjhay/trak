@@ -8,7 +8,6 @@ import { fmtDate } from "@/lib/dates";
 import { PATHS } from "@/components/icons";
 import { UserAvatar } from "@/components/ui/UserAvatar";
 import { Switch } from "@/components/ui/Switch";
-import { InstallAppRow } from "@/components/pwa/InstallAppRow";
 import {
   getPushUiState,
   requestPushPermissionAndSubscribe,
@@ -122,9 +121,8 @@ export default function ProfilePage() {
     };
   }, [refreshPushState]);
 
-  // Show the row for every state except truly-unsupported browsers, where
-  // push can never work and the row would only be noise.
-  const showNotifRow = pushState !== "unsupported";
+  // Hide the setup row completely if notifications are enabled.
+  const showNotifRow = pushState !== "enabled";
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [photoBusy, setPhotoBusy] = useState(false);
@@ -311,6 +309,15 @@ export default function ProfilePage() {
                 notifications from the installed app.
               </p>
             </div>
+          ) : pushState === "unsupported" ? (
+            <div className="flex shrink-0 flex-col items-end text-right">
+              <span className="mb-1 inline-block rounded-md bg-surface-muted px-3 py-1.5 text-[13px] font-bold text-muted-foreground">
+                Not Supported
+              </span>
+              <p className="w-44 text-[10px] leading-tight text-muted-foreground">
+                Push notifications are not supported in this browser.
+              </p>
+            </div>
           ) : (
             <Switch
               id="profile-notifications-toggle"
@@ -323,8 +330,6 @@ export default function ProfilePage() {
           )}
         </div>
       )}
-
-      <InstallAppRow />
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1.5fr_1fr]">
         <div

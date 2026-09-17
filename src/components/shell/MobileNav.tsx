@@ -7,7 +7,9 @@ import { LibraryIcon, PATHS } from "@/components/icons";
 import { cn } from "@/lib/utils";
 import { useConnectNav } from "@/context/ConnectNav";
 import { useTrak } from "@/context/TrakStore";
-import { countUnreadMessages } from "@/lib/unreadMessages";
+import { countUnreadMessages, countUnreadLibrary, countUnreadInnovation, countPendingActivities } from "@/lib/unreadMessages";
+import { countNewSinceSeen } from "@/lib/seenSections";
+import { isHead } from "@/lib/permissions";
 
 const NAV_LEFT = [
   { href: "/dashboard", defaultLabel: "Dashboard", path: PATHS.dashboard },
@@ -108,9 +110,24 @@ export function MobileNav() {
   const [open, setOpen] = useState(false);
   const [kbOpen, setKbOpen] = useState(false);
   const { isMobileThreadOpen } = useConnectNav();
-  const { myNotifications } = useTrak();
+  const { myNotifications, sessionUser, bucket, responsibilities } = useTrak();
   const panelRef = useRef<HTMLDivElement>(null);
-  const unread = countUnreadMessages(myNotifications());
+  const notifs = myNotifications();
+  const unread = countUnreadMessages(notifs);
+  const isHeadUser = isHead(sessionUser);
+  const activitiesBadge = countPendingActivities(
+    bucket(sessionUser.id).pending,
+    sessionUser.id,
+    isHeadUser,
+  );
+  const responsibilitiesBadge = countNewSinceSeen(
+    sessionUser.id,
+    "responsibilities",
+    responsibilities.filter((r) => r.isActive !== false),
+    (r) => r.createdAt ?? "",
+  );
+  const libraryBadge = countUnreadLibrary(notifs, isHeadUser);
+  const innovationBadge = countUnreadInnovation(notifs, isHeadUser);
 
   const isActive = (item: { href: string; also?: string[] }) => {
     if (pathname === item.href) return true;
@@ -186,19 +203,32 @@ export function MobileNav() {
               {NAV_LEFT.map((item) => {
                 const active = isActive(item);
                 const label = item.defaultLabel;
+                const badge = item.href === "/activities" ? activitiesBadge : 0;
                 return (
                   <Link
                     key={item.href}
                     href={item.href}
+                    data-tour={
+                      item.href === "/dashboard" ? "dashboard"
+                      : item.href === "/activities" ? "activities"
+                      : undefined
+                    }
                     aria-current={active ? "page" : undefined}
                     className={cn(
                       "flex h-full w-14 flex-col items-center justify-center gap-1 bg-transparent transition-colors hover:bg-transparent",
                       active ? "text-saffron" : "text-aztec dark:text-white hover:text-aztec dark:hover:text-white",
                     )}
                   >
-                    <svg className={cn(active && "text-saffron")} width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.25">
-                      <path d={item.path} />
-                    </svg>
+                    <span className="relative">
+                      <svg className={cn(active && "text-saffron")} width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.25">
+                        <path d={item.path} />
+                      </svg>
+                      {badge > 0 && (
+                        <span className="absolute -top-1.5 -right-2 flex h-4 min-w-4 items-center justify-center rounded-full bg-success px-1 font-sans text-[9.5px] font-extrabold text-success-foreground ring-2 ring-[#F8F9FA] dark:ring-[#0d1d1a]">
+                          {badge > 99 ? "99+" : badge}
+                        </span>
+                      )}
+                    </span>
                     <span className={cn("w-full truncate text-center text-[10px] font-bold", active ? "text-saffron" : "text-aztec dark:text-white")}>{label}</span>
                   </Link>
                 );
@@ -221,6 +251,7 @@ export function MobileNav() {
                   <Link
                     key={item.href}
                     href={pathname.startsWith("/contacts") && item.href === "/messages" ? "/contacts" : item.href}
+                    data-tour={item.href === "/messages" ? "messages" : undefined}
                     aria-current={active ? "page" : undefined}
                     className={cn(
                       "flex h-full w-14 flex-col items-center justify-center gap-1 bg-transparent transition-colors hover:bg-transparent",
@@ -248,6 +279,7 @@ export function MobileNav() {
                 aria-label="More options"
                 aria-expanded={open}
                 onClick={() => setOpen((v) => !v)}
+                data-tour="more"
                 className={cn(
                   "flex h-full w-14 flex-col items-center justify-center gap-1 bg-transparent transition-colors hover:bg-transparent",
                   open || isMoreActive ? "text-saffron" : "text-aztec dark:text-white",
@@ -265,6 +297,7 @@ export function MobileNav() {
           <div className="absolute left-1/2 top-[-24px] -translate-x-1/2">
             <Link
               href="/new-activity"
+              data-tour="new-activity"
               className="flex h-[62px] w-[62px] items-center justify-center rounded-full bg-primary text-primary-foreground shadow-[0_12px_24px_-4px_rgba(246,198,66,0.4)] transition-transform active:scale-95"
               aria-label="New Activity"
             >
@@ -311,6 +344,11 @@ export function MobileNav() {
             <div className="flex flex-col gap-1 p-2">
               {MORE_NAV.map((item) => {
                 const active = pathname === item.href || pathname.startsWith(item.href + "/");
+                const badge =
+                  item.href === "/library" ? libraryBadge
+                  : item.href === "/innovation-cloud" ? innovationBadge
+                  : item.href === "/responsibilities" ? responsibilitiesBadge
+                  : 0;
                 return (
                   <Link
                     key={item.href}
@@ -326,6 +364,11 @@ export function MobileNav() {
                   >
                     {item.icon}
                     <span className="truncate">{item.label}</span>
+                    {badge > 0 && (
+                      <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-success px-1.5 text-[10px] font-extrabold text-success-foreground">
+                        {badge > 99 ? "99+" : badge}
+                      </span>
+                    )}
                   </Link>
                 );
               })}

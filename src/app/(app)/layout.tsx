@@ -15,6 +15,7 @@ import { CallUiProvider } from "@/components/call/CallUiContext";
 import { IncomingCallOverlay } from "@/components/call/IncomingCallOverlay";
 import { CallExperience } from "@/components/call/CallExperience";
 import { getScopedBootstrap } from "@/lib/db/service";
+import { GuidedTour } from "@/components/shell/GuidedTour";
 
 export default async function AppLayout({
   children,
@@ -71,6 +72,7 @@ export default async function AppLayout({
               </div>
               <MobileNav />
               <Toast />
+              <GuidedTour />
             </CallUiProvider>
           </CallProvider>
         </ConnectNavProvider>
