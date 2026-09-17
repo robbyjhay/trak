@@ -402,7 +402,7 @@ export function CallProvider({
       const w = webrtcRef.current;
       const s = sendRef.current;
       const stream = await w.getLocalStream();
-      const pc = w.createPeerConnection(
+      const pc = await w.createPeerConnection(
         (candidate) => s({ type: "ice_candidate", to: partnerId, candidate }),
         () => {},
         handleIceConnected,
@@ -445,7 +445,7 @@ export function CallProvider({
       const w = webrtcRef.current;
       const s = sendRef.current;
       const stream = await w.getLocalStream();
-      const pc = w.createPeerConnection(
+      const pc = await w.createPeerConnection(
         (candidate) => s({ type: "ice_candidate", to: from, candidate }),
         () => {},
         handleIceConnected,

@@ -25,7 +25,20 @@
 - Signaling reliability: the client queues critical call messages (`call_offer`, `call_answer`, `ice_candidate`, `ice_restart_offer`, `ice_restart_answer`, `call_reject`, `call_end`) while the WebSocket is down and replays them on reconnect (10s TTL, de-duplicated, only while a call is active).
 - A `4000` "replaced" close normally stops reconnecting; during an active call the client reconnects (bounded) so offer/answer/ICE are not lost.
 - ICE restarts are bounded (2 attempts / 12s round-trip) and both sides enforce a call-establishment timeout, so a call that cannot connect terminates cleanly instead of ringing forever.
-- **TURN** is optional but strongly recommended so calls work behind symmetric NAT / strict firewalls. Google STUN is always included; configure TURN with:
+- **TURN** is optional but strongly recommended so calls work behind symmetric NAT / strict firewalls. Google STUN is always included.
+
+**Preferred — Cloudflare TURN (short-lived credential flow).** The TURN Token ID and API Token stay server-only (never `NEXT_PUBLIC_*`). Server env:
+
+| Variable | Notes |
+|----------|--------|
+| `TURN_KEY_ID` | Cloudflare Realtime TURN Token ID |
+| `TURN_API_TOKEN` | Cloudflare Realtime API token (server secret) |
+| `TURN_API_TTL_SECONDS` | Credential lifetime in seconds (default `3600`, Cloudflare max `172800`) |
+| `TURN_API_BASE_URL` | Optional endpoint override (defaults to `https://rtc.live.cloudflare.com`) |
+
+On call setup the client calls the authenticated `GET /api/calls/ice-servers`; the server posts to Cloudflare's `generate-ice-servers` endpoint, filters browser-blocked port-53 URLs, caches the short-lived config for its TTL, and returns only the generated STUN/TURN servers. If TURN isn't configured or the Cloudflare call fails, the endpoint stays silent (`iceServers: []` / 500) and the client falls back to STUN-only.
+
+**Fallback (legacy) — build-time env TURN.** Configure only when the Cloudflare flow is unavailable:
 
 | Variable | Notes |
 |----------|--------|

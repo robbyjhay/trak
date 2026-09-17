@@ -72,6 +72,19 @@ const envSchema = z.object({
   VAPID_PUBLIC_KEY: z.string().optional(), // Fallback if not using NEXT_PUBLIC_
   VAPID_PRIVATE_KEY: z.string().optional(),
   VAPID_SUBJECT: z.string().optional().default("mailto:admin@trak.local"),
+
+  // Cloudflare TURN (server-only) — short-lived STUN/TURN credentials are
+  // generated server-side and delivered to the browser via the authenticated
+  // GET /api/calls/ice-servers endpoint. Never expose these to the client.
+  TURN_KEY_ID: z.string().optional(),
+  TURN_API_TOKEN: z.string().optional(),
+  TURN_API_TTL_SECONDS: z
+    .coerce.number()
+    .int()
+    .positive()
+    .max(172800, "Cloudflare caps TURN credential TTL at 172800s (48h)")
+    .optional(),
+  TURN_API_BASE_URL: z.string().url().optional(),
 });
 
 export type AppEnv = z.infer<typeof envSchema> & {

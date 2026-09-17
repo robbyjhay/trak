@@ -38,7 +38,98 @@ export function resolveIceServers(
   return servers;
 }
 
-const ICE_SERVERS: RTCConfiguration = { iceServers: resolveIceServers() };
+/** How long to reuse a server-generated ICE config before refetching. */
+const ICE_SERVERS_CACHE_MS = 5 * 60_000;
+
+let cachedIceServers: { servers: RTCIceServer[]; fetchedAt: number } | null =
+  null;
+
+/**
+ * Resolve the ICE server configuration for the next PeerConnection.
+ *
+ * Preferred source: the authenticated TRAK API `/api/calls/ice-servers`,
+ * which returns short-lived STUN/TURN servers generated server-side from
+ * Cloudflare Realtime — the TURN Token ID / API token never reach the
+ * browser. When that is unavailable or returns nothing, this falls back to
+ * the original behavior (Google STUN always, plus any build-time
+ * NEXT_PUBLIC TURN config) so local/dev calls keep working.
+ */
+export async function getIceServers(
+  now: number = Date.now(),
+): Promise<RTCIceServer[]> {
+  if (
+    cachedIceServers &&
+    now - cachedIceServers.fetchedAt < ICE_SERVERS_CACHE_MS
+  ) {
+    return cachedIceServers.servers;
+  }
+
+  let remote: RTCIceServer[] = [];
+  try {
+    const res = await fetch("/api/calls/ice-servers", {
+      cache: "no-store",
+      headers: { Accept: "application/json" },
+    });
+    if (res.ok) {
+      const data = (await res.json()) as { iceServers?: RTCIceServer[] };
+      if (Array.isArray(data.iceServers)) remote = data.iceServers;
+    }
+  } catch (err) {
+    callDebug("[calls] failed to fetch ICE servers", err);
+  }
+
+  if (remote.length > 0) {
+    cachedIceServers = { servers: remote, fetchedAt: now };
+    callDebug(
+      "[calls] using server-generated ICE servers",
+      remote.length,
+      "server(s)",
+    );
+    return remote;
+  }
+
+  callDebug("[calls] falling back to default ICE servers");
+  return resolveIceServers();
+}
+
+/** Test hook — clears the client-side ICE server cache. */
+export function resetIceServersCache(): void {
+  cachedIceServers = null;
+}
+
+/**
+ * Diagnostics: when ICE connects, log the selected candidate-pair types so we
+ * can confirm whether TURN relay ("relay") or a direct route ("host" /
+ * "srflx") carried the call. Gated by callDebug — never logs credentials.
+ */
+async function logSelectedCandidatePairType(pc: RTCPeerConnection): Promise<void> {
+  try {
+    const stats = await pc.getStats();
+    let localType = "unknown";
+    let remoteType = "unknown";
+    stats.forEach((report) => {
+      if (report.type === "candidate-pair" && report.state === "succeeded") {
+        const local = report.localCandidateId
+          ? stats.get(report.localCandidateId)
+          : undefined;
+        const remote = report.remoteCandidateId
+          ? stats.get(report.remoteCandidateId)
+          : undefined;
+        if (local && "candidateType" in local) localType = local.candidateType;
+        if (remote && "candidateType" in remote) remoteType = remote.candidateType;
+      }
+    });
+    callDebug(
+      "[calls] ICE connected — selected pair type",
+      "local:",
+      localType,
+      "remote:",
+      remoteType,
+    );
+  } catch (err) {
+    callDebug("[calls] failed to read ICE stats", err);
+  }
+}
 
 /** How long to wait after ICE reports disconnection before declaring failure. */
 const DISCONNECTED_TIMEOUT_MS = 10_000;
@@ -96,13 +187,14 @@ export function useWebRtc() {
   }, []);
 
   const createPeerConnection = useCallback(
-    (
+    async (
       onIceCandidate: (candidate: RTCIceCandidateInit) => void,
       onRemoteStream: (stream: MediaStream) => void,
       onConnected: () => void,
       onFailed: () => void,
     ) => {
-      const pc = new RTCPeerConnection(ICE_SERVERS);
+      const iceServers = await getIceServers();
+      const pc = new RTCPeerConnection({ iceServers });
       pcRef.current = pc;
       // Fresh PeerConnection — reset the candidate-tracking buffers.
       bufferedCandidatesRef.current = [];
@@ -120,6 +212,9 @@ export function useWebRtc() {
       // ICE connection-state visibility (diagnostics only).
       pc.oniceconnectionstatechange = () => {
         callDebug("[calls] ICE connection state", pc.iceConnectionState);
+        if (pc.iceConnectionState === "connected") {
+          void logSelectedCandidatePairType(pc);
+        }
       };
 
       pc.ontrack = (e) => {
