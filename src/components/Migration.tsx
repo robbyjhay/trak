@@ -53,7 +53,10 @@ export function Migration() {
   return (
     <>
       <style>{`
+        :root { color-scheme: dark !important; }
         body { background-color: #100e0b !important; }
+        .migration-page { color: #f6f5f1; }
+        .migration-cta, .migration-url { color: #ffffff; }
         .aura-layer-2 { filter: blur(175px); opacity: 0.75; }
         .aura-layer-3 { filter: blur(125px); opacity: 0.75; }
         @media (min-width: 768px) {
@@ -66,7 +69,6 @@ export function Migration() {
             height: 100%;
             overscroll-behavior: none;
           }
-          .migration-cta { color: #ffffff; }
         }
         @media (max-width: 767px) and (max-height: 739px) {
           .migration-intro { display: none; }
@@ -193,7 +195,7 @@ export function Migration() {
                   href={NEW_TRAK_LOGIN_URL}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="block break-words font-mono text-[12.5px] leading-snug text-foreground transition-colors hover:text-primary md:text-[13.5px]"
+                  className="migration-url block break-words font-mono text-[12.5px] leading-snug text-foreground transition-colors hover:text-primary md:text-[13.5px]"
                 >
                   {NEW_HOST_DISPLAY}
                   <wbr />
