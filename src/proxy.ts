@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import { isOldTrakHost } from "@/lib/migration";
 
 /**
  * Edge middleware — cookie presence + public allowlist only (AUDIT_05 A).
@@ -157,6 +158,24 @@ export async function proxy(req: NextRequest) {
   if (isStaticOrInternal(pathname)) {
     const res = NextResponse.next();
     res.headers.set("x-request-id", requestId);
+    return res;
+  }
+
+  // Domain migration — retired host serves the "TRAK has moved" page only.
+  // Rewrite (never redirect) so this origin can't loop back on itself; the new
+  // domain and every unlisted host fall through to normal app routing, and API
+  // routes keep their existing behaviour on both hosts.
+  const retiredHost = isOldTrakHost(
+    req.headers.get("host") ?? req.headers.get("x-forwarded-host"),
+  );
+  if (retiredHost && !pathname.startsWith("/api/")) {
+    const res =
+      pathname === "/migration" || pathname === "/migration/"
+        ? NextResponse.next()
+        : NextResponse.rewrite(new URL("/migration", req.url));
+    res.headers.set("Cache-Control", "no-store");
+    res.headers.set("x-request-id", requestId);
+    applySecurityHeaders(res, requestId, nonce, isHttps);
     return res;
   }
 
